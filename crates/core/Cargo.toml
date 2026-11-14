@@ -16,6 +16,8 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 lofty = "0.25.5"
 notify-debouncer-mini = "0.7.0"
 pbkdf2 = "0.12"
+percent-encoding = "2.3.2"
+quick-xml = "0.42.0"
 rusqlite = { version = "0.42.0", features = ["bundled", "serialize"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.154"

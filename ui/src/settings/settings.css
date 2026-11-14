@@ -1,0 +1,60 @@
+.settings {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  max-width: 92vw;
+  padding: 16px 20px;
+  width: 560px;
+}
+
+.settings::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.settings h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.settings fieldset {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.settings legend {
+  color: var(--fg-dim);
+  padding: 0 4px;
+}
+
+.settings label {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.settings-path {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.settings-note {
+  color: var(--fg-dim);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.settings-result {
+  margin-top: 10px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}

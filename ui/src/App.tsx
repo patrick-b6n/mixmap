@@ -4,12 +4,14 @@ import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
 import { useLibrary } from "./library/useLibrary";
+import { SettingsDialog } from "./settings/SettingsDialog";
 import { Shell } from "./shell/Shell";
 
 export default function App() {
   const { error, library, refresh, status } = useLibrary();
   const [playlistId, setPlaylistId] = useState<string>();
   const [trackId, setTrackId] = useState<string>();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const selectedNode = useMemo(() => {
     if (!library || playlistId === undefined) return undefined;
@@ -43,6 +45,7 @@ export default function App() {
   const toolbar = (
     <>
       <button onClick={refresh}>Refresh</button>
+      <button onClick={() => setSettingsOpen(true)}>Settings</button>
       <span className="status" title={status?.location?.dbPath}>
         {status && `${status.trackCount} tracks · ${status.playlistCount} playlists`}
         {shownError && <span className="status-error"> · {shownError}</span>}
@@ -51,6 +54,8 @@ export default function App() {
   );
 
   return (
+    <>
+    {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
     <Shell
       details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
       graph={<div className="placeholder">Graph</div>}
@@ -76,5 +81,6 @@ export default function App() {
       }
       toolbar={toolbar}
     />
+    </>
   );
 }

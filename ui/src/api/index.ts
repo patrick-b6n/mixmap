@@ -46,10 +46,17 @@ export type ArtworkSize = "large" | "small";
 
 export type Location = { analysisRoot: string | null; dbPath: string; overridden: boolean };
 
+/** Where the library comes from. */
+export type LibrarySource =
+  | { kind: "auto" }
+  | { kind: "masterDb"; path: string }
+  | { kind: "xml"; path: string };
+
 export type LibraryStatus = {
   error: string | null;
   location: Location | null;
   playlistCount: number;
+  source: LibrarySource;
   trackCount: number;
   version: number;
 };
@@ -88,6 +95,7 @@ export const api = {
   library: () => call<Library>("library"),
   libraryStatus: () => call<LibraryStatus>("library_status"),
   refresh: () => call<LibraryStatus>("refresh"),
+  setLibrarySource: (source: LibrarySource) => call<LibraryStatus>("set_library_source", { source }),
 };
 
 export { subscribe } from "./events";

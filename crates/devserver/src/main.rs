@@ -20,7 +20,7 @@ use axum::{
 use mixmap_core::artwork::{ArtworkCache, Size};
 use mixmap_core::rekordbox::library::Track;
 use mixmap_core::rekordbox::playlists::Playlist;
-use mixmap_core::service::{LibraryService, Status};
+use mixmap_core::service::{LibraryService, Source, Status};
 use mixmap_core::Error;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -45,12 +45,12 @@ struct AppState {
 }
 
 impl AppState {
-    fn new(db_override: Option<std::path::PathBuf>) -> Self {
+    fn new(source: Source) -> Self {
         let (events, _) = broadcast::channel(64);
         let state = Self {
             artwork: Arc::new(ArtworkCache::new(mixmap_core::paths::artwork_dir())),
             events,
-            library: LibraryService::new(db_override),
+            library: LibraryService::new(source),
             watcher: Arc::new(Mutex::new(None)),
         };
         state.rewatch();
@@ -70,7 +70,7 @@ impl AppState {
         let new: Option<Box<dyn Send>> = match watcher {
             Ok(w) => Some(Box::new(w)),
             Err(e) => {
-                eprintln!("not watching master.db: {e}");
+                eprintln!("not watching the library source: {e}");
                 None
             }
         };
@@ -232,6 +232,26 @@ async fn artwork(
     }
 }
 
+#[derive(Deserialize)]
+struct SetSource {
+    source: Source,
+}
+
+/// Switch the library source (master.db auto/override or XML export) and reload.
+async fn set_library_source(
+    State(s): State<AppState>,
+    Json(req): Json<SetSource>,
+) -> Result<Json<Status>, StatusCode> {
+    let lib = s.library.clone();
+    let snap = tokio::task::spawn_blocking(move || lib.set_source(req.source))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let status = snap.status();
+    s.emit("library", &status);
+    s.rewatch();
+    Ok(Json(status))
+}
+
 fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/artwork/{track_id}", get(artwork))
@@ -241,12 +261,13 @@ fn app(state: AppState) -> Router {
         .route("/api/library_location", post(library_location))
         .route("/api/library_status", post(library_status))
         .route("/api/refresh", post(refresh))
+        .route("/api/set_library_source", post(set_library_source))
         .with_state(state)
 }
 
 #[tokio::main]
 async fn main() {
-    let state = AppState::new(None);
+    let state = AppState::new(Source::Auto);
     let status = state.library.current().status();
     println!(
         "library: {} tracks{}",
@@ -272,7 +293,8 @@ mod tests {
     fn fixture_app() -> Option<Router> {
         let db =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/master.db");
-        db.is_file().then(|| app(AppState::new(Some(db))))
+        db.is_file()
+            .then(|| app(AppState::new(Source::MasterDb { path: db })))
     }
 
     async fn send(app: &Router, method: &str, uri: &str) -> (StatusCode, Vec<u8>) {

@@ -1,5 +1,5 @@
 //! The loaded rekordbox library, kept current: manual `reload()` plus a debounced
-//! file watcher on `master.db` / `master.db-wal`.
+//! file watcher on the source file (`master.db` / `master.db-wal`, or the XML export).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -7,11 +7,25 @@ use std::time::Duration;
 
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::rekordbox::library::{self, Library};
 use crate::rekordbox::location::{self, Location};
+use crate::rekordbox::xml;
 use crate::Error;
+
+/// Where the library comes from.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum Source {
+    /// master.db as found via rekordbox's options.json.
+    #[default]
+    Auto,
+    /// A specific master.db (settings override).
+    MasterDb { path: PathBuf },
+    /// A rekordbox XML export (`DJ_PLAYLISTS`), the fallback source.
+    Xml { path: PathBuf },
+}
 
 /// One loaded state of the library. Cheap to share; replaced on every reload.
 #[derive(Debug, Default)]
@@ -20,6 +34,7 @@ pub struct Snapshot {
     pub error: Option<String>,
     pub library: Library,
     pub location: Option<Location>,
+    pub source: Source,
     /// Increases with every successful load.
     pub version: u64,
 }
@@ -31,6 +46,7 @@ pub struct Status {
     pub error: Option<String>,
     pub location: Option<Location>,
     pub playlist_count: usize,
+    pub source: Source,
     pub track_count: usize,
     pub version: u64,
 }
@@ -41,6 +57,7 @@ impl Snapshot {
             error: self.error.clone(),
             location: self.location.clone(),
             playlist_count: self.library.playlists.len(),
+            source: self.source.clone(),
             track_count: self.library.tracks.len(),
             version: self.version,
         }
@@ -49,7 +66,7 @@ impl Snapshot {
 
 pub struct LibraryService {
     current: RwLock<Arc<Snapshot>>,
-    db_override: RwLock<Option<PathBuf>>,
+    source: RwLock<Source>,
     /// Serializes reloads so two never race to publish.
     reloading: Mutex<()>,
 }
@@ -59,10 +76,10 @@ const DEBOUNCE: Duration = Duration::from_millis(1500);
 
 impl LibraryService {
     /// Create and load immediately (errors end up in the snapshot).
-    pub fn new(db_override: Option<PathBuf>) -> Arc<Self> {
+    pub fn new(source: Source) -> Arc<Self> {
         let s = Arc::new(Self {
             current: RwLock::new(Arc::new(Snapshot::default())),
-            db_override: RwLock::new(db_override),
+            source: RwLock::new(source),
             reloading: Mutex::new(()),
         });
         s.reload();
@@ -76,9 +93,9 @@ impl LibraryService {
             .clone()
     }
 
-    /// Change the settings override and reload.
-    pub fn set_db_override(&self, path: Option<PathBuf>) -> Arc<Snapshot> {
-        *self.db_override.write().unwrap_or_else(|e| e.into_inner()) = path;
+    /// Switch the library source and reload.
+    pub fn set_source(&self, source: Source) -> Arc<Snapshot> {
+        *self.source.write().unwrap_or_else(|e| e.into_inner()) = source;
         self.reload()
     }
 
@@ -87,24 +104,42 @@ impl LibraryService {
     pub fn reload(&self) -> Arc<Snapshot> {
         let _guard = self.reloading.lock().unwrap_or_else(|e| e.into_inner());
         let prev = self.current();
-        let db_override = self
-            .db_override
+        let source = self
+            .source
             .read()
             .unwrap_or_else(|e| e.into_inner())
             .clone();
-        let result = location::locate(db_override.as_deref())
-            .and_then(|loc| library::load(&loc.db_path).map(|lib| (loc, lib)));
+        let result = match &source {
+            Source::Auto => location::locate(None),
+            Source::MasterDb { path } => location::locate(Some(path)),
+            Source::Xml { path } => Ok(Location {
+                analysis_root: None,
+                db_path: path.clone(),
+                overridden: true,
+            }),
+        }
+        .and_then(|loc| {
+            let lib = match source {
+                Source::Xml { .. } => xml::load(&loc.db_path),
+                _ => library::load(&loc.db_path),
+            };
+            lib.map(|lib| (loc, lib))
+        });
         let next = Arc::new(match result {
             Ok((loc, lib)) => Snapshot {
                 error: None,
                 library: lib,
                 location: Some(loc),
+                source,
                 version: prev.version + 1,
             },
+            // Keep everything consistent with the last good load; the failed attempt is
+            // only reported through `error`.
             Err(e) => Snapshot {
                 error: Some(e.to_string()),
                 library: prev.library.clone(),
                 location: prev.location.clone(),
+                source: prev.source.clone(),
                 version: prev.version,
             },
         });
@@ -112,7 +147,7 @@ impl LibraryService {
         next
     }
 
-    /// Watch the current `master.db` and reload after changes settle. `on_reload` is
+    /// Watch the current source file and reload after changes settle. `on_reload` is
     /// called (on the watcher thread) with every new snapshot. Keep the returned
     /// watcher alive; dropping it stops watching. Call again after the location changes.
     pub fn watch(
@@ -125,7 +160,11 @@ impl LibraryService {
             .as_ref()
             .map(|l| l.db_path.clone())
             .ok_or_else(|| Error::NotFound("no rekordbox library to watch".into()))?;
-        let dir = db.parent().unwrap_or(Path::new(".")).to_path_buf();
+        let dir = db
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .to_path_buf();
         let name = lower_name(&db);
         let wal = format!("{name}-wal");
         let me = Arc::downgrade(self);
@@ -178,7 +217,7 @@ mod tests {
         let Some(db) = copy_fixture("reload") else {
             return;
         };
-        let svc = LibraryService::new(Some(db.clone()));
+        let svc = LibraryService::new(Source::MasterDb { path: db.clone() });
         let first = svc.current();
         assert_eq!(first.version, 1, "{:?}", first.error);
         assert!(!first.library.tracks.is_empty());
@@ -192,11 +231,40 @@ mod tests {
     }
 
     #[test]
+    fn xml_source_and_switching_back() {
+        let dir = std::env::temp_dir().join(format!("mixmap-svc-{}-xml", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let xml = dir.join("rekordbox.xml");
+        std::fs::write(
+            &xml,
+            r#"<DJ_PLAYLISTS><COLLECTION><TRACK TrackID="1" Name="A" TotalTime="60"/></COLLECTION></DJ_PLAYLISTS>"#,
+        )
+        .unwrap();
+        let svc = LibraryService::new(Source::Xml { path: xml.clone() });
+        let snap = svc.current();
+        assert_eq!(snap.error, None);
+        assert_eq!(snap.library.tracks.len(), 1);
+        assert_eq!(snap.status().source, Source::Xml { path: xml.clone() });
+
+        let snap = svc.set_source(Source::Xml {
+            path: dir.join("missing.xml"),
+        });
+        assert!(snap.error.is_some());
+        assert_eq!(snap.library.tracks.len(), 1, "keeps the last good library");
+        assert_eq!(
+            snap.source,
+            Source::Xml { path: xml.clone() },
+            "and its source"
+        );
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn watcher_reloads_after_change() {
         let Some(db) = copy_fixture("watch") else {
             return;
         };
-        let svc = LibraryService::new(Some(db.clone()));
+        let svc = LibraryService::new(Source::MasterDb { path: db.clone() });
         let (tx, rx) = mpsc::channel();
         let watcher = svc.watch(move |s| tx.send(s.version).unwrap()).unwrap();
         // Unrelated files in the folder are ignored...
