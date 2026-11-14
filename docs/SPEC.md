@@ -2,8 +2,6 @@
 
 MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** library and lets you build a **directed graph of transitions** between tracks (A → B = "I can mix A into B"). While mixing, a small overlay shows which tracks are linked to the ones currently loaded in rekordbox.
 
-Inspired by [MixTree](https://www.mixtree.studio/), but local, offline and wired directly into rekordbox.
-
 ## Platform & architecture
 
 - **Tauri 2 + React + TypeScript**, Rust backend. Windows only. **Dark theme only.**
