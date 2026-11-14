@@ -4,6 +4,16 @@
 
 export type Hello = { message: string; version: string };
 
+export type Location = { analysisRoot: string | null; dbPath: string; overridden: boolean };
+
+export type LibraryStatus = {
+  error: string | null;
+  location: Location | null;
+  playlistCount: number;
+  trackCount: number;
+  version: number;
+};
+
 type Args = Record<string, unknown>;
 
 declare global {
@@ -26,4 +36,8 @@ export async function call<T>(command: string, args: Args = {}): Promise<T> {
 
 export const api = {
   hello: () => call<Hello>("hello"),
+  libraryStatus: () => call<LibraryStatus>("library_status"),
+  refresh: () => call<LibraryStatus>("refresh"),
 };
+
+export { subscribe } from "./events";

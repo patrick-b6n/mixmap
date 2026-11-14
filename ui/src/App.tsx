@@ -1,17 +1,41 @@
-import { useEffect, useState } from "react";
-import { api } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { api, subscribe, type LibraryStatus } from "./api";
 
 export default function App() {
-  const [msg, setMsg] = useState("…");
+  const [status, setStatus] = useState<LibraryStatus>();
+  const [error, setError] = useState<string>();
+
   useEffect(() => {
     let live = true;
-    api.hello().then(
-      (h) => live && setMsg(`${h.message} (v${h.version})`),
-      (e) => live && setMsg(String(e)),
-    );
+    const load = () =>
+      api.libraryStatus().then(
+        (s) => live && setStatus(s),
+        (e) => live && setError(String(e)),
+      );
+    load();
+    const offLibrary = subscribe("library", (s) => setStatus(s as LibraryStatus));
+    const offReconnect = subscribe("reconnect", load);
     return () => {
       live = false;
+      offLibrary();
+      offReconnect();
     };
   }, []);
-  return <main style={{ padding: 16 }}>{msg}</main>;
+
+  const refresh = useCallback(() => {
+    api.refresh().then(setStatus, (e) => setError(String(e)));
+  }, []);
+
+  return (
+    <main style={{ padding: 16 }}>
+      <button onClick={refresh}>Refresh</button>{" "}
+      {status && (
+        <span data-testid="library-status">
+          v{status.version}: {status.trackCount} tracks, {status.playlistCount} playlists
+          {status.error && ` — ${status.error}`}
+        </span>
+      )}
+      {error && <span>{error}</span>}
+    </main>
+  );
 }
