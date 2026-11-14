@@ -3,6 +3,7 @@
 use serde::Serialize;
 
 mod error;
+pub mod keys;
 pub mod rekordbox;
 
 pub use error::Error;

@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use super::playlists::{read_histories, read_playlists, Playlist};
 use super::sqlcipher;
+use crate::keys::Key;
 use crate::Error;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -24,6 +25,10 @@ pub struct Track {
     pub id: String,
     /// rekordbox key name as stored (`ScaleName`), e.g. "8A" or "Am"; see `keys`.
     pub key: String,
+    /// Camelot notation ("8A"), empty if the key is unknown.
+    pub key_camelot: String,
+    /// Musical notation ("Am"), empty if the key is unknown.
+    pub key_musical: String,
     /// Length in seconds.
     pub length: u32,
     /// 0–5 stars.
@@ -84,6 +89,8 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
     )?;
     let rows = stmt.query_map([], |r| {
         let artwork: String = r.get(11)?;
+        let key: String = r.get(6)?;
+        let parsed = Key::parse(&key);
         Ok(Track {
             album: r.get(3)?,
             artist: r.get(2)?,
@@ -93,7 +100,9 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
             file_path: r.get(10)?,
             genre: r.get(4)?,
             id: r.get(0)?,
-            key: r.get(6)?,
+            key_camelot: parsed.map(Key::camelot).unwrap_or_default(),
+            key_musical: parsed.map(|k| k.musical().to_string()).unwrap_or_default(),
+            key,
             length: r.get(9)?,
             rating: r.get(7)?,
             title: r.get(1)?,
@@ -132,6 +141,7 @@ pub(crate) mod tests {
             assert!(!t.title.is_empty(), "{t:?}");
             assert!(t.bpm == 0.0 || (40.0..300.0).contains(&t.bpm), "{t:?}");
             assert!(t.rating <= 5);
+            assert_eq!(t.key.is_empty(), t.key_camelot.is_empty(), "{t:?}");
         }
     }
 
