@@ -2,4 +2,5 @@
 
 pub mod library;
 pub mod location;
+pub mod playlists;
 mod sqlcipher;
