@@ -147,7 +147,9 @@ mod tests {
 
     #[test]
     fn enharmonics_and_spellings() {
-        let p = |s| Key::parse(s).map(Key::camelot);
+        fn p(s: &str) -> Option<String> {
+            Key::parse(s).map(Key::camelot)
+        }
         assert_eq!(p("G#m").as_deref(), Some("1A"));
         assert_eq!(p("D#m").as_deref(), Some("2A"));
         assert_eq!(p("Gb").as_deref(), Some("2B"));
