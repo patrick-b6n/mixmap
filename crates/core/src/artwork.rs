@@ -210,8 +210,6 @@ mod tests {
             genre: String::new(),
             id: "1".into(),
             key: String::new(),
-            key_camelot: String::new(),
-            key_musical: String::new(),
             length: 0,
             rating: 0,
             title: String::new(),

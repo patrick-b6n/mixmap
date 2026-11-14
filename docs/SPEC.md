@@ -7,10 +7,11 @@ Inspired by [MixTree](https://www.mixtree.studio/), but local, offline and wired
 ## Platform & architecture
 
 - **Tauri 2 + React + TypeScript**, Rust backend. Windows only. **Dark theme only.**
+- **TypeScript first, Rust only where necessary.** Rust is a thin I/O layer for what a browser can't do; all domain logic lives in TypeScript.
 - Layout of the repo:
-  - `crates/core` — all logic: rekordbox reading, MixMap DB, matching, export/import, sync, artwork, now-playing detection.
+  - `crates/core` — I/O only: locating and decrypting rekordbox `master.db` and returning raw library data, file watching, artwork extraction and thumbnail cache, MixMap SQLite storage, network (mDNS, sync transport), memory reader for now-playing.
   - `crates/devserver` — small local HTTP server (axum) exposing the same API as the Tauri commands, for fast dev loops in a plain browser.
-  - `ui/` — React (Vite) frontend. Talks to the backend through **one API adapter**: HTTP to the devserver in the browser, `invoke` in Tauri.
+  - `ui/` — React (Vite) frontend **and all domain logic** (`ui/src/domain/`): keys and compatibility, portable track keys and matching, links/boards rules, export/import and merge/sync semantics, filters, pair import, path-finding. Talks to the backend through **one API adapter**: HTTP to the devserver in the browser, `invoke` in Tauri.
   - `src-tauri/` — added **late**: thin shell over `core`. Needed only for overlay window, global hotkey, updater and installer.
 - Daily dev loop: `vite` + `cargo run -p devserver`, browser.
 
@@ -84,8 +85,8 @@ Inspired by [MixTree](https://www.mixtree.studio/), but local, offline and wired
 
 ## Testing
 
-- Rust unit tests: rekordbox reader (against a local snapshot in `fixtures/`, git-ignored), DB, merge/sync semantics, portable-key matching.
-- Vitest: filters, key compatibility, graph operations.
+- Rust unit tests: rekordbox reader (against a local snapshot in `fixtures/`, git-ignored), storage, watcher, artwork.
+- Vitest: domain logic — keys and compatibility, filters, graph operations, merge/sync semantics, portable-key matching.
 - Manual verification in the browser against the devserver. No E2E suite for now.
 
 ## Milestones
