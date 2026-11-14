@@ -2,6 +2,11 @@
 
 use serde::Serialize;
 
+mod error;
+pub mod rekordbox;
+
+pub use error::Error;
+
 #[derive(Debug, Serialize)]
 pub struct Hello {
     pub message: String,
