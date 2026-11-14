@@ -1,0 +1,60 @@
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-heading {
+  color: var(--fg-dim);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 10px 8px 4px;
+  text-transform: uppercase;
+}
+
+.tree-row {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 4px;
+  height: 24px;
+  padding-right: 8px;
+  user-select: none;
+}
+
+.tree-row:hover {
+  background: #22262d;
+}
+
+.tree-row:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.tree-row.selected {
+  background: #253246;
+}
+
+.tree-twisty {
+  color: var(--fg-dim);
+  text-align: center;
+  width: 12px;
+}
+
+.tree-icon {
+  color: var(--fg-dim);
+  text-align: center;
+  width: 18px;
+}
+
+.tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-count {
+  color: var(--fg-dim);
+  font-size: 11px;
+}

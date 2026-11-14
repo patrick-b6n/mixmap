@@ -1,39 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, type LibraryStatus, subscribe } from "./api";
+import { useEffect, useMemo, useState } from "react";
+import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
+import { PlaylistTree } from "./library/PlaylistTree";
+import { useLibrary } from "./library/useLibrary";
 import { Shell } from "./shell/Shell";
 
 export default function App() {
-  const [status, setStatus] = useState<LibraryStatus>();
-  const [error, setError] = useState<string>();
+  const { error, library, refresh, status } = useLibrary();
+  const [playlistId, setPlaylistId] = useState<string>();
 
+  const selectedNode = useMemo(() => {
+    if (!library || playlistId === undefined) return undefined;
+    return findNode(buildTree(library.playlists), playlistId) ?? findNode(buildTree(library.histories), playlistId);
+  }, [library, playlistId]);
+
+  // The selected playlist disappeared in a reload: fall back to all tracks.
   useEffect(() => {
-    let live = true;
-    const load = () =>
-      api.libraryStatus().then(
-        (s) => live && setStatus(s),
-        (e) => live && setError(String(e)),
-      );
-    load();
-    const offLibrary = subscribe("library", (s) => setStatus(s as LibraryStatus));
-    const offReconnect = subscribe("reconnect", load);
-    return () => {
-      live = false;
-      offLibrary();
-      offReconnect();
-    };
-  }, []);
+    if (library && playlistId !== undefined && !selectedNode) setPlaylistId(undefined);
+  }, [library, playlistId, selectedNode]);
 
-  const refresh = useCallback(() => {
-    setError(undefined);
-    api.refresh().then(setStatus, (e) => setError(String(e)));
-  }, []);
+  /** Track ids of the selected playlist/folder/history, or undefined = all tracks. */
+  const playlistTrackIds = selectedNode ? trackIdsOf(selectedNode) : undefined;
 
+  const shownError = status?.error ?? error;
   const toolbar = (
     <>
       <button onClick={refresh}>Refresh</button>
       <span className="status" title={status?.location?.dbPath}>
         {status && `${status.trackCount} tracks · ${status.playlistCount} playlists`}
-        {(status?.error ?? error) && <span className="status-error"> · {status?.error ?? error}</span>}
+        {shownError && <span className="status-error"> · {shownError}</span>}
       </span>
     </>
   );
@@ -42,8 +36,24 @@ export default function App() {
     <Shell
       details={<div className="placeholder">Select a track</div>}
       graph={<div className="placeholder">Graph</div>}
-      playlists={<div className="placeholder">Playlists</div>}
-      table={<div className="placeholder">Tracks</div>}
+      playlists={
+        library ? (
+          <PlaylistTree
+            histories={library.histories}
+            onSelect={setPlaylistId}
+            playlists={library.playlists}
+            selectedId={selectedNode?.playlist.id}
+            trackCount={library.tracks.length}
+          />
+        ) : (
+          <div className="placeholder">Loading…</div>
+        )
+      }
+      table={
+        <div className="placeholder" data-testid="table-placeholder">
+          {(playlistTrackIds ?? library?.tracks ?? []).length} tracks
+        </div>
+      }
       toolbar={toolbar}
     />
   );
