@@ -1,0 +1,12 @@
+[package]
+name = "mixmap-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "mixmap_core"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

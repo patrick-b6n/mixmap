@@ -1,0 +1,10 @@
+[package]
+name = "devserver"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+axum = "0.8"
+mixmap-core = { path = "../core" }
+tokio = { version = "1", features = ["full"] }
