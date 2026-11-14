@@ -211,11 +211,13 @@ name = "devserver"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "http-body-util",
  "mixmap-core",
  "serde",
  "serde_json",
  "tokio",
  "tokio-stream",
+ "tower",
 ]
 
 [[package]]

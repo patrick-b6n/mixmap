@@ -4,6 +4,46 @@
 
 export type Hello = { message: string; version: string };
 
+export type Track = {
+  album: string;
+  artist: string;
+  artworkPath: string | null;
+  bpm: number;
+  comment: string;
+  filePath: string;
+  genre: string;
+  id: string;
+  /** rekordbox key as stored; parse with domain/keys. */
+  key: string;
+  /** Seconds. */
+  length: number;
+  /** 0–5 stars. */
+  rating: number;
+  title: string;
+};
+
+export type PlaylistKind = "folder" | "history" | "playlist" | "smart";
+
+export type Playlist = {
+  id: string;
+  kind: PlaylistKind;
+  name: string;
+  parentId: string | null;
+  seq: number;
+  /** Ordered contents; empty for folders and smart playlists. */
+  trackIds: string[];
+};
+
+/** One consistent snapshot of the rekordbox library. */
+export type Library = {
+  histories: Playlist[];
+  playlists: Playlist[];
+  tracks: Track[];
+  version: number;
+};
+
+export type ArtworkSize = "large" | "small";
+
 export type Location = { analysisRoot: string | null; dbPath: string; overridden: boolean };
 
 export type LibraryStatus = {
@@ -34,8 +74,18 @@ export async function call<T>(command: string, args: Args = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * Image URL for a track's artwork (404 → show a placeholder). `version` is the
+ * library version, so a reload busts the browser cache.
+ * TODO(#42): Tauri needs a custom protocol for this.
+ */
+export function artworkUrl(trackId: string, size: ArtworkSize, version: number): string {
+  return `/api/artwork/${encodeURIComponent(trackId)}?size=${size}&v=${version}`;
+}
+
 export const api = {
   hello: () => call<Hello>("hello"),
+  library: () => call<Library>("library"),
   libraryStatus: () => call<LibraryStatus>("library_status"),
   refresh: () => call<LibraryStatus>("refresh"),
 };

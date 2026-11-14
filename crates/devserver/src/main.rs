@@ -8,8 +8,8 @@ use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{Path, Query, State},
+    http::{header, StatusCode},
     response::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
@@ -17,8 +17,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use mixmap_core::artwork::{ArtworkCache, Size};
+use mixmap_core::rekordbox::library::Track;
+use mixmap_core::rekordbox::playlists::Playlist;
 use mixmap_core::service::{LibraryService, Status};
 use mixmap_core::Error;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_stream::{wrappers::BroadcastStream, Stream, StreamExt};
 
@@ -33,6 +37,7 @@ struct BackendEvent {
 
 #[derive(Clone)]
 struct AppState {
+    artwork: Arc<ArtworkCache>,
     events: broadcast::Sender<BackendEvent>,
     library: Arc<LibraryService>,
     /// Keeps the master.db watcher alive.
@@ -40,11 +45,12 @@ struct AppState {
 }
 
 impl AppState {
-    fn new() -> Self {
+    fn new(db_override: Option<std::path::PathBuf>) -> Self {
         let (events, _) = broadcast::channel(64);
         let state = Self {
+            artwork: Arc::new(ArtworkCache::new(mixmap_core::paths::artwork_dir())),
             events,
-            library: LibraryService::new(None),
+            library: LibraryService::new(db_override),
             watcher: Arc::new(Mutex::new(None)),
         };
         state.rewatch();
@@ -142,10 +148,95 @@ async fn events(State(s): State<AppState>) -> Sse<impl Stream<Item = Result<Even
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
+/// The whole library as one consistent snapshot: tracks, playlist and history trees
+/// (each node with its ordered track ids = contents) and the version they belong to.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LibraryData<'a> {
+    histories: &'a [Playlist],
+    playlists: &'a [Playlist],
+    tracks: &'a [Track],
+    version: u64,
+}
+
+async fn library(State(s): State<AppState>) -> Result<Response, StatusCode> {
+    let snap = s.library.current();
+    // Serializing a large library is CPU work: keep it off the async workers.
+    let body = tokio::task::spawn_blocking(move || {
+        let lib = &snap.library;
+        serde_json::to_vec(&LibraryData {
+            histories: &lib.histories,
+            playlists: &lib.playlists,
+            tracks: &lib.tracks,
+            version: snap.version,
+        })
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
+}
+
+#[derive(Deserialize)]
+struct ArtworkQuery {
+    size: Option<Size>,
+}
+
+/// `GET /api/artwork/{track_id}?size=small|large`: JPEG thumbnail, 404 when the track
+/// has no artwork (the UI then shows a placeholder).
+async fn artwork(
+    State(s): State<AppState>,
+    Path(track_id): Path<String>,
+    Query(q): Query<ArtworkQuery>,
+) -> Response {
+    let snap = s.library.current();
+    let cache = s.artwork.clone();
+    let size = q.size.unwrap_or(Size::Small);
+    let result = tokio::task::spawn_blocking(move || {
+        let track = snap.library.tracks.iter().find(|t| t.id == track_id)?;
+        let root = snap
+            .location
+            .as_ref()
+            .and_then(|l| l.analysis_root.as_deref());
+        let path = cache.thumbnail(track, root, size)?;
+        Some(std::fs::read(path))
+    })
+    .await;
+    match result {
+        Ok(Some(Ok(bytes))) => (
+            [
+                (header::CONTENT_TYPE, "image/jpeg"),
+                // URLs carry the library version, so the content never changes.
+                (
+                    header::CACHE_CONTROL,
+                    "private, max-age=31536000, immutable",
+                ),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            [(header::CACHE_CONTROL, "private, max-age=60")],
+        )
+            .into_response(),
+        Ok(Some(Err(e))) => {
+            eprintln!("artwork: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+        Err(e) => {
+            eprintln!("artwork task failed: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 fn app(state: AppState) -> Router {
     Router::new()
+        .route("/api/artwork/{track_id}", get(artwork))
         .route("/api/events", get(events))
         .route("/api/hello", post(|| async { Json(mixmap_core::hello()) }))
+        .route("/api/library", post(library))
         .route("/api/library_location", post(library_location))
         .route("/api/library_status", post(library_status))
         .route("/api/refresh", post(refresh))
@@ -154,7 +245,7 @@ fn app(state: AppState) -> Router {
 
 #[tokio::main]
 async fn main() {
-    let state = AppState::new();
+    let state = AppState::new(None);
     let status = state.library.current().status();
     println!(
         "library: {} tracks{}",
@@ -167,4 +258,51 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(ADDR).await.expect("bind");
     println!("devserver listening on http://{ADDR}");
     axum::serve(listener, app(state)).await.expect("serve");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::Request;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    fn fixture_app() -> Option<Router> {
+        let db =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/master.db");
+        db.is_file().then(|| app(AppState::new(Some(db))))
+    }
+
+    async fn send(app: &Router, method: &str, uri: &str) -> (StatusCode, Vec<u8>) {
+        let req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        let status = res.status();
+        (
+            status,
+            res.into_body().collect().await.unwrap().to_bytes().to_vec(),
+        )
+    }
+
+    #[tokio::test]
+    async fn library_endpoints() {
+        let Some(app) = fixture_app() else { return };
+        let (st, body) = send(&app, "POST", "/api/library").await;
+        assert_eq!(st, StatusCode::OK);
+        let lib: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let tracks = &lib["tracks"];
+        assert!(!tracks.as_array().unwrap().is_empty());
+        assert!(tracks[0]["title"].is_string() && tracks[0]["filePath"].is_string());
+        assert!(lib["playlists"].is_array() && lib["histories"].is_array());
+        assert_eq!(lib["version"], 1);
+
+        let (st, _) = send(&app, "GET", "/api/artwork/does-not-exist").await;
+        assert_eq!(st, StatusCode::NOT_FOUND);
+        let (st, _) = send(&app, "GET", "/api/artwork/x?size=huge").await;
+        assert_eq!(st, StatusCode::BAD_REQUEST);
+    }
 }
