@@ -6,3 +6,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT"
 version = "0.1.0"
+
+# PBKDF2 (256k rounds) and AES are far too slow unoptimized.
+[profile.dev.package."*"]
+opt-level = 3
