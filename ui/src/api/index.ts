@@ -75,7 +75,7 @@ export async function call<T>(command: string, args: Args = {}): Promise<T> {
 }
 
 /**
- * Image URL for a track's artwork (404 → show a placeholder). `version` is the
+ * Image URL for a track's artwork (204 = no artwork → show a placeholder). `version` is the
  * library version, so a reload busts the browser cache.
  * TODO(#42): Tauri needs a custom protocol for this.
  */

@@ -182,7 +182,7 @@ struct ArtworkQuery {
     size: Option<Size>,
 }
 
-/// `GET /api/artwork/{track_id}?size=small|large`: JPEG thumbnail, 404 when the track
+/// `GET /api/artwork/{track_id}?size=small|large`: JPEG thumbnail, 204 when the track
 /// has no artwork (the UI then shows a placeholder).
 async fn artwork(
     State(s): State<AppState>,
@@ -215,8 +215,9 @@ async fn artwork(
             bytes,
         )
             .into_response(),
+        // "No artwork" is a normal answer, not an error: 204 keeps the console clean.
         Ok(None) => (
-            StatusCode::NOT_FOUND,
+            StatusCode::NO_CONTENT,
             [(header::CACHE_CONTROL, "private, max-age=60")],
         )
             .into_response(),
@@ -301,7 +302,7 @@ mod tests {
         assert_eq!(lib["version"], 1);
 
         let (st, _) = send(&app, "GET", "/api/artwork/does-not-exist").await;
-        assert_eq!(st, StatusCode::NOT_FOUND);
+        assert_eq!(st, StatusCode::NO_CONTENT);
         let (st, _) = send(&app, "GET", "/api/artwork/x?size=huge").await;
         assert_eq!(st, StatusCode::BAD_REQUEST);
     }

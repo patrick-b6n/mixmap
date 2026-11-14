@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { PlaylistTree } from "./library/PlaylistTree";
+import { TrackTable } from "./library/TrackTable";
 import { useLibrary } from "./library/useLibrary";
 import { Shell } from "./shell/Shell";
 
 export default function App() {
   const { error, library, refresh, status } = useLibrary();
   const [playlistId, setPlaylistId] = useState<string>();
+  const [trackId, setTrackId] = useState<string>();
 
   const selectedNode = useMemo(() => {
     if (!library || playlistId === undefined) return undefined;
@@ -20,6 +22,14 @@ export default function App() {
 
   /** Track ids of the selected playlist/folder/history, or undefined = all tracks. */
   const playlistTrackIds = selectedNode ? trackIdsOf(selectedNode) : undefined;
+
+  /** Tracks shown in the table: the selected playlist in its order, or all tracks. */
+  const tableTracks = useMemo(() => {
+    if (!library) return [];
+    if (!playlistTrackIds) return library.tracks;
+    const byId = new Map(library.tracks.map((t) => [t.id, t]));
+    return playlistTrackIds.flatMap((id) => byId.get(id) ?? []);
+  }, [library, playlistTrackIds]);
 
   const shownError = status?.error ?? error;
   const toolbar = (
@@ -50,9 +60,11 @@ export default function App() {
         )
       }
       table={
-        <div className="placeholder" data-testid="table-placeholder">
-          {(playlistTrackIds ?? library?.tracks ?? []).length} tracks
-        </div>
+        library ? (
+          <TrackTable onSelect={setTrackId} selectedId={trackId} tracks={tableTracks} version={library.version} />
+        ) : (
+          <div className="placeholder">Loading…</div>
+        )
       }
       toolbar={toolbar}
     />

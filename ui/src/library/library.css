@@ -58,3 +58,176 @@
   color: var(--fg-dim);
   font-size: 11px;
 }
+
+.table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.table-toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.table-search {
+  flex: 1;
+  max-width: 420px;
+}
+
+.table-count {
+  color: var(--fg-dim);
+  flex: 1;
+}
+
+.table-chooser {
+  position: relative;
+}
+
+.table-chooser-menu {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.table-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  scroll-padding-top: 26px;
+}
+
+.table-body:focus-visible,
+.th:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.table-header {
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  height: 26px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.th {
+  align-items: center;
+  color: var(--fg-dim);
+  display: flex;
+  flex: none;
+  padding: 0 6px;
+  position: relative;
+  user-select: none;
+}
+
+.th.sortable {
+  cursor: pointer;
+}
+
+.th-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.th-resize {
+  bottom: 0;
+  cursor: col-resize;
+  position: absolute;
+  right: -3px;
+  top: 0;
+  width: 6px;
+  z-index: 1;
+}
+
+.th-resize:hover {
+  background: var(--accent);
+}
+
+.tr {
+  align-items: center;
+  cursor: default;
+  display: flex;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.tr.odd {
+  background: #16191d;
+}
+
+.tr:hover {
+  background: #22262d;
+}
+
+.tr.selected {
+  background: #253246;
+}
+
+.td {
+  flex: none;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-bpm,
+.td-length,
+.td-links {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.td-rating {
+  color: #e8b64c;
+}
+
+.td-artwork {
+  padding: 0 4px;
+}
+
+.artwork {
+  border-radius: 3px;
+  display: block;
+  object-fit: cover;
+}
+
+.artwork-small {
+  height: 24px;
+  width: 24px;
+}
+
+.artwork-large {
+  aspect-ratio: 1;
+  width: 100%;
+}
+
+.artwork-placeholder {
+  align-items: center;
+  background: #2a2f37;
+  color: var(--fg-dim);
+  display: flex;
+  justify-content: center;
+}
+
+.artwork-large.artwork-placeholder {
+  font-size: 64px;
+}
