@@ -231,3 +231,52 @@
 .artwork-large.artwork-placeholder {
   font-size: 64px;
 }
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.details-title {
+  font-size: 16px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.details-fields {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.details-fields div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 70px 1fr;
+}
+
+.details-fields dt {
+  color: var(--fg-dim);
+}
+
+.details-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.details-links h3 {
+  border-top: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  text-transform: uppercase;
+}
+
+.details-links .placeholder {
+  padding: 6px 0;
+}

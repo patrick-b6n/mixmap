@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { PlaylistTree } from "./library/PlaylistTree";
+import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
 import { useLibrary } from "./library/useLibrary";
 import { Shell } from "./shell/Shell";
@@ -31,6 +32,13 @@ export default function App() {
     return playlistTrackIds.flatMap((id) => byId.get(id) ?? []);
   }, [library, playlistTrackIds]);
 
+  const selectedTrack = useMemo(() => library?.tracks.find((t) => t.id === trackId), [library, trackId]);
+
+  // The selected track disappeared in a reload: clear the selection.
+  useEffect(() => {
+    if (library && trackId !== undefined && !selectedTrack) setTrackId(undefined);
+  }, [library, trackId, selectedTrack]);
+
   const shownError = status?.error ?? error;
   const toolbar = (
     <>
@@ -44,7 +52,7 @@ export default function App() {
 
   return (
     <Shell
-      details={<div className="placeholder">Select a track</div>}
+      details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
       graph={<div className="placeholder">Graph</div>}
       playlists={
         library ? (
