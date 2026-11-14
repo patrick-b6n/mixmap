@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { Playlist } from "../api";
 import { buildTree, findNode, trackIdsOf } from "./playlistTree";
 
-const pl = (id: string, parentId: string | null, seq: number, kind: Playlist["kind"] = "playlist", trackIds: string[] = []): Playlist => ({
+const pl = (
+  id: string,
+  parentId: string | null,
+  seq: number,
+  kind: Playlist["kind"] = "playlist",
+  trackIds: string[] = [],
+): Playlist => ({
   id,
   kind,
   name: id,

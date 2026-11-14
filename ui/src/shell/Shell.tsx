@@ -1,20 +1,5 @@
-import {
-  type KeyboardEvent,
-  type PointerEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import {
-  clampShare,
-  DEFAULT_LAYOUT,
-  loadLayout,
-  type LayoutState,
-  saveLayout,
-  shareFromPointer,
-} from "./layoutState";
+import { type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { clampShare, DEFAULT_LAYOUT, loadLayout, type LayoutState, saveLayout, shareFromPointer } from "./layoutState";
 import "./shell.css";
 
 type Props = {

@@ -74,9 +74,7 @@ export function SettingsDialog({ onClose, status }: Props) {
             value={path}
           />
         )}
-        {status?.location && (
-          <div className="settings-note">Current: {status.location.dbPath}</div>
-        )}
+        {status?.location && <div className="settings-note">Current: {status.location.dbPath}</div>}
       </fieldset>
       {result && <div className="settings-result">{result}</div>}
       <div className="settings-actions">

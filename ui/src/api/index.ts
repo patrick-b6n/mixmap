@@ -47,10 +47,7 @@ export type ArtworkSize = "large" | "small";
 export type Location = { analysisRoot: string | null; dbPath: string; overridden: boolean };
 
 /** Where the library comes from. */
-export type LibrarySource =
-  | { kind: "auto" }
-  | { kind: "masterDb"; path: string }
-  | { kind: "xml"; path: string };
+export type LibrarySource = { kind: "auto" } | { kind: "masterDb"; path: string } | { kind: "xml"; path: string };
 
 export type LibraryStatus = {
   error: string | null;

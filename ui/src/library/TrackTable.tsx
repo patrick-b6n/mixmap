@@ -85,11 +85,10 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
     [tracks, deferredQuery, config.sort, linkCount],
   );
 
-  // A different list starts at the top.
-  useEffect(() => {
-    bodyRef.current?.scrollTo(0, 0);
-    setScrollTop(0);
-  }, [tracks, deferredQuery, config.sort]);
+  // A different list starts at the top (onScroll then updates scrollTop). The
+  // dependencies are the triggers, not values used inside.
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies
+  useEffect(() => bodyRef.current?.scrollTo(0, 0), [tracks, deferredQuery, config.sort]);
 
   /** Arrow keys move the selection; the selected row is scrolled into view. */
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -241,7 +240,11 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
                   {def.label}
                   {sorted}
                 </span>
-                <div className="th-resize" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => startResize(e, c)} />
+                <div
+                  className="th-resize"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => startResize(e, c)}
+                />
               </div>
             );
           })}
@@ -276,10 +279,18 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
 const missingArtwork = new Set<string>();
 
 /** Thumbnail with a placeholder when the track has no artwork. */
-export function Artwork({ size = "small", trackId, version }: { size?: "large" | "small"; trackId: string; version: number }) {
+export function Artwork({
+  size = "small",
+  trackId,
+  version,
+}: {
+  size?: "large" | "small";
+  trackId: string;
+  version: number;
+}) {
   const url = artworkUrl(trackId, size, version);
-  const [missing, setMissing] = useState(() => missingArtwork.has(url));
-  useEffect(() => setMissing(missingArtwork.has(url)), [url]);
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const missing = failedUrl === url || missingArtwork.has(url);
   if (missing) return <div className={`artwork artwork-${size} artwork-placeholder`}>♪</div>;
   return (
     <img
@@ -288,7 +299,7 @@ export function Artwork({ size = "small", trackId, version }: { size?: "large" |
       loading="lazy"
       onError={() => {
         missingArtwork.add(url);
-        setMissing(true);
+        setFailedUrl(url);
       }}
       src={url}
     />

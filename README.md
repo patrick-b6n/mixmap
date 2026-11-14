@@ -14,7 +14,7 @@ npm --prefix ui install
 npm --prefix ui run dev       # UI on http://localhost:5173 (proxies /api to the devserver)
 ```
 
-Checks: `cargo test`, `cargo clippy -- -D warnings`, `npm --prefix ui test`.
+Checks: `cargo test`, `cargo clippy -- -D warnings`, `npm --prefix ui test`, `npm --prefix ui run lint` (oxlint), `npm --prefix ui run format:check` (oxfmt; `format` to fix).
 
 ## License
 

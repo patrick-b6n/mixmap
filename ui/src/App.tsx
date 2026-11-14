@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
@@ -18,10 +18,8 @@ export default function App() {
     return findNode(buildTree(library.playlists), playlistId) ?? findNode(buildTree(library.histories), playlistId);
   }, [library, playlistId]);
 
-  // The selected playlist disappeared in a reload: fall back to all tracks.
-  useEffect(() => {
-    if (library && playlistId !== undefined && !selectedNode) setPlaylistId(undefined);
-  }, [library, playlistId, selectedNode]);
+  // A selected playlist that disappeared in a reload simply selects nothing (= all
+  // tracks): everything below derives from `selectedNode`, not from `playlistId`.
 
   /** Track ids of the selected playlist/folder/history, or undefined = all tracks. */
   const playlistTrackIds = selectedNode ? trackIdsOf(selectedNode) : undefined;
@@ -35,11 +33,6 @@ export default function App() {
   }, [library, playlistTrackIds]);
 
   const selectedTrack = useMemo(() => library?.tracks.find((t) => t.id === trackId), [library, trackId]);
-
-  // The selected track disappeared in a reload: clear the selection.
-  useEffect(() => {
-    if (library && trackId !== undefined && !selectedTrack) setTrackId(undefined);
-  }, [library, trackId, selectedTrack]);
 
   const shownError = status?.error ?? error;
   const toolbar = (
@@ -55,32 +48,37 @@ export default function App() {
 
   return (
     <>
-    {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
-    <Shell
-      details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
-      graph={<div className="placeholder">Graph</div>}
-      playlists={
-        library ? (
-          <PlaylistTree
-            histories={library.histories}
-            onSelect={setPlaylistId}
-            playlists={library.playlists}
-            selectedId={selectedNode?.playlist.id}
-            trackCount={library.tracks.length}
-          />
-        ) : (
-          <div className="placeholder">Loading…</div>
-        )
-      }
-      table={
-        library ? (
-          <TrackTable onSelect={setTrackId} selectedId={trackId} tracks={tableTracks} version={library.version} />
-        ) : (
-          <div className="placeholder">Loading…</div>
-        )
-      }
-      toolbar={toolbar}
-    />
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
+      <Shell
+        details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
+        graph={<div className="placeholder">Graph</div>}
+        playlists={
+          library ? (
+            <PlaylistTree
+              histories={library.histories}
+              onSelect={setPlaylistId}
+              playlists={library.playlists}
+              selectedId={selectedNode?.playlist.id}
+              trackCount={library.tracks.length}
+            />
+          ) : (
+            <div className="placeholder">Loading…</div>
+          )
+        }
+        table={
+          library ? (
+            <TrackTable
+              onSelect={setTrackId}
+              selectedId={selectedTrack?.id}
+              tracks={tableTracks}
+              version={library.version}
+            />
+          ) : (
+            <div className="placeholder">Loading…</div>
+          )
+        }
+        toolbar={toolbar}
+      />
     </>
   );
 }
