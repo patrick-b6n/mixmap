@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
-import { RefreshCw, Settings } from "lucide-react";
+import { RefreshCw, Settings, Unlink } from "lucide-react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { api } from "./api";
@@ -17,6 +17,7 @@ import { isTyping } from "./domain/undo";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
+import { UnmatchedDialog } from "./library/UnmatchedDialog";
 import { useLibrary } from "./library/useLibrary";
 import { useReconcile } from "./library/useReconcile";
 import { SettingsDialog } from "./settings/SettingsDialog";
@@ -28,7 +29,8 @@ export default function App() {
   const [trackId, setTrackId] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dbError, setDbError] = useState<string>();
-  const { error: matchError, results: matches } = useReconcile(library);
+  const { error: matchError, rerun: rematch, results: matches } = useReconcile(library);
+  const [unmatchedOpen, setUnmatchedOpen] = useState(false);
   const mixmap = useMixmap(library);
   const [actionError, setActionError] = useState<string>();
   const onActionError = useCallback((m: string) => setActionError(m), []);
@@ -143,6 +145,15 @@ export default function App() {
         <Settings />
         Settings
       </Button>
+      {missingCount + unmatchedCount > 0 && (
+        <Button
+          onClick={() => setUnmatchedOpen(true)}
+          title="Map MixMap tracks that aren't matched to a rekordbox track"
+        >
+          <Unlink />
+          Unmatched tracks ({missingCount + unmatchedCount})
+        </Button>
+      )}
       <span className="truncate text-muted-foreground" data-testid="status" title={status?.location?.dbPath}>
         {status && `${status.trackCount} tracks · ${status.playlistCount} playlists`}
         {missingCount > 0 && ` · ${missingCount} missing`}
@@ -156,6 +167,18 @@ export default function App() {
     <>
       <Toaster position="bottom-center" theme="dark" toastOptions={{ className: "!text-[13px]" }} />
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
+      {unmatchedOpen && library && (
+        <UnmatchedDialog
+          library={library.tracks}
+          onClose={() => setUnmatchedOpen(false)}
+          onMapped={() => {
+            rematch();
+            mixmap.refresh();
+          }}
+          results={matches}
+          tracks={mixmap.tracks}
+        />
+      )}
       <Shell
         details={
           selectedLink ? (

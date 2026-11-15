@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, type Library } from "../api";
 import { apiDb } from "../db/db";
 import { startDatabaseOnce } from "../db/startup";
@@ -13,9 +13,16 @@ let queue: Promise<unknown> = Promise.resolve();
  * and keep the results: missing tracks get flagged in the database, unmatched and
  * ambiguous ones are listed for manual mapping.
  */
-export function useReconcile(library: Library | undefined): { error?: string; results: MatchResult[] } {
+export function useReconcile(library: Library | undefined): {
+  error?: string;
+  /** Match again (e.g. after a manual mapping). */
+  rerun: () => void;
+  results: MatchResult[];
+} {
   const [results, setResults] = useState<MatchResult[]>([]);
   const [error, setError] = useState<string>();
+  const [tick, setTick] = useState(0);
+  const rerun = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     // An empty library (failed or not yet loaded) would mark every track missing.
@@ -41,7 +48,9 @@ export function useReconcile(library: Library | undefined): { error?: string; re
     return () => {
       live = false;
     };
-  }, [library]);
+    // tick is a trigger: re-run after a manual mapping.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
+  }, [library, tick]);
 
-  return { error, results };
+  return { error, rerun, results };
 }
