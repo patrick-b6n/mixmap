@@ -12,11 +12,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { api, type LibrarySource, type LibraryStatus } from "../api";
+import { api, type LibrarySource, type LibraryStatus, type Track } from "../api";
+import { saveTextFile } from "../api/files";
 import { apiDb } from "../db/db";
+import { exportData, exportFileName, serializeExport } from "../db/exchange";
 import { setSetting, SETTINGS } from "../db/settings";
 
 type Props = {
+  /** rekordbox tracks by id (to describe manual matches portably in exports). */
+  library: ReadonlyMap<string, Track>;
   onClose: () => void;
   status?: LibraryStatus;
 };
@@ -30,12 +34,24 @@ const KINDS: { kind: Kind; label: string }[] = [
 ];
 
 /** Settings: where the rekordbox library comes from. */
-export function SettingsDialog({ onClose, status }: Props) {
+export function SettingsDialog({ library, onClose, status }: Props) {
   const current = status?.source ?? { kind: "auto" };
   const [kind, setKindState] = useState<Kind>(current.kind);
   const [path, setPath] = useState(current.kind === "auto" ? "" : current.path);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
+  const [dataResult, setDataResult] = useState<string>();
+
+  const exportFile = async () => {
+    setDataResult(undefined);
+    try {
+      const data = await exportData(apiDb, library);
+      saveTextFile(exportFileName(), serializeExport(data));
+      setDataResult(`Exported ${data.links.length} links, ${data.boards.length} boards, ${data.tracks.length} tracks.`);
+    } catch (e) {
+      setDataResult(`Export failed: ${String(e)}`);
+    }
+  };
 
   /** A path only makes sense for its kind: switching clears it. */
   const setKind = (k: Kind) => {
@@ -103,6 +119,15 @@ export function SettingsDialog({ onClose, status }: Props) {
           )}
         </fieldset>
         {result && <div data-testid="settings-result">{result}</div>}
+        <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
+          <legend className="px-1 text-muted-foreground">MixMap data</legend>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void exportFile()} title="Links, boards, positions and manual matches">
+              Export .mixmap.json
+            </Button>
+          </div>
+          {dataResult && <div data-testid="data-result">{dataResult}</div>}
+        </fieldset>
         <DialogFooter>
           <Button disabled={busy} onClick={apply}>
             {busy ? "Loading…" : "Apply"}

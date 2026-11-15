@@ -168,7 +168,9 @@ export default function App() {
   return (
     <>
       <Toaster position="bottom-center" theme="dark" toastOptions={{ className: "!text-[13px]" }} />
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
+      {settingsOpen && (
+        <SettingsDialog library={mixmap.library} onClose={() => setSettingsOpen(false)} status={status} />
+      )}
       {importFrom && (
         <PairImportDialog
           library={mixmap.library}
