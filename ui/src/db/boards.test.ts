@@ -10,6 +10,7 @@ import {
   moveNodes,
   removeNode,
   renameBoard,
+  restoreNode,
 } from "./boards";
 import { createLink, listLinks } from "./links";
 import { migrate, tombstoneId } from "./schema";
@@ -93,5 +94,17 @@ describe("boards", () => {
     await removeNode(db, two.id, kb);
     expect((await loadBoard(db, two.id)).links).toEqual([]);
     expect(await listLinks(db)).toHaveLength(2);
+  });
+
+  it("restores a removed node where it was", async () => {
+    const one = await createBoard(db, "One");
+    await addNode(db, one.id, a, 12, 34);
+    const [node] = await listNodes(db, one.id);
+    await removeNode(db, one.id, ka);
+    expect(await restoreNode(db, node)).toBe(true);
+    expect(await listNodes(db, one.id)).toEqual([node]);
+    expect(await db.query("SELECT * FROM tombstones")).toEqual([]);
+    await deleteBoard(db, one.id);
+    expect(await restoreNode(db, node)).toBe(false); // board gone
   });
 });

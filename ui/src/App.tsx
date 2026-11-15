@@ -139,6 +139,7 @@ export default function App() {
         }
         graph={
           <GraphPanel
+            actions={linkActions}
             artworkVersion={library?.version ?? 0}
             data={mixmap}
             onDeleteLink={deleteLink}

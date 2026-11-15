@@ -1,8 +1,10 @@
 import { Plus, X } from "lucide-react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useEffect, useRef, useState } from "react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
-import { addNodeStatements, type BoardNode, listNodes, moveNodes } from "../db/boards";
+import { addNodeStatements, type BoardNode, listNodes, moveNodes, removeNode, restoreNode } from "../db/boards";
 import { apiDb } from "../db/db";
 import { createLink, createLinkStatements } from "../db/links";
 import { portableKey } from "../domain/matching";
@@ -11,9 +13,11 @@ import { BoardTabs, nextBoardName } from "./BoardTabs";
 import type { TrackDrop } from "./dnd";
 import { GraphCanvas } from "./GraphCanvas";
 import { useBoards } from "./useBoards";
+import type { LinkActions } from "./useLinkActions";
 import type { MixmapData } from "./useMixmap";
 
 type Props = {
+  actions: LinkActions;
   artworkVersion: number;
   data: MixmapData;
   onDeleteLink: (from: string, to: string) => void;
@@ -22,7 +26,9 @@ type Props = {
 };
 
 /** Upper center area: board tabs and the graph canvas of the active board. */
-export function GraphPanel({ artworkVersion, data, onDeleteLink, onSelectLink, selectedLink }: Props) {
+export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSelectLink, selectedLink }: Props) {
+  /** Links counted when the confirmation opened: exactly these get deleted. */
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState<{ links: { from: string; to: string }[]; title: string }>();
   const state = useBoards();
   const [error, setError] = useState<string>();
   const [nodes, setNodes] = useState<{ boardId: string; nodes: BoardNode[] }>();
@@ -94,12 +100,68 @@ export function GraphPanel({ artworkVersion, data, onDeleteLink, onSelectLink, s
     createLink(apiDb, source, target).then(data.refresh, (e) => setError(String(e)));
   };
 
+  /** "Remove from board": the track's links stay; Undo puts it back where it was. */
+  const onRemoveFromBoard = (trackKey: string) => {
+    if (!boardId) return;
+    if (selectedLink && (selectedLink.from === trackKey || selectedLink.to === trackKey)) onSelectLink(undefined);
+    actions
+      .run(async () => {
+        // Re-read: Undo must restore the stored position (drags are saved async).
+        const node = (await listNodes(apiDb, boardId)).find((n) => n.trackKey === trackKey);
+        if (!node) return;
+        await removeNode(apiDb, boardId, trackKey);
+        data.refresh();
+        const entry = {
+          label: "remove from board",
+          undo: async () => {
+            if (!(await restoreNode(apiDb, node))) throw new Error("the track or board no longer exists");
+          },
+        };
+        actions.undo.push(entry);
+        toast("Removed from board", {
+          action: {
+            label: "Undo",
+            onClick: () =>
+              void actions.run(() => actions.undo.undoEntry(entry)).then(data.refresh, (e) => setError(String(e))),
+          },
+        });
+      })
+      .catch((e) => setError(String(e)));
+  };
+
+  /** "Delete all links of this track": confirm with the count first. */
+  const onDeleteAllLinks = (trackKey: string) => {
+    const links = data.links
+      .filter((l) => l.from === trackKey || l.to === trackKey)
+      .map((l) => ({ from: l.from, to: l.to }));
+    const t = data.tracks.get(trackKey);
+    if (links.length > 0) setConfirmDeleteAll({ links, title: t ? `${t.artist} – ${t.title}` : trackKey });
+  };
+
   const onMoved = (positions: { trackKey: string; x: number; y: number }[]) => {
     if (boardId) moveNodes(apiDb, boardId, positions).catch((e) => setError(String(e)));
   };
 
   return (
     <div className="flex h-full flex-col">
+      {confirmDeleteAll && (
+        <ConfirmDialog
+          confirmLabel={`Delete ${confirmDeleteAll.links.length} link${confirmDeleteAll.links.length === 1 ? "" : "s"}`}
+          description={`All ${confirmDeleteAll.links.length} incoming and outgoing link${
+            confirmDeleteAll.links.length === 1 ? "" : "s"
+          } of “${confirmDeleteAll.title}” will be deleted, on every board. You can undo this right after.`}
+          onCancel={() => setConfirmDeleteAll(undefined)}
+          onConfirm={() => {
+            const { links } = confirmDeleteAll;
+            setConfirmDeleteAll(undefined);
+            if (selectedLink && links.some((l) => l.from === selectedLink.from && l.to === selectedLink.to)) {
+              onSelectLink(undefined);
+            }
+            actions.deleteLinks(links).catch((e) => setError(String(e)));
+          }}
+          title="Delete all links of this track?"
+        />
+      )}
       <div className="border-b bg-card">
         <BoardTabs onError={setError} state={state} />
       </div>
@@ -124,9 +186,11 @@ export function GraphPanel({ artworkVersion, data, onDeleteLink, onSelectLink, s
                 data={data}
                 key={boardId}
                 nodes={current}
+                onDeleteAllLinks={onDeleteAllLinks}
                 onDeleteLink={onDeleteLink}
                 onDropTrack={(d) => void onDropTrack(d)}
                 onLink={onLink}
+                onRemoveFromBoard={onRemoveFromBoard}
                 onSelectLink={onSelectLink}
                 selectedLink={selectedLink}
                 onMoved={onMoved}

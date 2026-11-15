@@ -3,7 +3,7 @@ import { applyNodeChanges, Background, Controls, MarkerType, MiniMap, type NodeC
 import { type DragEvent, useCallback, useMemo, useRef, useState } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import type { BoardNode } from "../db/boards";
-import { ContextMenu } from "@/components/ContextMenu";
+import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
 import { buildGraph, canLink, edgeId } from "../domain/graph";
 import { LinkEdge, type LinkFlowEdge } from "./LinkEdge";
 import { TrackNode, type TrackFlowNode } from "./TrackNode";
@@ -31,10 +31,14 @@ type Props = {
   onDropTrack: (drop: TrackDrop) => void;
   /** Persist positions of nodes the user dragged. */
   onMoved: (positions: { trackKey: string; x: number; y: number }[]) => void;
+  /** Delete every link of a track (card context menu; asks for confirmation). */
+  onDeleteAllLinks: (trackKey: string) => void;
   /** Remove a link (context menu "Remove"). */
   onDeleteLink: (from: string, to: string) => void;
   /** A connection was dragged from `source`'s right handle onto `target`. */
   onLink: (source: string, target: string) => void;
+  /** Take a track off this board (card context menu; links stay). */
+  onRemoveFromBoard: (trackKey: string) => void;
   /** Click on a link selects it; click on empty canvas clears the selection. */
   onSelectLink: (link: { from: string; to: string } | undefined) => void;
   selectedLink?: { from: string; to: string };
@@ -45,14 +49,16 @@ export function GraphCanvas({
   artworkVersion,
   data,
   nodes: boardNodes,
+  onDeleteAllLinks,
   onDeleteLink,
   onDropTrack,
   onLink,
   onMoved,
+  onRemoveFromBoard,
   onSelectLink,
   selectedLink,
 }: Props) {
-  const [menu, setMenu] = useState<{ from: string; to: string; x: number; y: number }>();
+  const [menu, setMenu] = useState<{ items: ContextMenuItem[]; x: number; y: number }>();
   const closeMenu = useCallback(() => setMenu(undefined), []);
   const flow = useRef<ReactFlowInstance<TrackFlowNode, LinkFlowEdge>>(null);
   const graph = useMemo(
@@ -150,7 +156,33 @@ export function GraphCanvas({
         onEdgeContextMenu={(e, edge) => {
           e.preventDefault();
           onSelectLink({ from: edge.source, to: edge.target });
-          setMenu({ from: edge.source, to: edge.target, x: e.clientX, y: e.clientY });
+          setMenu({
+            items: [
+              { destructive: true, label: "Remove link", onSelect: () => onDeleteLink(edge.source, edge.target) },
+            ],
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
+        onNodeContextMenu={(e, node) => {
+          e.preventDefault();
+          const count = node.data.card.linkCount;
+          setMenu({
+            items: [
+              { label: "Remove from board", onSelect: () => onRemoveFromBoard(node.id) },
+              ...(count > 0
+                ? [
+                    {
+                      destructive: true,
+                      label: `Delete all links of this track (${count})…`,
+                      onSelect: () => onDeleteAllLinks(node.id),
+                    },
+                  ]
+                : []),
+            ],
+            x: e.clientX,
+            y: e.clientY,
+          });
         }}
         onPaneClick={() => onSelectLink(undefined)}
         // Dropped on a card but not near its handle: link to that card anyway.
@@ -178,14 +210,7 @@ export function GraphCanvas({
           zoomable
         />
       </ReactFlow>
-      {menu && (
-        <ContextMenu
-          items={[{ destructive: true, label: "Remove link", onSelect: () => onDeleteLink(menu.from, menu.to) }]}
-          onClose={closeMenu}
-          x={menu.x}
-          y={menu.y}
-        />
-      )}
+      {menu && <ContextMenu items={menu.items} onClose={closeMenu} x={menu.x} y={menu.y} />}
     </div>
   );
 }

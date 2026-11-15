@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export type ContextMenuItem = { destructive?: boolean; label: string; onSelect: () => void };
@@ -21,9 +21,23 @@ export function ContextMenu({ items, onClose, x, y }: Props) {
     });
   }, [x, y]);
 
+  // Focus the first item; give focus back to where it was when the menu closes.
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
     ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    return () => previous?.focus?.();
   }, []);
+
+  /** ↑/↓ move between items (wrapping), Home/End jump. */
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const buttons = Array.from(ref.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? []);
+    const i = buttons.indexOf(document.activeElement as HTMLElement);
+    const go: Record<string, number> = { ArrowDown: i + 1, ArrowUp: i - 1, End: buttons.length - 1, Home: 0 };
+    if (e.key in go) {
+      e.preventDefault();
+      buttons[(go[e.key] + buttons.length) % buttons.length]?.focus();
+    }
+  };
 
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -43,6 +57,7 @@ export function ContextMenu({ items, onClose, x, y }: Props) {
   return (
     <div
       className="fixed z-50 min-w-40 rounded-md border bg-popover p-1 text-[13px] shadow-md"
+      onKeyDown={onKeyDown}
       ref={ref}
       role="menu"
       style={{ left: pos.x, top: pos.y }}

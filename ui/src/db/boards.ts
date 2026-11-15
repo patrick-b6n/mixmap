@@ -147,6 +147,27 @@ export async function removeNode(db: Db, boardId: string, trackKey: string): Pro
   ]);
 }
 
+/**
+ * Put a removed node back (Undo "Remove from board"): by key, so it also works for
+ * tracks missing from rekordbox. Skipped if the track or board is gone meanwhile.
+ */
+export async function restoreNode(db: Db, node: BoardNode): Promise<boolean> {
+  const ts = now();
+  const exists = "EXISTS (SELECT 1 FROM tracks WHERE key = ?) AND EXISTS (SELECT 1 FROM boards WHERE id = ?)";
+  const [, inserted] = await db.execute([
+    {
+      params: [tombstoneId(node.boardId, node.trackKey), node.trackKey, node.boardId],
+      sql: `DELETE FROM tombstones WHERE kind = 'board_node' AND id = ? AND ${exists}`,
+    },
+    {
+      params: [node.boardId, node.trackKey, node.x, node.y, ts, ts, node.trackKey, node.boardId],
+      sql: `INSERT INTO board_nodes (board_id, track_key, x, y, created_at, updated_at)
+            SELECT ?, ?, ?, ?, ?, ? WHERE ${exists} ON CONFLICT (board_id, track_key) DO NOTHING`,
+    },
+  ]);
+  return inserted.changes > 0;
+}
+
 /** Links shown on a board: every link whose two endpoints are both on it. */
 export function linksOnBoard(links: Link[], nodes: BoardNode[]): Link[] {
   const onBoard = new Set(nodes.map((n) => n.trackKey));
