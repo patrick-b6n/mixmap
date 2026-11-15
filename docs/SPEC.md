@@ -27,7 +27,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - Smart playlists: the backend passes rekordbox's rule XML (`SmartList`) through; the UI evaluates it (`ui/src/domain/smartlists.ts`). Text rules are supported; a list using other rules stays empty and says which rules aren't supported yet.
 
 ### Artwork
-- rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise.
+- rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise. On start (after a clean library load) thumbnails no current track uses any more are removed once they are a week old; unfinished temp files after an hour.
 
 ### MixMap's own data
 - `%APPDATA%\mixmap\mixmap.db` (SQLite): links, boards, node positions, manual track matches, tombstones, settings.

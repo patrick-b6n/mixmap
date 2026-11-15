@@ -145,9 +145,29 @@ impl App {
     /// Start the background parts: network sync (LAN listener + mDNS) and now-playing.
     pub async fn start_background(self: &Arc<Self>) {
         self.start_now_playing();
+        self.prune_artwork();
         if let Err(e) = self.start_network().await {
             eprintln!("network sync disabled: {e}");
         }
+    }
+
+    /// Remove thumbnails no current track uses (in the background, only after a clean load).
+    fn prune_artwork(&self) {
+        let snap = self.library.current();
+        if snap.error.is_some() || snap.library.tracks.is_empty() {
+            return;
+        }
+        let cache = self.artwork.clone();
+        std::thread::spawn(move || {
+            let root = snap
+                .location
+                .as_ref()
+                .and_then(|l| l.analysis_root.as_deref());
+            let n = cache.prune(&snap.library.tracks, root);
+            if n > 0 {
+                println!("artwork cache: removed {n} unused thumbnails");
+            }
+        });
     }
 
     /// Unregister from mDNS and stop background work (on exit).

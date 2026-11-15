@@ -95,6 +95,64 @@ impl ArtworkCache {
     }
 }
 
+/// Orphaned thumbnails are kept this long (a library may come back, e.g. after a
+/// temporarily missing drive).
+const ORPHAN_GRACE: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 3600);
+/// Unfinished temp files from an interrupted write.
+const TMP_GRACE: std::time::Duration = std::time::Duration::from_secs(3600);
+
+impl ArtworkCache {
+    /// Delete cache files no current track uses any more (source changed or gone),
+    /// once they are older than a week, and stale temp files. Returns how many files
+    /// were removed. Call only with a fully loaded library.
+    pub fn prune(&self, tracks: &[Track], analysis_root: Option<&Path>) -> usize {
+        self.prune_at(tracks, analysis_root, std::time::SystemTime::now())
+    }
+
+    fn prune_at(
+        &self,
+        tracks: &[Track],
+        analysis_root: Option<&Path>,
+        now: std::time::SystemTime,
+    ) -> usize {
+        let Ok(entries) = std::fs::read_dir(&self.dir) else {
+            return 0;
+        };
+        let live: std::collections::HashSet<String> = tracks
+            .iter()
+            .filter_map(|t| Source::find(t, analysis_root))
+            .flat_map(|s| [cache_key(&s, Size::Small), cache_key(&s, Size::Large)])
+            .collect();
+        let mut removed = 0;
+        for e in entries.flatten() {
+            let path = e.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let age = e
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| now.duration_since(t).ok())
+                .unwrap_or_default();
+            let stale = if name.ends_with(".tmp") {
+                age >= TMP_GRACE
+            } else if let Some(key) = name
+                .strip_suffix(".jpg")
+                .or_else(|| name.strip_suffix(".none"))
+            {
+                !live.contains(key) && age >= ORPHAN_GRACE
+            } else {
+                false // not ours: leave it
+            };
+            if stale && std::fs::remove_file(&path).is_ok() {
+                removed += 1;
+            }
+        }
+        removed
+    }
+}
+
 /// Where a track's picture comes from, with the file's modification time and size so
 /// the cache is invalidated when it changes.
 enum Source {
@@ -245,6 +303,49 @@ mod tests {
         assert_eq!(cache.thumbnail(&t, Some(&root), Size::Small), Some(small));
         let large = image::open(cache.thumbnail(&t, Some(&root), Size::Large).unwrap()).unwrap();
         assert_eq!(large.width(), 600);
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn prunes_orphans_after_a_grace_period_and_keeps_live_entries() {
+        use std::time::{Duration, SystemTime};
+        let root = temp_dir("prune");
+        std::fs::create_dir_all(root.join("PIONEER/Artwork")).unwrap();
+        std::fs::write(root.join("PIONEER/Artwork/a.png"), png(200, 200)).unwrap();
+        let cache = ArtworkCache::new(root.join("cache"));
+        let t = track("C:/nope.mp3", Some("/PIONEER/Artwork/a.png"));
+        let live = cache.thumbnail(&t, Some(&root), Size::Small).unwrap();
+        let dir = root.join("cache");
+        std::fs::write(dir.join("0123456789abcdef01234567-s.jpg"), b"old thumb").unwrap();
+        std::fs::write(dir.join("0123456789abcdef01234567-l.none"), b"").unwrap();
+        std::fs::write(dir.join("x.123-0.tmp"), b"half").unwrap();
+        std::fs::write(dir.join("readme.txt"), b"not ours").unwrap();
+        let tracks = [t.clone()];
+
+        // Fresh orphans are kept (grace period).
+        assert_eq!(cache.prune(&tracks, Some(&root)), 0);
+        // Eight days later: orphans and the temp file go; the live thumbnail stays.
+        let later = SystemTime::now() + Duration::from_secs(8 * 24 * 3600);
+        assert_eq!(cache.prune_at(&tracks, Some(&root), later), 3);
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(
+            left,
+            [
+                live.file_name().unwrap().to_string_lossy().into_owned(),
+                "readme.txt".into()
+            ]
+        );
+
+        // When the source changes, its old thumbnail becomes an orphan too.
+        std::fs::write(root.join("PIONEER/Artwork/a.png"), png(300, 300)).unwrap();
+        let new = cache.thumbnail(&t, Some(&root), Size::Small).unwrap();
+        assert_ne!(new, live);
+        assert_eq!(cache.prune_at(&tracks, Some(&root), later), 1);
+        assert!(new.is_file() && !live.exists());
         std::fs::remove_dir_all(root).ok();
     }
 
