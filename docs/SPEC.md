@@ -92,8 +92,8 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 ## Distribution
 
-- Tauri **NSIS** installer, unsigned (SmartScreen warning on first run).
-- **Auto-update**: every push to `main` → GitHub Actions builds, signs updater artifacts (Tauri updater key as repo secret), publishes a GitHub Release with `latest.json`. App checks on startup and offers "install & restart"; **never auto-installs**, and **no prompt while the overlay is active**.
+- **Single portable `MixMap.exe`**, unsigned, no installer (SmartScreen warning on first run). The frontend is embedded; it needs only the WebView2 runtime (part of Windows 10/11). Data stays in `%APPDATA%\mixmap`, so the exe can live anywhere. Build: `ui/node_modules/.bin/tauri build --no-bundle` → `target/release/mixmap.exe`.
+- **Auto-update from GitHub Releases**: every push to `main` → GitHub Actions builds the exe and publishes a GitHub Release with `MixMap.exe` and `latest.json` (version, download URL, SHA-256). The app checks the latest release on startup and offers "install & restart": it downloads the new exe, verifies its SHA-256, swaps it in place of the running exe (the old one is renamed and removed on the next start) and restarts. It **never auto-installs**, and shows **no prompt while the overlay is active**. No updater signing key (the exe is unsigned; integrity comes from the SHA-256 published with the release over HTTPS).
 - **Versioning: CalVer** `YYYY.MMDD.HHMMSS` in UTC as semver-compatible numbers (leading zeros drop, e.g. `2026.105.3012` for 5 Jan 00:30:12). Release title shows `2026-11-14 15:30:12 UTC`.
 - Requires `gh auth refresh -s workflow` once before workflows can be pushed.
 
@@ -109,6 +109,6 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 2. Links, boards, graph & filters
 3. Transfer & maintenance (export/import, sync, reset)
 4. Live overlay (manual mode first, then automatic detection)
-5. Tauri desktop app (shell, overlay window, hotkey, installer)
+5. Tauri desktop app (shell, overlay window, hotkey, portable exe)
 6. Releases & auto-update
 7. v1.1 — path-finding (shortest transition path A → B)
