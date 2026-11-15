@@ -244,12 +244,17 @@ mod tests {
         };
         let chains = find_chains(&p, &[title.as_ptr() as u64], opts, |_, _| {});
         let root = &ROOT as *const AtomicU64 as u64 - p.module().base;
-        let chain = chains
+        // The heap may also place the title right behind the struct, giving a second,
+        // shorter chain from the same root; look for the one through the struct field.
+        let from_root: Vec<_> = chains
             .iter()
             .map(|(c, _)| c)
-            .find(|c| c.base == root)
-            .expect("chain from the static root");
-        assert_eq!(chain.offsets, vec![0x18, 0]);
+            .filter(|c| c.base == root)
+            .collect();
+        let chain = from_root
+            .iter()
+            .find(|c| c.offsets == [0x18, 0])
+            .unwrap_or_else(|| panic!("no chain root+0x18 → title, got {from_root:?}"));
         let at = chain.resolve(&p).unwrap();
         assert_eq!(
             read_string(&p, at, Encoding::Utf8).as_deref(),
