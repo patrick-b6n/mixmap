@@ -112,3 +112,4 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 5. Tauri desktop app (shell, overlay window, hotkey, portable exe)
 6. Releases & auto-update
 7. v1.1 — path-finding (shortest transition path A → B)
+   - Right-click a card → "Path from/to this track"; all shortest paths over the global, directed links (fewest links, up to 5, best rated first) are listed in a bar under the filters; the selected one is highlighted on the board, steps not on the board are marked.

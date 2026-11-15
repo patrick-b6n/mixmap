@@ -30,6 +30,11 @@ type Props = {
   matched?: Set<string>;
   /** Hide non-matching nodes instead of dimming them. */
   hideUnmatched: boolean;
+  /** Edge ids of the highlighted path. */
+  pathEdges?: Set<string>;
+  /** Context menu: start / end a path at this track. */
+  onPathFrom: (trackKey: string) => void;
+  onPathTo: (trackKey: string) => void;
   nodes: BoardNode[];
   /** A table track was dropped on the canvas. */
   onDropTrack: (drop: TrackDrop) => void;
@@ -63,6 +68,9 @@ export function GraphCanvas({
   hideUnmatched,
   locate,
   matched,
+  onPathFrom,
+  onPathTo,
+  pathEdges,
   nodes: boardNodes,
   onDeleteAllLinks,
   onDeleteLink,
@@ -126,13 +134,16 @@ export function GraphCanvas({
       graph.edges.map((e) => ({
         data: {
           comment: e.comment,
-          dimmed: matched !== undefined && !(matched.has(e.from) && matched.has(e.to)),
+          dimmed: pathEdges
+            ? !pathEdges.has(e.id)
+            : matched !== undefined && !(matched.has(e.from) && matched.has(e.to)),
+          onPath: pathEdges?.has(e.id) ?? false,
           rating: e.rating,
           width: e.width,
         },
         id: e.id,
         markerEnd: {
-          color: "var(--muted-foreground)",
+          color: pathEdges?.has(e.id) ? "var(--primary)" : "var(--muted-foreground)",
           // Marker size is in stroke widths: divide so every arrow looks the same.
           height: 24 / e.width,
           type: MarkerType.ArrowClosed,
@@ -143,7 +154,7 @@ export function GraphCanvas({
         target: e.to,
         type: "link",
       })),
-    [graph.edges, selectedLink, matched],
+    [graph.edges, selectedLink, matched, pathEdges],
   );
 
   // Double-click / Ctrl+L in the table: center that track's card (keeping zoom >= 1).
@@ -219,6 +230,8 @@ export function GraphCanvas({
           const count = node.data.card.linkCount;
           setMenu({
             items: [
+              { label: "Path from this track", onSelect: () => onPathFrom(node.id) },
+              { label: "Path to this track", onSelect: () => onPathTo(node.id) },
               { label: "Remove from board", onSelect: () => onRemoveFromBoard(node.id) },
               ...(count > 0
                 ? [

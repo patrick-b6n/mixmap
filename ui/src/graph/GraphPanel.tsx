@@ -10,10 +10,12 @@ import { createLink, createLinkStatements, listLinks } from "../db/links";
 import { DEFAULT_BPM_TOLERANCE } from "../domain/compatibility";
 import { type GraphFilter, isActive, matchingNodes } from "../domain/filters";
 import { buildGraph } from "../domain/graph";
+import { pathEdges, shortestPaths } from "../domain/paths";
 import { portableKey } from "../domain/matching";
 import { centeredAt, placeNextTo } from "../domain/placement";
 import { BoardTabs, nextBoardName } from "./BoardTabs";
 import { type CompatSettings, FilterBar } from "./FilterBar";
+import { PathBar } from "./PathBar";
 import type { TrackDrop } from "./dnd";
 import { GraphCanvas } from "./GraphCanvas";
 import { useBoards } from "./useBoards";
@@ -83,7 +85,22 @@ export function GraphPanel({
         : filter,
     [filter, compat, selectedTrack],
   );
-  const matched = useMemo(() => {
+  // Path-finding between two tracks (keys); the selected path is highlighted.
+  const [path, setPath] = useState<{ from?: string; selected: number; to?: string }>();
+  const pathFrom = path?.from;
+  const pathTo = path?.to;
+  const paths = useMemo(
+    () => (pathFrom && pathTo ? shortestPaths(data.links, pathFrom, pathTo) : []),
+    [pathFrom, pathTo, data.links],
+  );
+  const shownPath = path ? paths[Math.min(path.selected, paths.length - 1)] : undefined;
+  const onBoardKeys = useMemo(() => new Set((current ?? []).map((n) => n.trackKey)), [current]);
+  const trackLabel = (key: string) => {
+    const t = data.tracks.get(key);
+    return t ? `${t.artist} – ${t.title}` : key;
+  };
+
+  const filtered = useMemo(() => {
     if (!current || !isActive(effectiveFilter)) return undefined;
     const { nodes: cards } = buildGraph(current, data.links, data.tracks, data.library);
     const ids = matchingNodes(effectiveFilter, cards, data.links);
@@ -92,6 +109,8 @@ export function GraphPanel({
     if (ref && current.some((n) => n.trackKey === ref)) ids.add(ref);
     return ids;
   }, [current, effectiveFilter, selectedTrack, data.links, data.tracks, data.library]);
+  const matched = shownPath ? new Set(shownPath.keys) : filtered;
+  const highlightedEdges = useMemo(() => (shownPath ? pathEdges(shownPath.keys) : undefined), [shownPath]);
 
   // Nodes of the active board; reloaded when shared data changes (e.g. new links).
   useEffect(() => {
@@ -286,11 +305,11 @@ export function GraphPanel({
       </div>
       {state.active && (
         <FilterBar
-          active={matched !== undefined}
+          active={filtered !== undefined}
           compat={compat}
           filter={filter}
           hide={hideUnmatched}
-          matched={matched?.size ?? current?.length ?? 0}
+          matched={filtered?.size ?? current?.length ?? 0}
           onChange={setFilter}
           onClear={() => {
             setFilter({});
@@ -300,6 +319,18 @@ export function GraphPanel({
           onHideChange={setHideUnmatched}
           selectedLabel={selectedTrack ? `${selectedTrack.artist} – ${selectedTrack.title}` : undefined}
           total={current?.length ?? 0}
+        />
+      )}
+      {state.active && path && (
+        <PathBar
+          from={path.from}
+          label={trackLabel}
+          onBoard={onBoardKeys}
+          onClear={() => setPath(undefined)}
+          onSelect={(i) => setPath({ ...path, selected: i })}
+          paths={paths}
+          selected={Math.min(path.selected, Math.max(paths.length - 1, 0))}
+          to={path.to}
         />
       )}
       {shownError && (
@@ -323,6 +354,9 @@ export function GraphPanel({
                 data={data}
                 hideUnmatched={hideUnmatched}
                 matched={matched}
+                onPathFrom={(key) => setPath((p) => ({ from: key, selected: 0, to: p?.to }))}
+                onPathTo={(key) => setPath((p) => ({ from: p?.from, selected: 0, to: key }))}
+                pathEdges={highlightedEdges}
                 key={`${boardId}#${layoutRun[boardId ?? ""] ?? 0}`}
                 nodes={current}
                 locate={locate}
