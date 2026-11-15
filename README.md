@@ -1,12 +1,40 @@
-# MixMap
+> [!WARNING]
+> **100% vibe coded, use at your own risk.**
 
-A transition map for rekordbox DJs. MixMap reads your local rekordbox library, lets you link tracks into a directed graph of transitions ("A mixes into B"), and shows the linked tracks for whatever is loaded on your decks in a small always-on-top overlay.
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" alt="MixMap logo" width="128" height="128" />
+</p>
 
-Status: early development. See [docs/SPEC.md](docs/SPEC.md) for the design and the GitHub milestones for progress.
+<h1 align="center">MixMap</h1>
+
+<p align="center">A transition map for rekordbox DJs.</p>
+
+MixMap reads your local rekordbox library, lets you link tracks into a directed graph of transitions ("A mixes into B"), and shows the linked tracks for whatever is loaded on your decks in a small always-on-top overlay.
+
+![MixMap screenshot (track names and artwork anonymized)](docs/screenshot.png)
+
+<sub>Track names, artists and artwork in the screenshot are anonymized.</sub>
+
+## Features
+
+- **Reads rekordbox 7 directly**: opens the encrypted `master.db` strictly read-only (or a rekordbox XML export), reloads automatically when it changes. MixMap never writes to rekordbox.
+- **Transition graph**: drag tracks onto a canvas and link them; each link can have a comment, a 1–5 rating and tags. Auto-layout, minimap, undo.
+- **Boards**: separate canvases ("Peak-time techno", "Warm-up", …) sharing the same global links.
+- **Filters**: by name, artist, genre, BPM range, key, rating, comment, or "compatible with selected" (Camelot ±1 / relative key, BPM tolerance, half/double tempo).
+- **Path-finding**: shortest transition paths between two tracks over your links.
+- **Import pairs** from rekordbox playlists or history: back-to-back tracks become links.
+- **Live overlay**: always-on-top, click-through window showing the links for the tracks on your decks (memory reader with calibration wizard, or manual mode). Global hotkey to toggle.
+- **Portable across machines**: tracks are matched by artist + title + duration, so links survive different paths and rekordbox IDs.
+- **Export / import** as `.mixmap.json` (merge or replace) and **LAN sync** between two MixMap instances (paired with a 6-digit code).
+- **Single portable `MixMap.exe`** for Windows with built-in auto-update from GitHub Releases.
+
+## Install
+
+Download `MixMap.exe` from the [latest release](https://github.com/patrick-b6n/mixmap/releases/latest) and run it. It's unsigned, so Windows SmartScreen will warn on first start. Requires Windows 10/11 (WebView2). Data lives in `%APPDATA%\mixmap`.
 
 ## Development
 
-Requirements: Rust (stable), Node.js 20+.
+Requirements: Rust (stable), Node.js 20+. See [docs/SPEC.md](docs/SPEC.md) for the design.
 
 ```bash
 cargo run -p devserver        # API on http://127.0.0.1:5174
