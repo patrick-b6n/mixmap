@@ -34,6 +34,11 @@ pub fn paired_path() -> PathBuf {
     app_dir().join("paired.json")
 }
 
+/// Memory-reader calibrations, one file per rekordbox version.
+pub fn calibration_dir() -> PathBuf {
+    app_dir().join("calibration")
+}
+
 /// MixMap's own database.
 pub fn database_path() -> PathBuf {
     app_dir().join("mixmap.db")

@@ -16,6 +16,7 @@ import { api, type LibrarySource, type LibraryStatus, type Track } from "../api"
 import { apiDb } from "../db/db";
 import { setSetting, SETTINGS } from "../db/settings";
 import { DataSection } from "./DataSection";
+import { NowPlayingSection } from "./NowPlayingSection";
 import { SyncSection } from "./SyncSection";
 
 type Props = {
@@ -109,6 +110,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         </fieldset>
         {result && <div data-testid="settings-result">{result}</div>}
         <DataSection library={library} onDataChanged={onDataChanged} />
+        <NowPlayingSection library={library} />
         <SyncSection library={library} onDataChanged={onDataChanged} />
         <DialogFooter>
           <Button disabled={busy} onClick={apply}>

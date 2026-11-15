@@ -19,9 +19,11 @@ use axum::{
     Json, Router,
 };
 use mixmap_core::artwork::{ArtworkCache, Size};
+use mixmap_core::memory::calibration::{Loaded, RoundResult, Session};
 use mixmap_core::network::exchange::UiReply;
 use mixmap_core::network::paired::{PairedPeer, PairedStore};
 use mixmap_core::network::{Device, Discovery, Peer, SyncHub};
+use mixmap_core::nowplaying::{Poller, Update};
 use mixmap_core::rekordbox::library::Track;
 use mixmap_core::rekordbox::playlists::Playlist;
 use mixmap_core::service::{LibraryService, Source, Status};
@@ -48,6 +50,10 @@ struct AppState {
     library: Arc<LibraryService>,
     /// Network sync: this device and the running mDNS discovery (None in tests).
     network: Arc<Mutex<Option<Network>>>,
+    /// Memory-reader calibration in progress.
+    calibration: Arc<Mutex<Option<Session>>>,
+    /// Last now-playing update, and the poller producing them (None in tests).
+    now_playing: Arc<Mutex<(Option<Update>, Option<Poller>)>>,
     store: Arc<Store>,
     /// Keeps the master.db watcher alive.
     watcher: Arc<Mutex<Option<Box<dyn Send>>>>,
@@ -68,6 +74,8 @@ impl AppState {
             events,
             library: LibraryService::new(source),
             network: Arc::new(Mutex::new(None)),
+            calibration: Arc::new(Mutex::new(None)),
+            now_playing: Arc::new(Mutex::new((None, None))),
             store: Arc::new(store),
             watcher: Arc::new(Mutex::new(None)),
         };
@@ -497,6 +505,122 @@ async fn start_network(state: &AppState) -> Result<(), Error> {
     Ok(())
 }
 
+/// Start reading now-playing from rekordbox's memory once a second; changes are
+/// emitted as `now-playing`.
+fn start_now_playing(state: &AppState) {
+    let source = mixmap_core::memory::source::MemorySource::new(
+        mixmap_core::memory::source::RekordboxProcess::default(),
+        mixmap_core::paths::calibration_dir(),
+    );
+    let (events, last) = (state.events.clone(), state.now_playing.clone());
+    let poller = Poller::start(
+        Box::new(source),
+        std::time::Duration::from_secs(1),
+        move |u| {
+            emit(&events, "now-playing", &u);
+            last.lock().unwrap_or_else(|e| e.into_inner()).0 = Some(u);
+        },
+    );
+    state
+        .now_playing
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .1 = Some(poller);
+}
+
+/// The last now-playing update (null before the first one).
+async fn now_playing(State(s): State<AppState>) -> Json<Option<Update>> {
+    Json(
+        s.now_playing
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .0
+            .clone(),
+    )
+}
+
+#[derive(Serialize)]
+struct CalibrationStarted {
+    version: String,
+}
+
+/// Start calibrating: attach to the running rekordbox.
+async fn calibration_start(State(s): State<AppState>) -> ApiResult<CalibrationStarted> {
+    use mixmap_core::memory::source::Attach;
+    let (mem, version) =
+        blocking(|| mixmap_core::memory::source::RekordboxProcess::default().attach()).await?;
+    *s.calibration.lock().unwrap_or_else(|e| e.into_inner()) =
+        Some(Session::new(mem, version.clone()));
+    Ok(Json(CalibrationStarted { version }))
+}
+
+#[derive(Deserialize)]
+struct RoundArg {
+    loaded: Vec<Loaded>,
+}
+
+/// One calibration round with the tracks the user loaded; progress is emitted as
+/// `calibration-progress`.
+async fn calibration_round(
+    State(s): State<AppState>,
+    Json(a): Json<RoundArg>,
+) -> ApiResult<RoundResult> {
+    let (cal, events) = (s.calibration.clone(), s.events.clone());
+    Ok(Json(
+        blocking(move || {
+            let mut guard = cal.lock().unwrap_or_else(|e| e.into_inner());
+            let session = guard
+                .as_mut()
+                .ok_or_else(|| Error::NotFound("start the calibration first".into()))?;
+            let mut last = std::time::Instant::now();
+            session.round(&a.loaded, |phase, done, total| {
+                // At most ~10 updates per second.
+                if last.elapsed().as_millis() >= 100 || done == total {
+                    last = std::time::Instant::now();
+                    emit(
+                        &events,
+                        "calibration-progress",
+                        &serde_json::json!({ "done": done, "phase": phase, "total": total }),
+                    );
+                }
+            })
+        })
+        .await?,
+    ))
+}
+
+#[derive(Serialize)]
+struct Saved {
+    path: String,
+}
+
+/// Save the calibration (once two rounds agree) and end the session.
+async fn calibration_save(State(s): State<AppState>) -> ApiResult<Saved> {
+    let cal = s.calibration.clone();
+    let path = blocking(move || {
+        let mut guard = cal.lock().unwrap_or_else(|e| e.into_inner());
+        let c = guard
+            .as_ref()
+            .and_then(Session::calibration)
+            .ok_or_else(|| {
+                Error::Invalid("not calibrated yet: check another pair of tracks".into())
+            })?;
+        let path =
+            mixmap_core::memory::calibration::save(&mixmap_core::paths::calibration_dir(), &c)?;
+        *guard = None;
+        Ok(path)
+    })
+    .await?;
+    Ok(Json(Saved {
+        path: path.display().to_string(),
+    }))
+}
+
+async fn calibration_cancel(State(s): State<AppState>) -> Json<bool> {
+    *s.calibration.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    Json(true)
+}
+
 /// Only answer requests addressed to this machine by name: blocks DNS-rebinding
 /// pages from reaching the API (e.g. the raw SQL bridge) through a foreign host name.
 async fn local_hosts_only(req: Request, next: Next) -> Response {
@@ -523,6 +647,10 @@ fn is_local_host(host: &str) -> bool {
 fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/artwork/{track_id}", get(artwork))
+        .route("/api/calibration_cancel", post(calibration_cancel))
+        .route("/api/calibration_round", post(calibration_round))
+        .route("/api/calibration_save", post(calibration_save))
+        .route("/api/calibration_start", post(calibration_start))
         .route("/api/db_execute", post(db_execute))
         .route("/api/db_query", post(db_query))
         .route("/api/events", get(events))
@@ -530,6 +658,7 @@ fn app(state: AppState) -> Router {
         .route("/api/library", post(library))
         .route("/api/library_location", post(library_location))
         .route("/api/library_status", post(library_status))
+        .route("/api/now_playing", post(now_playing))
         .route("/api/refresh", post(refresh))
         .route("/api/set_library_source", post(set_library_source))
         .route("/api/pair_confirm", post(pair_confirm))
@@ -560,6 +689,7 @@ async fn main() {
             .map(|e| format!(" (error: {e})"))
             .unwrap_or_default()
     );
+    start_now_playing(&state);
     if let Err(e) = start_network(&state).await {
         eprintln!("network sync disabled: {e}");
     }

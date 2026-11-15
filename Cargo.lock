@@ -975,6 +975,7 @@ dependencies = [
  "image",
  "lofty",
  "mdns-sd",
+ "memchr",
  "notify-debouncer-mini",
  "pbkdf2",
  "percent-encoding",
@@ -987,6 +988,7 @@ dependencies = [
  "tokio",
  "ureq",
  "uuid",
+ "windows-sys",
  "x25519-dalek",
 ]
 

@@ -10,3 +10,7 @@ version = "0.1.0"
 # PBKDF2 (256k rounds) and AES are far too slow unoptimized.
 [profile.dev.package."*"]
 opt-level = 3
+
+# Scanning rekordbox's memory (calibration) needs optimized code even in dev.
+[profile.dev.package.mixmap-core]
+opt-level = 3

@@ -78,6 +78,13 @@ export type SyncStatus = {
 /** Sync protocol version this app speaks. */
 export const SYNC_PROTOCOL = 1;
 
+/** One calibration round's result: candidate chains left per deck. */
+export type CalibrationRound = {
+  decks: { artist: number; deck: number; title: number }[];
+  ready: boolean;
+  rounds: number;
+};
+
 type Args = Record<string, unknown>;
 
 declare global {
@@ -108,8 +115,17 @@ export function artworkUrl(trackId: string, size: ArtworkSize, version: number):
 }
 
 export const api = {
+  calibrationCancel: () => call<boolean>("calibration_cancel"),
+  /** One round: what is loaded on each deck right now. */
+  calibrationRound: (loaded: { artist: string; deck: number; title: string }[]) =>
+    call<CalibrationRound>("calibration_round", { loaded }),
+  calibrationSave: () => call<{ path: string }>("calibration_save"),
+  /** Attach to the running rekordbox; fails when it isn't running. */
+  calibrationStart: () => call<{ version: string }>("calibration_start"),
   hello: () => call<Hello>("hello"),
   library: () => call<Library>("library"),
+  /** Last now-playing update from the automatic source (null before the first). */
+  nowPlaying: () => call<unknown>("now_playing"),
   libraryStatus: () => call<LibraryStatus>("library_status"),
   refresh: () => call<LibraryStatus>("refresh"),
   setLibrarySource: (source: LibrarySource) => call<LibraryStatus>("set_library_source", { source }),

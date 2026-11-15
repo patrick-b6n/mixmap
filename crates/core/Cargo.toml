@@ -17,6 +17,7 @@ hmac = "0.12"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 lofty = "0.25.5"
 mdns-sd = "0.21.7"
+memchr = "2.8.3"
 notify-debouncer-mini = "0.7.0"
 pbkdf2 = "0.12"
 percent-encoding = "2.3.2"
@@ -33,3 +34,6 @@ x25519-dalek = { version = "3.0.0", features = ["getrandom"] }
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Memory", "Win32_System_Diagnostics_Debug", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_Storage_FileSystem"] }

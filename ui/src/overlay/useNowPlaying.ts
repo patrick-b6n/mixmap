@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { subscribe } from "../api";
+import { api, subscribe } from "../api";
 import type { ManualState, NowPlayingUpdate } from "../domain/nowPlaying";
 
 const MANUAL_KEY = "mixmap.overlay.manual";
@@ -37,7 +37,20 @@ export function useNowPlaying(): {
   const [auto, setAuto] = useState<NowPlayingUpdate>();
   const [manual, setManualState] = useState<ManualState>(loadManual);
 
-  useEffect(() => subscribe("now-playing", (u) => setAuto(u as NowPlayingUpdate)), []);
+  useEffect(() => {
+    const load = () =>
+      api.nowPlaying().then(
+        (u) => u && setAuto(u as NowPlayingUpdate),
+        () => undefined,
+      );
+    void load();
+    const offUpdate = subscribe("now-playing", (u) => setAuto(u as NowPlayingUpdate));
+    const offReconnect = subscribe("reconnect", () => void load());
+    return () => {
+      offUpdate();
+      offReconnect();
+    };
+  }, []);
 
   // Another window changed manual mode.
   useEffect(() => {

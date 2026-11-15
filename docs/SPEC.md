@@ -82,6 +82,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - **Now-playing detection**, in order:
   1. Spike (done, rekordbox 7.2.19): history *is* written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
   2. Own **memory reader** with a **calibration wizard** (load known tracks on deck 1/2, scan memory for the title, derive pointer chains, save per rekordbox version).
+     - Implemented in `crates/core/src/memory/`: the process is opened with query + read rights only. Calibration rounds (Settings → Now playing → Calibrate) find every UTF-8/UTF-16 copy of the loaded titles/artists, collect pointer chains from the executable's image (depth ≤ 5, offset ≤ 0x800) and keep those that follow the next tracks. Saved as `%APPDATA%\mixmap\calibration\rekordbox-<version>.json`; read once per second and emitted as `now-playing`. A missing or non-matching calibration shows "recalibrate or set tracks manually" in the overlay. rekordbox 7.2.19: one static object holds both decks' title/artist. The master deck is not read from memory yet.
   3. **Manual mode** (type-ahead to set the current track) always available as fallback.
 - rkbx_link is **not** used (newer rekordbox versions require a paid licence).
 
