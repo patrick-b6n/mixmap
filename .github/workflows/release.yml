@@ -1,0 +1,94 @@
+# Every push to main: test, build the portable MixMap.exe and publish it as a GitHub
+# Release (CalVer version) together with latest.json, which the in-app updater reads.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One release at a time, in push order.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install UI dependencies
+        run: npm ci --prefix ui
+
+      - name: Check UI
+        working-directory: ui
+        run: |
+          npx tsc --noEmit -p .
+          npm run lint
+          npm test
+
+      - name: Check Rust
+        # mDNS between two in-process instances needs multicast, which CI runners lack.
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace -- --skip two_instances_discover_each_other
+
+      - name: Version (CalVer)
+        id: version
+        run: node ui/scripts/calver.ts --set >> "$GITHUB_OUTPUT"
+
+      - name: Build MixMap.exe
+        run: ui/node_modules/.bin/tauri build --no-bundle
+
+      - name: Release assets
+        id: assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TITLE: ${{ steps.version.outputs.title }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p dist-release
+          cp target/release/mixmap.exe dist-release/MixMap.exe
+          sha=$(sha256sum dist-release/MixMap.exe | cut -d' ' -f1)
+          node -e '
+            const [version, title, repo, sha] = process.argv.slice(1);
+            const manifest = {
+              version,
+              title,
+              url: `https://github.com/${repo}/releases/download/v${version}/MixMap.exe`,
+              sha256: sha,
+              size: require("fs").statSync("dist-release/MixMap.exe").size,
+              publishedAt: new Date().toISOString(),
+            };
+            require("fs").writeFileSync("dist-release/latest.json", JSON.stringify(manifest, null, 2) + "\n");
+          ' "$VERSION" "$TITLE" "$REPO" "$sha"
+          cat dist-release/latest.json
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TITLE: ${{ steps.version.outputs.title }}
+        run: |
+          git log -1 --format='%s%n%n%b' > notes.md
+          gh release create "v$VERSION" dist-release/MixMap.exe dist-release/latest.json \
+            --title "$TITLE" --notes-file notes.md --target "$GITHUB_SHA" --latest
