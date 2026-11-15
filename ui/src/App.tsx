@@ -1,7 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Settings } from "lucide-react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
+import { api } from "./api";
+import { apiDb } from "./db/db";
+import { startDatabaseOnce } from "./db/startup";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
@@ -15,6 +18,12 @@ export default function App() {
   const [playlistId, setPlaylistId] = useState<string>();
   const [trackId, setTrackId] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dbError, setDbError] = useState<string>();
+
+  // Once: prepare mixmap.db and restore persisted settings (e.g. the library source).
+  useEffect(() => {
+    startDatabaseOnce(apiDb, api.setLibrarySource).catch((e) => setDbError(`mixmap.db: ${String(e)}`));
+  }, []);
 
   const selectedNode = useMemo(() => {
     if (!library || playlistId === undefined) return undefined;
@@ -37,7 +46,7 @@ export default function App() {
 
   const selectedTrack = useMemo(() => library?.tracks.find((t) => t.id === trackId), [library, trackId]);
 
-  const shownError = status?.error ?? error;
+  const shownError = dbError ?? status?.error ?? error;
   const toolbar = (
     <>
       <Button onClick={refresh}>

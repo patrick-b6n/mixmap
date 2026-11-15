@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api, type LibrarySource, type LibraryStatus } from "../api";
+import { apiDb } from "../db/db";
+import { setSetting, SETTINGS } from "../db/settings";
 
 type Props = {
   onClose: () => void;
@@ -52,7 +54,13 @@ export function SettingsDialog({ onClose, status }: Props) {
     setResult(undefined);
     try {
       const s = await api.setLibrarySource(source);
-      setResult(s.error ? `Error: ${s.error}` : `Loaded ${s.trackCount} tracks, ${s.playlistCount} playlists.`);
+      if (s.error) {
+        setResult(`Error: ${s.error}`);
+      } else {
+        // Only a source that loaded is remembered for the next start.
+        await setSetting(apiDb, SETTINGS.librarySource, source);
+        setResult(`Loaded ${s.trackCount} tracks, ${s.playlistCount} playlists.`);
+      }
     } catch (e) {
       setResult(String(e));
     } finally {

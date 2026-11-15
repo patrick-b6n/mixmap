@@ -14,3 +14,8 @@ pub fn app_dir() -> PathBuf {
 pub fn artwork_dir() -> PathBuf {
     app_dir().join("artwork")
 }
+
+/// MixMap's own database.
+pub fn database_path() -> PathBuf {
+    app_dir().join("mixmap.db")
+}

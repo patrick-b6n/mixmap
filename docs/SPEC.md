@@ -28,6 +28,9 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 ### MixMap's own data
 - `%APPDATA%\mixmap\mixmap.db` (SQLite): links, boards, node positions, manual track matches, tombstones, settings.
+  - Rust exposes it only as a generic bridge (`db_query`, `db_execute` = statements in one transaction). Schema, migrations (`PRAGMA user_version`) and all queries live in TypeScript (`ui/src/db`), tested against `node:sqlite`.
+  - Rows have natural cross-machine identities: tracks by portable key, links by (from, to), board nodes by (board, track); boards use UUIDs. Timestamps are milliseconds since the epoch (`created_at`/`updated_at` on every row); deleting a synced row records a tombstone (`kind`, `id`, `deleted_at`). Settings with a `local.` prefix are machine-specific and never synced.
+  - The devserver only answers requests addressed to localhost (Host check), since it exposes raw SQL.
 - `%APPDATA%\mixmap\artwork\` — thumbnail cache. `%APPDATA%\mixmap\backups\` — automatic backups.
 
 ### Track identity

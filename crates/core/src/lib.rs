@@ -7,6 +7,7 @@ mod error;
 pub mod paths;
 pub mod rekordbox;
 pub mod service;
+pub mod store;
 
 pub use error::Error;
 

@@ -8,8 +8,9 @@ use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query, Request, State},
     http::{header, StatusCode},
+    middleware::{self, Next},
     response::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
@@ -21,6 +22,7 @@ use mixmap_core::artwork::{ArtworkCache, Size};
 use mixmap_core::rekordbox::library::Track;
 use mixmap_core::rekordbox::playlists::Playlist;
 use mixmap_core::service::{LibraryService, Source, Status};
+use mixmap_core::store::{ExecResult, Statement, Store};
 use mixmap_core::Error;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -40,17 +42,19 @@ struct AppState {
     artwork: Arc<ArtworkCache>,
     events: broadcast::Sender<BackendEvent>,
     library: Arc<LibraryService>,
+    store: Arc<Store>,
     /// Keeps the master.db watcher alive.
     watcher: Arc<Mutex<Option<Box<dyn Send>>>>,
 }
 
 impl AppState {
-    fn new(source: Source) -> Self {
+    fn new(source: Source, store: Store) -> Self {
         let (events, _) = broadcast::channel(64);
         let state = Self {
             artwork: Arc::new(ArtworkCache::new(mixmap_core::paths::artwork_dir())),
             events,
             library: LibraryService::new(source),
+            store: Arc::new(store),
             watcher: Arc::new(Mutex::new(None)),
         };
         state.rewatch();
@@ -252,9 +256,63 @@ async fn set_library_source(
     Ok(Json(status))
 }
 
+/// Generic bridge to mixmap.db: the schema and all queries live in TypeScript.
+async fn db_query(
+    State(s): State<AppState>,
+    Json(stmt): Json<Statement>,
+) -> ApiResult<Vec<serde_json::Map<String, serde_json::Value>>> {
+    let store = s.store.clone();
+    let rows = tokio::task::spawn_blocking(move || store.query(&stmt))
+        .await
+        .map_err(|e| ApiError(Error::Invalid(format!("query task: {e}"))))??;
+    Ok(Json(rows))
+}
+
+#[derive(Deserialize)]
+struct Execute {
+    statements: Vec<Statement>,
+}
+
+/// Run statements in one transaction (all or nothing).
+async fn db_execute(
+    State(s): State<AppState>,
+    Json(req): Json<Execute>,
+) -> ApiResult<Vec<ExecResult>> {
+    let store = s.store.clone();
+    let results = tokio::task::spawn_blocking(move || store.execute(&req.statements))
+        .await
+        .map_err(|e| ApiError(Error::Invalid(format!("execute task: {e}"))))??;
+    Ok(Json(results))
+}
+
+/// Only answer requests addressed to this machine by name: blocks DNS-rebinding
+/// pages from reaching the API (e.g. the raw SQL bridge) through a foreign host name.
+async fn local_hosts_only(req: Request, next: Next) -> Response {
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    if is_local_host(host) {
+        next.run(req).await
+    } else {
+        (StatusCode::FORBIDDEN, "forbidden host").into_response()
+    }
+}
+
+fn is_local_host(host: &str) -> bool {
+    let name = match host.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().unwrap_or(""),
+        None => host.split(':').next().unwrap_or(""),
+    };
+    matches!(name, "localhost" | "127.0.0.1" | "::1")
+}
+
 fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/artwork/{track_id}", get(artwork))
+        .route("/api/db_execute", post(db_execute))
+        .route("/api/db_query", post(db_query))
         .route("/api/events", get(events))
         .route("/api/hello", post(|| async { Json(mixmap_core::hello()) }))
         .route("/api/library", post(library))
@@ -262,12 +320,16 @@ fn app(state: AppState) -> Router {
         .route("/api/library_status", post(library_status))
         .route("/api/refresh", post(refresh))
         .route("/api/set_library_source", post(set_library_source))
+        .layer(middleware::from_fn(local_hosts_only))
         .with_state(state)
 }
 
 #[tokio::main]
 async fn main() {
-    let state = AppState::new(Source::Auto);
+    let db = mixmap_core::paths::database_path();
+    let store = Store::open(&db).unwrap_or_else(|e| panic!("cannot open {}: {e}", db.display()));
+    println!("mixmap database: {}", db.display());
+    let state = AppState::new(Source::Auto, store);
     let status = state.library.current().status();
     println!(
         "library: {} tracks{}",
@@ -293,14 +355,19 @@ mod tests {
     fn fixture_app() -> Option<Router> {
         let db =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/master.db");
-        db.is_file()
-            .then(|| app(AppState::new(Source::MasterDb { path: db })))
+        db.is_file().then(|| {
+            app(AppState::new(
+                Source::MasterDb { path: db },
+                Store::open_in_memory().unwrap(),
+            ))
+        })
     }
 
     async fn send(app: &Router, method: &str, uri: &str) -> (StatusCode, Vec<u8>) {
         let req = Request::builder()
             .method(method)
             .uri(uri)
+            .header("host", "localhost:5173")
             .body(Body::empty())
             .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
@@ -323,9 +390,63 @@ mod tests {
         assert!(lib["playlists"].is_array() && lib["histories"].is_array());
         assert_eq!(lib["version"], 1);
 
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/db_execute")
+            .header("host", "127.0.0.1:5174")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"statements":[{"sql":"CREATE TABLE t (v)"},{"sql":"INSERT INTO t VALUES (?)","params":[7]}]}"#))
+            .unwrap();
+        assert_eq!(
+            app.clone().oneshot(req).await.unwrap().status(),
+            StatusCode::OK
+        );
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/db_query")
+            .header("host", "127.0.0.1:5174")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"sql":"SELECT v FROM t"}"#))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        let rows: serde_json::Value =
+            serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(rows, serde_json::json!([{"v": 7}]));
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/library_status")
+            .header("host", "evil.example:5174")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.clone().oneshot(req).await.unwrap().status(),
+            StatusCode::FORBIDDEN
+        );
+
         let (st, _) = send(&app, "GET", "/api/artwork/does-not-exist").await;
         assert_eq!(st, StatusCode::NO_CONTENT);
         let (st, _) = send(&app, "GET", "/api/artwork/x?size=huge").await;
         assert_eq!(st, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn local_host_names() {
+        for h in [
+            "localhost:5173",
+            "127.0.0.1:5174",
+            "[::1]:5174",
+            "localhost",
+        ] {
+            assert!(is_local_host(h), "{h}");
+        }
+        for h in [
+            "",
+            "evil.example",
+            "localhost.evil.example:5174",
+            "127.0.0.2:5174",
+        ] {
+            assert!(!is_local_host(h), "{h}");
+        }
     }
 }
