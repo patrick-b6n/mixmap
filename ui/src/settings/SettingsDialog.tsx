@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,6 +43,14 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
   const [path, setPath] = useState(current.kind === "auto" ? "" : current.path);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
+  const [version, setVersion] = useState<string>();
+
+  useEffect(() => {
+    api.hello().then(
+      (h) => setVersion(h.version),
+      () => undefined,
+    );
+  }, []);
   /** A path only makes sense for its kind: switching clears it. */
   const setKind = (k: Kind) => {
     setKindState(k);
@@ -112,7 +120,10 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         <DataSection library={library} onDataChanged={onDataChanged} />
         <NowPlayingSection library={library} />
         <SyncSection library={library} onDataChanged={onDataChanged} />
-        <DialogFooter>
+        <DialogFooter className="items-center">
+          <span className="mr-auto text-xs text-muted-foreground" data-testid="app-version">
+            {version && `MixMap ${version}`}
+          </span>
           <Button disabled={busy} onClick={apply}>
             {busy ? "Loading…" : "Apply"}
           </Button>
