@@ -1,0 +1,19 @@
+[package]
+name = "mixmap"
+description = "MixMap desktop app"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "mixmap_app"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+mixmap-core = { path = "../crates/core" }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["rt-multi-thread"] }

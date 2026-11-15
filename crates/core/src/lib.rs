@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 
+pub mod app;
 pub mod artwork;
 pub mod backups;
 mod error;

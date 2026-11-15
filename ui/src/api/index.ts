@@ -93,9 +93,19 @@ declare global {
   }
 }
 
+/** Running inside the desktop app (Tauri) rather than a browser tab? */
+export const inTauri = (): boolean => typeof window !== "undefined" && window.__TAURI_INTERNALS__ !== undefined;
+
 export async function call<T>(command: string, args: Args = {}): Promise<T> {
   const tauri = window.__TAURI_INTERNALS__;
-  if (tauri) return (await tauri.invoke(command, args)) as T;
+  if (tauri) {
+    // One Tauri command dispatches to the same backend commands as the devserver.
+    try {
+      return (await tauri.invoke("call", { args, command })) as T;
+    } catch (e) {
+      throw new Error(`${command}: ${typeof e === "string" ? e : String(e)}`, { cause: e });
+    }
+  }
   const res = await fetch(`/api/${command}`, {
     body: JSON.stringify(args),
     headers: { "Content-Type": "application/json" },
@@ -107,11 +117,12 @@ export async function call<T>(command: string, args: Args = {}): Promise<T> {
 
 /**
  * Image URL for a track's artwork (204 = no artwork → show a placeholder). `version` is the
- * library version, so a reload busts the browser cache.
- * TODO(#42): Tauri needs a custom protocol for this.
+ * library version, so a reload busts the browser cache. The desktop app serves it through
+ * its `artwork` URI scheme.
  */
 export function artworkUrl(trackId: string, size: ArtworkSize, version: number): string {
-  return `/api/artwork/${encodeURIComponent(trackId)}?size=${size}&v=${version}`;
+  const path = `${encodeURIComponent(trackId)}?size=${size}&v=${version}`;
+  return inTauri() ? `http://artwork.localhost/${path}` : `/api/artwork/${path}`;
 }
 
 export const api = {
