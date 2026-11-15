@@ -6,6 +6,7 @@ import { api } from "./api";
 import { apiDb } from "./db/db";
 import { startDatabaseOnce } from "./db/startup";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
+import { GraphPanel } from "./graph/GraphPanel";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
@@ -75,7 +76,7 @@ export default function App() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
       <Shell
         details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
-        graph={<Placeholder>Graph</Placeholder>}
+        graph={<GraphPanel />}
         playlists={
           library ? (
             <PlaylistTree
