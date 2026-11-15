@@ -1,15 +1,18 @@
 import { Network, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { addNodeStatements, type BoardNode, listNodes, moveNodes, removeNode, restoreNode } from "../db/boards";
 import { apiDb } from "../db/db";
 import { createLink, createLinkStatements, listLinks } from "../db/links";
+import { type GraphFilter, isActive, matchingNodes } from "../domain/filters";
+import { buildGraph } from "../domain/graph";
 import { portableKey } from "../domain/matching";
 import { centeredAt, placeNextTo } from "../domain/placement";
 import { BoardTabs, nextBoardName } from "./BoardTabs";
+import { FilterBar } from "./FilterBar";
 import type { TrackDrop } from "./dnd";
 import { GraphCanvas } from "./GraphCanvas";
 import { useBoards } from "./useBoards";
@@ -54,6 +57,15 @@ export function GraphPanel({
   }
   const shownError = error ?? state.error;
   const current = nodes && nodes.boardId === boardId ? nodes.nodes : undefined;
+
+  // Graph filters: shared by all boards, never applied to the table.
+  const [filter, setFilter] = useState<GraphFilter>({});
+  const [hideUnmatched, setHideUnmatched] = useState(false);
+  const matched = useMemo(() => {
+    if (!current || !isActive(filter)) return undefined;
+    const { nodes: cards } = buildGraph(current, data.links, data.tracks, data.library);
+    return matchingNodes(filter, cards, data.links);
+  }, [current, filter, data.links, data.tracks, data.library]);
 
   // Nodes of the active board; reloaded when shared data changes (e.g. new links).
   useEffect(() => {
@@ -246,6 +258,16 @@ export function GraphPanel({
           )}
         </div>
       </div>
+      {state.active && (
+        <FilterBar
+          filter={filter}
+          hide={hideUnmatched}
+          matched={matched?.size ?? current?.length ?? 0}
+          onChange={setFilter}
+          onHideChange={setHideUnmatched}
+          total={current?.length ?? 0}
+        />
+      )}
       {shownError && (
         <div className="flex items-center gap-2 border-b px-3 py-1 text-destructive" role="alert">
           <span className="flex-1">{shownError}</span>
@@ -265,6 +287,8 @@ export function GraphPanel({
               <GraphCanvas
                 artworkVersion={artworkVersion}
                 data={data}
+                hideUnmatched={hideUnmatched}
+                matched={matched}
                 key={`${boardId}#${layoutRun[boardId ?? ""] ?? 0}`}
                 nodes={current}
                 locate={locate}

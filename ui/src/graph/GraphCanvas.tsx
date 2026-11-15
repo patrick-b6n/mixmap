@@ -26,6 +26,10 @@ const edgeTypes = { link: LinkEdge };
 type Props = {
   artworkVersion: number;
   data: MixmapData;
+  /** Nodes matching the graph filter (undefined = no filter); the others are dimmed or hidden. */
+  matched?: Set<string>;
+  /** Hide non-matching nodes instead of dimming them. */
+  hideUnmatched: boolean;
   nodes: BoardNode[];
   /** A table track was dropped on the canvas. */
   onDropTrack: (drop: TrackDrop) => void;
@@ -56,7 +60,9 @@ type Props = {
 export function GraphCanvas({
   artworkVersion,
   data,
+  hideUnmatched,
   locate,
+  matched,
   nodes: boardNodes,
   onDeleteAllLinks,
   onDeleteLink,
@@ -84,13 +90,16 @@ export function GraphCanvas({
         data: {
           artworkVersion,
           card: n.card,
+          dimmed: matched !== undefined && !matched.has(n.id),
           highlighted: selectedTrackId !== undefined && n.card.track?.id === selectedTrackId,
         },
+        // React Flow also hides the links of hidden nodes.
+        hidden: hideUnmatched && matched !== undefined && !matched.has(n.id),
         id: n.id,
         position: { x: n.x, y: n.y },
         type: "track",
       })),
-    [graph.nodes, artworkVersion, selectedTrackId],
+    [graph.nodes, artworkVersion, selectedTrackId, matched, hideUnmatched],
   );
 
   // The canvas owns positions once a node is shown (drags are saved from here, so a
@@ -115,7 +124,12 @@ export function GraphCanvas({
   const edges = useMemo<LinkFlowEdge[]>(
     () =>
       graph.edges.map((e) => ({
-        data: { comment: e.comment, rating: e.rating, width: e.width },
+        data: {
+          comment: e.comment,
+          dimmed: matched !== undefined && !(matched.has(e.from) && matched.has(e.to)),
+          rating: e.rating,
+          width: e.width,
+        },
         id: e.id,
         markerEnd: {
           color: "var(--muted-foreground)",
@@ -129,7 +143,7 @@ export function GraphCanvas({
         target: e.to,
         type: "link",
       })),
-    [graph.edges, selectedLink],
+    [graph.edges, selectedLink, matched],
   );
 
   // Double-click / Ctrl+L in the table: center that track's card (keeping zoom >= 1).

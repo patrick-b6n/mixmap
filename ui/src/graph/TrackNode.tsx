@@ -5,7 +5,7 @@ import { formatBpm, keyLabel } from "../domain/trackTable";
 import type { NodeCard } from "../domain/graph";
 import { Artwork } from "../library/TrackTable";
 
-export type TrackNodeData = { artworkVersion: number; card: NodeCard; highlighted: boolean };
+export type TrackNodeData = { artworkVersion: number; card: NodeCard; dimmed: boolean; highlighted: boolean };
 export type TrackFlowNode = Node<TrackNodeData, "track">;
 
 /** Same card content (cards are rebuilt on every reload, so compare by value). */
@@ -27,6 +27,7 @@ export const TrackNode = memo(
   (a, b) =>
     a.selected === b.selected &&
     a.data.highlighted === b.data.highlighted &&
+    a.data.dimmed === b.data.dimmed &&
     a.data.artworkVersion === b.data.artworkVersion &&
     sameCard(a.data.card, b.data.card),
 );
@@ -40,6 +41,8 @@ function TrackNodeCard({ data, selected }: NodeProps<TrackFlowNode>) {
       className={cn(
         "flex w-52 items-center gap-2 rounded-md border bg-card p-1.5 text-[12px] shadow-sm",
         card.missing && "border-dashed opacity-60",
+        // Filtered out: stays in place but recedes (selected/highlighted cards stay readable).
+        data.dimmed && !selected && !data.highlighted && "opacity-25",
         data.highlighted && "border-primary",
         selected && "border-primary ring-1 ring-primary",
       )}
