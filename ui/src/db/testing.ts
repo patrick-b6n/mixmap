@@ -1,6 +1,7 @@
 // In-memory SQLite (node:sqlite) implementing `Db`, for Vitest. Mirrors the backend:
 // statements run in one transaction; booleans → 0/1; arrays/objects → JSON text.
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import type { Track } from "../api";
 import type { Db, ExecResult, SqlValue } from "./db";
 
 function toSql(v: SqlValue | undefined): SQLInputValue {
@@ -35,3 +36,19 @@ export function memoryDb(): Db & { raw: DatabaseSync } {
     raw,
   };
 }
+
+/** A rekordbox track for tests. */
+export const track = (id: string, artist: string, title: string, length = 300): Track => ({
+  album: "",
+  artist,
+  artworkPath: null,
+  bpm: 128,
+  comment: "",
+  filePath: "",
+  genre: "",
+  id,
+  key: "8A",
+  length,
+  rating: 0,
+  title,
+});

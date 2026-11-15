@@ -1,24 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Track } from "../api";
 import { portableKey } from "../domain/matching";
 import { cleanTags, createLink, deleteLink, listLinks, restoreLinks, updateLink } from "./links";
 import { migrate, tombstoneId } from "./schema";
-import { memoryDb } from "./testing";
-
-export const track = (id: string, artist: string, title: string, length = 300): Track => ({
-  album: "",
-  artist,
-  artworkPath: null,
-  bpm: 128,
-  comment: "",
-  filePath: "",
-  genre: "",
-  id,
-  key: "8A",
-  length,
-  rating: 0,
-  title,
-});
+import { memoryDb, track } from "./testing";
 
 describe("links", () => {
   let db: ReturnType<typeof memoryDb>;
