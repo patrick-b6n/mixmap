@@ -4,7 +4,7 @@ import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { addNodeStatements, type BoardNode, listNodes, moveNodes } from "../db/boards";
 import { apiDb } from "../db/db";
-import { createLinkStatements } from "../db/links";
+import { createLink, createLinkStatements } from "../db/links";
 import { portableKey } from "../domain/matching";
 import { centeredAt, placeNextTo } from "../domain/placement";
 import { BoardTabs, nextBoardName } from "./BoardTabs";
@@ -78,6 +78,10 @@ export function GraphPanel({ artworkVersion, data }: Props) {
     }
   };
 
+  const onLink = (source: string, target: string) => {
+    createLink(apiDb, source, target).then(data.refresh, (e) => setError(String(e)));
+  };
+
   const onMoved = (positions: { trackKey: string; x: number; y: number }[]) => {
     if (boardId) moveNodes(apiDb, boardId, positions).catch((e) => setError(String(e)));
   };
@@ -109,6 +113,7 @@ export function GraphPanel({ artworkVersion, data }: Props) {
                 key={boardId}
                 nodes={current}
                 onDropTrack={(d) => void onDropTrack(d)}
+                onLink={onLink}
                 onMoved={onMoved}
               />
               {current.length === 0 && (

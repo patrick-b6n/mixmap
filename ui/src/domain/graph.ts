@@ -29,6 +29,14 @@ export type GraphEdge = {
 /** Edge id for a link (stable across reloads). */
 export const edgeId = (from: string, to: string): string => `${from}\u0001${to}`;
 
+/**
+ * Whether dragging a connection from `source` to `target` may create a link: not a
+ * self link and not a direction that already exists.
+ */
+export function canLink(links: Pick<Link, "from" | "to">[], source: string, target: string): boolean {
+  return source !== target && !links.some((l) => l.from === source && l.to === target);
+}
+
 /** Unrated 1.5 px; rating 1–5 → 1.5…5.5 px. */
 export function edgeWidth(rating: number | null): number {
   return rating === null ? 1.5 : 0.5 + rating;

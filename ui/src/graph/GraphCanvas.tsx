@@ -3,7 +3,7 @@ import { applyNodeChanges, Background, Controls, MarkerType, MiniMap, type NodeC
 import { type DragEvent, useMemo, useRef, useState } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import type { BoardNode } from "../db/boards";
-import { buildGraph } from "../domain/graph";
+import { buildGraph, canLink } from "../domain/graph";
 import { LinkEdge, type LinkFlowEdge } from "./LinkEdge";
 import { TrackNode, type TrackFlowNode } from "./TrackNode";
 import { TRACK_MIME, type TrackDrop } from "./dnd";
@@ -30,10 +30,12 @@ type Props = {
   onDropTrack: (drop: TrackDrop) => void;
   /** Persist positions of nodes the user dragged. */
   onMoved: (positions: { trackKey: string; x: number; y: number }[]) => void;
+  /** A connection was dragged from `source`'s right handle onto `target`. */
+  onLink: (source: string, target: string) => void;
 };
 
 /** The active board's graph: track cards and directed links. Key it by board id. */
-export function GraphCanvas({ artworkVersion, data, nodes: boardNodes, onDropTrack, onMoved }: Props) {
+export function GraphCanvas({ artworkVersion, data, nodes: boardNodes, onDropTrack, onLink, onMoved }: Props) {
   const flow = useRef<ReactFlowInstance<TrackFlowNode, LinkFlowEdge>>(null);
   const graph = useMemo(
     () => buildGraph(boardNodes, data.links, data.tracks, data.library),
@@ -111,13 +113,25 @@ export function GraphCanvas({ artworkVersion, data, nodes: boardNodes, onDropTra
         // Fit once when a board opens (the canvas is keyed by board).
         fitView
         fitViewOptions={{ maxZoom: 1.2, padding: 0.2 }}
-        // Dragging an existing node only moves it; links come from handles (#21).
-        nodesConnectable={false}
+        // Links are drawn from a node's right handle; dragging the card only moves it.
+        connectionRadius={40}
+        isValidConnection={(c) => canLink(data.links, c.source, c.target)}
         nodeTypes={nodeTypes}
         nodes={nodes}
         onNodeDragStop={(_e, _node, dragged) =>
           onMoved(dragged.map((n) => ({ trackKey: n.id, x: n.position.x, y: n.position.y })))
         }
+        onConnect={(c) => onLink(c.source, c.target)}
+        // Dropped on a card but not near its handle: link to that card anyway.
+        onConnectEnd={(event, state) => {
+          if (state.isValid || !state.fromNode || state.fromHandle?.type !== "source") return;
+          const point = "changedTouches" in event ? event.changedTouches[0] : event;
+          const target = document
+            .elementFromPoint(point.clientX, point.clientY)
+            ?.closest(".react-flow__node")
+            ?.getAttribute("data-id");
+          if (target && canLink(data.links, state.fromNode.id, target)) onLink(state.fromNode.id, target);
+        }}
         onInit={(instance) => {
           flow.current = instance;
         }}

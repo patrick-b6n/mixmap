@@ -45,7 +45,13 @@ function TrackNodeCard({ data, selected }: NodeProps<TrackFlowNode>) {
       )}
       title={card.missing ? `${card.artist} – ${card.title} (missing in rekordbox)` : `${card.artist} – ${card.title}`}
     >
-      <Handle className="!size-2 !border-border !bg-muted" position={Position.Left} type="target" />
+      {/* Incoming end only: links are always drawn from the right (source) handle. */}
+      <Handle
+        className="!size-2.5 !border-border !bg-muted"
+        isConnectableStart={false}
+        position={Position.Left}
+        type="target"
+      />
       {t ? (
         <Artwork trackId={t.id} version={data.artworkVersion} />
       ) : (
@@ -71,7 +77,13 @@ function TrackNodeCard({ data, selected }: NodeProps<TrackFlowNode>) {
       >
         {card.linkCount}
       </span>
-      <Handle className="!size-2 !border-border !bg-muted" position={Position.Right} type="source" />
+      {/* Drag from here to another card to link this track → that one. */}
+      <Handle
+        className="!size-3 !border-border !bg-muted hover:!border-primary hover:!bg-primary"
+        position={Position.Right}
+        title="Drag to another track to link"
+        type="source"
+      />
     </div>
   );
 }
