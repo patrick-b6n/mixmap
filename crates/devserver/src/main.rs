@@ -20,6 +20,7 @@ use axum::{
 };
 use mixmap_core::artwork::{ArtworkCache, Size};
 use mixmap_core::memory::calibration::{Loaded, RoundResult, Session};
+use mixmap_core::memory::master::{MasterRound, MasterSession};
 use mixmap_core::network::exchange::UiReply;
 use mixmap_core::network::paired::{PairedPeer, PairedStore};
 use mixmap_core::network::{Device, Discovery, Peer, SyncHub};
@@ -52,6 +53,8 @@ struct AppState {
     network: Arc<Mutex<Option<Network>>>,
     /// Memory-reader calibration in progress.
     calibration: Arc<Mutex<Option<Session>>>,
+    /// Master-deck calibration in progress (process, saved calibration, session).
+    master: Arc<Mutex<Option<MasterState>>>,
     /// Last now-playing update, and the poller producing them (None in tests).
     now_playing: Arc<Mutex<(Option<Update>, Option<Poller>)>>,
     store: Arc<Store>,
@@ -75,6 +78,7 @@ impl AppState {
             library: LibraryService::new(source),
             network: Arc::new(Mutex::new(None)),
             calibration: Arc::new(Mutex::new(None)),
+            master: Arc::new(Mutex::new(None)),
             now_playing: Arc::new(Mutex::new((None, None))),
             store: Arc::new(store),
             watcher: Arc::new(Mutex::new(None)),
@@ -616,8 +620,101 @@ async fn calibration_save(State(s): State<AppState>) -> ApiResult<Saved> {
     }))
 }
 
+struct MasterState {
+    calibration: mixmap_core::memory::calibration::Calibration,
+    mem: Arc<dyn mixmap_core::memory::Memory>,
+    session: MasterSession,
+}
+
+/// Start learning the master deck (needs a saved title calibration for this version).
+async fn master_start(State(s): State<AppState>) -> ApiResult<CalibrationStarted> {
+    use mixmap_core::memory::source::Attach;
+    let slot = s.master.clone();
+    let version = blocking(move || {
+        let (mem, version) = mixmap_core::memory::source::RekordboxProcess::default().attach()?;
+        let (calibration, _) = mixmap_core::memory::calibration::load(
+            &mixmap_core::paths::calibration_dir(),
+            &version,
+        )
+        .ok_or_else(|| {
+            Error::NotFound(format!(
+                "calibrate the deck titles of rekordbox {version} first"
+            ))
+        })?;
+        let session = MasterSession::new(&calibration, mem.as_ref())?;
+        *slot.lock().unwrap_or_else(|e| e.into_inner()) = Some(MasterState {
+            calibration,
+            mem,
+            session,
+        });
+        Ok(version)
+    })
+    .await?;
+    Ok(Json(CalibrationStarted { version }))
+}
+
+#[derive(Deserialize)]
+struct MasterArg {
+    deck: u8,
+}
+
+/// One master round: `deck` is master in rekordbox right now.
+async fn master_round(
+    State(s): State<AppState>,
+    Json(a): Json<MasterArg>,
+) -> ApiResult<MasterRound> {
+    let slot = s.master.clone();
+    Ok(Json(
+        blocking(move || {
+            let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
+            let st = guard
+                .as_mut()
+                .ok_or_else(|| Error::NotFound("start the master calibration first".into()))?;
+            let r = st.session.round(st.mem.as_ref(), a.deck);
+            println!(
+                "master calibration: round {} (deck {} master) → {} candidates{}",
+                r.rounds,
+                a.deck,
+                r.candidates,
+                if r.ready { ", ready" } else { "" }
+            );
+            for line in st.session.report() {
+                println!("  {line}");
+            }
+            Ok(r)
+        })
+        .await?,
+    ))
+}
+
+/// Add the learned master field to the saved calibration.
+async fn master_save(State(s): State<AppState>) -> ApiResult<Saved> {
+    let slot = s.master.clone();
+    let path = blocking(move || {
+        let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
+        let st = guard
+            .as_mut()
+            .ok_or_else(|| Error::NotFound("start the master calibration first".into()))?;
+        let field = st
+            .session
+            .field()
+            .ok_or_else(|| Error::Invalid("not enough rounds yet".into()))?;
+        let mut c = st.calibration.clone();
+        c.master = Some(field);
+        let path =
+            mixmap_core::memory::calibration::save(&mixmap_core::paths::calibration_dir(), &c)?;
+        *guard = None;
+        Ok(path)
+    })
+    .await?;
+    Ok(Json(Saved {
+        path: path.display().to_string(),
+    }))
+}
+
 async fn calibration_cancel(State(s): State<AppState>) -> Json<bool> {
     *s.calibration.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *s.master.lock().unwrap_or_else(|e| e.into_inner()) = None;
     Json(true)
 }
 
@@ -658,6 +755,9 @@ fn app(state: AppState) -> Router {
         .route("/api/library", post(library))
         .route("/api/library_location", post(library_location))
         .route("/api/library_status", post(library_status))
+        .route("/api/master_round", post(master_round))
+        .route("/api/master_save", post(master_save))
+        .route("/api/master_start", post(master_start))
         .route("/api/now_playing", post(now_playing))
         .route("/api/refresh", post(refresh))
         .route("/api/set_library_source", post(set_library_source))

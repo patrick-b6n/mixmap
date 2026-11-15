@@ -107,7 +107,7 @@ impl<A: Attach> NowPlayingSource for MemorySource<A> {
         }
         Ok(NowPlaying {
             decks,
-            master: None,
+            master: cal.master.as_ref().and_then(|m| m.read(mem.as_ref())),
             source: String::new(),
         })
     }

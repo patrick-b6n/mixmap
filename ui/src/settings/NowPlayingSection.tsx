@@ -39,7 +39,9 @@ export function NowPlayingSection({ library }: Props) {
             ? "Waiting for rekordbox…"
             : update.status === "unavailable"
               ? update.reason
-              : update.decks.map((d) => `Deck ${d.deck}: ${d.title || "—"}`).join(" · ")}
+              : update.decks
+                  .map((d) => `Deck ${d.deck}${update.master === d.deck ? " (master)" : ""}: ${d.title || "—"}`)
+                  .join(" · ")}
         </span>
         <Button onClick={() => setWizard(true)}>Calibrate…</Button>
       </div>

@@ -4,6 +4,7 @@
 //! rekordbox version, so later reads are a handful of pointer hops.
 
 pub mod calibration;
+pub mod master;
 pub mod pointers;
 #[cfg(windows)]
 pub mod process;

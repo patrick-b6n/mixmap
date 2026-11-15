@@ -46,6 +46,9 @@ pub struct DeckFields {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Calibration {
     pub decks: Vec<DeckFields>,
+    /// Which deck is master (learned separately, after the titles).
+    #[serde(default)]
+    pub master: Option<super::master::MasterField>,
     pub version: String,
 }
 
@@ -270,6 +273,7 @@ impl Session {
                     title: field(d, Kind::Title).expect("ready implies a title"),
                 })
                 .collect(),
+            master: None,
             version: self.version.clone(),
         })
     }
