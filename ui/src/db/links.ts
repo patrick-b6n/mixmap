@@ -81,19 +81,40 @@ export async function getLink(db: Db, from: string, to: string): Promise<Link | 
   return rows[0] && fromRaw(rows[0]);
 }
 
+/** A rekordbox track (added to mixmap.db if needed) or the key of a stored track. */
+export type Endpoint = Track | string;
+
+function endpoint(e: Endpoint): { key: string; statements: Statement[] } {
+  if (typeof e === "string") return { key: e, statements: [] };
+  const t = ensureTrackStatement(e);
+  return { key: t.key, statements: [t.statement] };
+}
+
 /**
- * Link `from` → `to` (both rekordbox tracks; they are added to mixmap.db if needed).
+ * Link `from` → `to`: rekordbox tracks (added to mixmap.db if needed) or keys of
+ * stored tracks (e.g. a node whose rekordbox track is missing).
  * At most one link per direction: an existing link is returned unchanged.
  */
-export async function createLink(db: Db, from: Track, to: Track, init: LinkPatch = {}): Promise<Link> {
+export async function createLink(db: Db, from: Endpoint, to: Endpoint, init: LinkPatch = {}): Promise<Link> {
+  const { from: f, statements, to: t } = createLinkStatements(from, to, init);
+  await db.execute(statements);
+  return (await getLink(db, f, t))!;
+}
+
+/** Statements of `createLink`, to combine with other writes in one transaction. */
+export function createLinkStatements(
+  from: Endpoint,
+  to: Endpoint,
+  init: LinkPatch = {},
+): { from: string; statements: Statement[]; to: string } {
   checkRating(init.rating);
-  const a = ensureTrackStatement(from);
-  const b = ensureTrackStatement(to);
+  const a = endpoint(from);
+  const b = endpoint(to);
   if (a.key === b.key) throw new Error("a track cannot link to itself");
   const ts = now();
-  await db.execute([
-    a.statement,
-    b.statement,
+  const statements: Statement[] = [
+    ...a.statements,
+    ...b.statements,
     // A newly created link is no longer deleted (only if it doesn't exist yet: an
     // existing link keeps whatever tombstone state sync gave it).
     {
@@ -105,8 +126,8 @@ export async function createLink(db: Db, from: Track, to: Track, init: LinkPatch
       params: [a.key, b.key, init.comment ?? "", init.rating ?? null, cleanTags(init.tags ?? []), ts, ts],
       sql: `INSERT INTO links (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
     },
-  ]);
-  return (await getLink(db, a.key, b.key))!;
+  ];
+  return { from: a.key, statements, to: b.key };
 }
 
 /** Change comment, rating and/or tags. */

@@ -33,6 +33,13 @@ describe("links", () => {
     expect(n).toBe(2);
   });
 
+  it("accepts stored track keys as endpoints", async () => {
+    await createLink(db, a, b);
+    const l = await createLink(db, kb, ka); // both already stored
+    expect([l.from, l.to]).toEqual([kb, ka]);
+    await expect(createLink(db, "not|stored|1", ka)).rejects.toThrow("FOREIGN KEY");
+  });
+
   it("rejects self links and invalid ratings", async () => {
     await expect(createLink(db, a, a)).rejects.toThrow("itself");
     await expect(createLink(db, a, b, { rating: 6 })).rejects.toThrow("1–5");

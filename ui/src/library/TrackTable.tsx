@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Placeholder } from "@/components/Placeholder";
 import { cn } from "@/lib/utils";
 import { artworkUrl, type Track } from "../api";
+import { TRACK_MIME } from "../graph/dnd";
 import {
   COLUMNS,
   type ColumnId,
@@ -264,8 +265,13 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
                   selected && "bg-selected hover:bg-selected",
                 )}
                 // Position-based: a playlist may contain the same track twice.
+                draggable
                 key={first + i}
                 onClick={() => onSelect(t.id)}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(TRACK_MIME, t.id);
+                  e.dataTransfer.effectAllowed = "copyLink";
+                }}
                 role="row"
                 style={{ height: ROW_HEIGHT, top: (first + i) * ROW_HEIGHT }}
               >
