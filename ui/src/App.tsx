@@ -10,6 +10,7 @@ import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
 import { useLibrary } from "./library/useLibrary";
+import { useReconcile } from "./library/useReconcile";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { Shell } from "./shell/Shell";
 
@@ -19,6 +20,9 @@ export default function App() {
   const [trackId, setTrackId] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dbError, setDbError] = useState<string>();
+  const { error: matchError, results: matches } = useReconcile(library);
+  const missingCount = matches.filter((m) => m.kind === "missing").length;
+  const unmatchedCount = matches.filter((m) => m.kind === "unmatched" || m.kind === "ambiguous").length;
 
   // Once: prepare mixmap.db and restore persisted settings (e.g. the library source).
   useEffect(() => {
@@ -46,7 +50,7 @@ export default function App() {
 
   const selectedTrack = useMemo(() => library?.tracks.find((t) => t.id === trackId), [library, trackId]);
 
-  const shownError = dbError ?? status?.error ?? error;
+  const shownError = dbError ?? matchError ?? status?.error ?? error;
   const toolbar = (
     <>
       <Button onClick={refresh}>
@@ -59,6 +63,8 @@ export default function App() {
       </Button>
       <span className="truncate text-muted-foreground" data-testid="status" title={status?.location?.dbPath}>
         {status && `${status.trackCount} tracks · ${status.playlistCount} playlists`}
+        {missingCount > 0 && ` · ${missingCount} missing`}
+        {unmatchedCount > 0 && ` · ${unmatchedCount} unmatched`}
         {shownError && <span className="text-destructive"> · {shownError}</span>}
       </span>
     </>
