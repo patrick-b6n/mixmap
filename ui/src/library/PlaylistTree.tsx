@@ -1,7 +1,9 @@
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Folder, History, ListMusic, type LucideIcon, Music, Sparkles } from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import { Placeholder } from "@/components/Placeholder";
+import { cn } from "@/lib/utils";
 import type { Playlist } from "../api";
 import { buildTree, type TreeNode } from "../domain/playlistTree";
-import "./library.css";
 
 type Props = {
   histories: Playlist[];
@@ -11,11 +13,11 @@ type Props = {
   trackCount: number;
 };
 
-const ICONS: Record<Playlist["kind"], string> = {
-  folder: "📁",
-  history: "🕘",
-  playlist: "♪",
-  smart: "⚙",
+const ICONS: Record<Playlist["kind"], LucideIcon> = {
+  folder: Folder,
+  history: History,
+  playlist: ListMusic,
+  smart: Sparkles,
 };
 
 /** rekordbox playlist and history trees; selecting a node filters the track table. */
@@ -33,7 +35,8 @@ export function PlaylistTree({ histories, onSelect, playlists, selectedId, track
 
   /** Up/Down move between visible rows, Left/Right collapse/expand, Enter/Space select. */
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>, id: string | undefined, hasChildren: boolean, open: boolean) => {
-    const rows = Array.from(e.currentTarget.closest(".tree")?.querySelectorAll<HTMLElement>(".tree-row") ?? []);
+    const tree = e.currentTarget.closest("[data-tree]");
+    const rows = Array.from(tree?.querySelectorAll<HTMLElement>("[data-tree-row]") ?? []);
     const i = rows.indexOf(e.currentTarget);
     const focus = (j: number) => rows[Math.max(0, Math.min(rows.length - 1, j))]?.focus();
     const actions: Record<string, () => void> = {
@@ -53,62 +56,95 @@ export function PlaylistTree({ histories, onSelect, playlists, selectedId, track
     }
   };
 
+  const row = (opts: {
+    count?: number;
+    depth: number;
+    hasChildren: boolean;
+    icon: LucideIcon;
+    id: string | undefined;
+    name: string;
+    open: boolean;
+    title?: string;
+  }): ReactNode => {
+    const Icon = opts.icon;
+    const selected = opts.id === selectedId;
+    return (
+      <div
+        className={cn(
+          "flex h-6 cursor-pointer items-center gap-1 pr-2 outline-none select-none hover:bg-accent",
+          "focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring",
+          selected && "bg-selected hover:bg-selected",
+        )}
+        data-tree-row
+        onClick={() => onSelect(opts.id)}
+        onKeyDown={(e) => onKeyDown(e, opts.id, opts.hasChildren, opts.open)}
+        style={{ paddingLeft: 8 + opts.depth * 14 }}
+        tabIndex={0}
+        title={opts.title ?? opts.name}
+      >
+        <span
+          className="flex w-3 justify-center text-muted-foreground"
+          onClick={(e) => {
+            if (!opts.hasChildren || opts.id === undefined) return;
+            e.stopPropagation();
+            toggle(opts.id);
+          }}
+        >
+          {opts.hasChildren && (opts.open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />)}
+        </span>
+        <Icon className="mx-0.5 size-3.5 flex-none text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate">{opts.name}</span>
+        {opts.count !== undefined && <span className="text-[11px] text-muted-foreground">{opts.count}</span>}
+      </div>
+    );
+  };
+
   const renderNode = (node: TreeNode, depth: number) => {
     const p = node.playlist;
     const open = !collapsed.has(p.id);
     const hasChildren = node.children.length > 0;
     return (
-      <li key={p.id} role="treeitem" aria-expanded={hasChildren ? open : undefined} aria-selected={p.id === selectedId}>
-        <div
-          className={`tree-row${p.id === selectedId ? " selected" : ""}`}
-          onClick={() => onSelect(p.id)}
-          onKeyDown={(e) => onKeyDown(e, p.id, hasChildren, open)}
-          style={{ paddingLeft: 8 + depth * 14 }}
-          tabIndex={0}
-          title={p.kind === "smart" ? "Smart playlist (contents not supported yet)" : p.name}
-        >
-          <span
-            className="tree-twisty"
-            onClick={(e) => {
-              if (!hasChildren) return;
-              e.stopPropagation();
-              toggle(p.id);
-            }}
-          >
-            {hasChildren ? (open ? "▾" : "▸") : ""}
-          </span>
-          <span className="tree-icon">{ICONS[p.kind]}</span>
-          <span className="tree-name">{p.name}</span>
-          {p.kind !== "folder" && <span className="tree-count">{p.trackIds.length}</span>}
-        </div>
+      <li aria-expanded={hasChildren ? open : undefined} aria-selected={p.id === selectedId} key={p.id} role="treeitem">
+        {row({
+          count: p.kind === "folder" ? undefined : p.trackIds.length,
+          depth,
+          hasChildren,
+          icon: ICONS[p.kind],
+          id: p.id,
+          name: p.name,
+          open,
+          title: p.kind === "smart" ? "Smart playlist (contents not supported yet)" : undefined,
+        })}
         {hasChildren && open && <ul role="group">{node.children.map((c) => renderNode(c, depth + 1))}</ul>}
       </li>
     );
   };
 
   return (
-    <nav className="tree" aria-label="Playlists">
+    <nav aria-label="Playlists" data-tree>
       <ul role="tree">
-        <li role="treeitem" aria-selected={selectedId === undefined}>
-          <div
-            className={`tree-row${selectedId === undefined ? " selected" : ""}`}
-            onClick={() => onSelect(undefined)}
-            onKeyDown={(e) => onKeyDown(e, undefined, false, false)}
-            tabIndex={0}
-          >
-            <span className="tree-twisty" />
-            <span className="tree-icon">♫</span>
-            <span className="tree-name">All tracks</span>
-            <span className="tree-count">{trackCount}</span>
-          </div>
+        <li aria-selected={selectedId === undefined} role="treeitem">
+          {row({
+            count: trackCount,
+            depth: 0,
+            hasChildren: false,
+            icon: Music,
+            id: undefined,
+            name: "All tracks",
+            open: false,
+          })}
         </li>
       </ul>
-      <div className="tree-heading">Playlists</div>
+      <Heading>Playlists</Heading>
       <ul role="tree">{playlistTree.map((n) => renderNode(n, 0))}</ul>
-      {playlistTree.length === 0 && <div className="placeholder">No playlists</div>}
-      <div className="tree-heading">History</div>
+      {playlistTree.length === 0 && <Placeholder>No playlists</Placeholder>}
+      <Heading>History</Heading>
       <ul role="tree">{historyTree.map((n) => renderNode(n, 0))}</ul>
-      {historyTree.length === 0 && <div className="placeholder">No history yet</div>}
+      {historyTree.length === 0 && <Placeholder>No history yet</Placeholder>}
     </nav>
   );
+}
+
+function Heading({ children }: { children: string }) {
+  return <div className="px-2 pt-2.5 pb-1 text-[11px] tracking-wider text-muted-foreground uppercase">{children}</div>;
 }

@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { RefreshCw, Settings } from "lucide-react";
+import { Placeholder } from "@/components/Placeholder";
+import { Button } from "@/components/ui/button";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
@@ -37,11 +40,17 @@ export default function App() {
   const shownError = status?.error ?? error;
   const toolbar = (
     <>
-      <button onClick={refresh}>Refresh</button>
-      <button onClick={() => setSettingsOpen(true)}>Settings</button>
-      <span className="status" title={status?.location?.dbPath}>
+      <Button onClick={refresh}>
+        <RefreshCw />
+        Refresh
+      </Button>
+      <Button onClick={() => setSettingsOpen(true)}>
+        <Settings />
+        Settings
+      </Button>
+      <span className="truncate text-muted-foreground" data-testid="status" title={status?.location?.dbPath}>
         {status && `${status.trackCount} tracks · ${status.playlistCount} playlists`}
-        {shownError && <span className="status-error"> · {shownError}</span>}
+        {shownError && <span className="text-destructive"> · {shownError}</span>}
       </span>
     </>
   );
@@ -51,7 +60,7 @@ export default function App() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
       <Shell
         details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
-        graph={<div className="placeholder">Graph</div>}
+        graph={<Placeholder>Graph</Placeholder>}
         playlists={
           library ? (
             <PlaylistTree
@@ -62,7 +71,7 @@ export default function App() {
               trackCount={library.tracks.length}
             />
           ) : (
-            <div className="placeholder">Loading…</div>
+            <Placeholder>Loading…</Placeholder>
           )
         }
         table={
@@ -74,7 +83,7 @@ export default function App() {
               version={library.version}
             />
           ) : (
-            <div className="placeholder">Loading…</div>
+            <Placeholder>Loading…</Placeholder>
           )
         }
         toolbar={toolbar}

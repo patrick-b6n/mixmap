@@ -8,6 +8,17 @@ import {
   useRef,
   useState,
 } from "react";
+import { Music } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Placeholder } from "@/components/Placeholder";
+import { cn } from "@/lib/utils";
 import { artworkUrl, type Track } from "../api";
 import {
   COLUMNS,
@@ -24,7 +35,6 @@ import {
   stars,
   type TableConfig,
 } from "../domain/trackTable";
-import "./library.css";
 
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 26;
@@ -56,7 +66,6 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
   const [query, setQuery] = useState("");
   const [scrollTop, setScrollTop] = useState(0);
   const [viewHeight, setViewHeight] = useState(400);
-  const [chooserOpen, setChooserOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // Save a moment after the last change (column resizing changes config per move).
@@ -86,9 +95,12 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
   );
 
   // A different list starts at the top (onScroll then updates scrollTop). The
-  // dependencies are the triggers, not values used inside.
-  // oxlint-disable-next-line react/exhaustive-effect-dependencies
-  useEffect(() => bodyRef.current?.scrollTo(0, 0), [tracks, deferredQuery, config.sort]);
+  // dependencies are the triggers, not values used inside. Block body: scrollTo()
+  // returns a Promise in newer browsers, which an effect must not return.
+  useEffect(() => {
+    bodyRef.current?.scrollTo(0, 0);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
+  }, [tracks, deferredQuery, config.sort]);
 
   /** Arrow keys move the selection; the selected row is scrolled into view. */
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -153,77 +165,67 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
     }
   };
 
+  /** Columns in chooser order: everything but artwork, then artwork last. */
+  const chooserColumns = [
+    ...config.columns.filter((c) => c.id !== "artwork"),
+    ...config.columns.filter((c) => c.id === "artwork"),
+  ];
+
   return (
-    <div className="table">
-      <div className="table-toolbar">
-        <input
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b px-2 py-1">
+        <Input
           aria-label="Search tracks"
-          className="table-search"
+          className="max-w-105 flex-1"
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search title, artist, album, genre, key, comment…"
           type="search"
           value={query}
         />
-        <span className="table-count">
+        <span className="flex-1 text-muted-foreground">
           {rows.length === tracks.length ? `${rows.length} tracks` : `${rows.length} of ${tracks.length}`}
         </span>
-        <div className="table-chooser">
-          <button
-            aria-expanded={chooserOpen}
-            onClick={() => setChooserOpen((o) => !o)}
-            onKeyDown={(e) => e.key === "Escape" && setChooserOpen(false)}
-            title="Choose columns"
-          >
-            Columns
-          </button>
-          {chooserOpen && (
-            <div
-              className="table-chooser-menu"
-              onKeyDown={(e) => e.key === "Escape" && setChooserOpen(false)}
-              onMouseLeave={() => setChooserOpen(false)}
-            >
-              {config.columns
-                .filter((c) => c.id !== "artwork")
-                .map((c) => (
-                  <label key={c.id}>
-                    <input
-                      checked={c.visible}
-                      onChange={(e) => setColumn(c.id, { visible: e.target.checked })}
-                      type="checkbox"
-                    />
-                    {LABELS.get(c.id)?.label}
-                  </label>
-                ))}
-              <label>
-                <input
-                  checked={config.columns.find((c) => c.id === "artwork")?.visible ?? false}
-                  onChange={(e) => setColumn("artwork", { visible: e.target.checked })}
-                  type="checkbox"
-                />
-                Artwork
-              </label>
-            </div>
-          )}
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button title="Choose columns">Columns</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {chooserColumns.map((c) => (
+              <DropdownMenuCheckboxItem
+                checked={c.visible}
+                key={c.id}
+                onCheckedChange={(checked) => setColumn(c.id, { visible: checked === true })}
+                // Keep the menu open while toggling several columns.
+                onSelect={(e) => e.preventDefault()}
+              >
+                {c.id === "artwork" ? "Artwork" : LABELS.get(c.id)?.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div
         aria-label="Tracks"
         aria-rowcount={rows.length + 1}
-        className="table-body"
+        className="relative min-h-0 flex-1 scroll-pt-6.5 overflow-auto outline-none focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring"
         onKeyDown={onGridKeyDown}
         onScroll={(e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)}
         ref={bodyRef}
         role="grid"
         tabIndex={0}
       >
-        <div className="table-header" role="row" style={{ width: totalWidth }}>
+        <div className="sticky top-0 z-10 flex h-6.5 border-b bg-card" role="row" style={{ width: totalWidth }}>
           {visibleColumns.map((c) => {
             const def = LABELS.get(c.id)!;
             const sorted = config.sort?.column === c.id ? (config.sort.desc ? " ▼" : " ▲") : "";
             return (
               <div
                 aria-sort={sorted ? (config.sort?.desc ? "descending" : "ascending") : undefined}
-                className={`th${def.sortable ? " sortable" : ""}`}
+                className={cn(
+                  "relative flex flex-none items-center px-1.5 text-muted-foreground outline-none select-none",
+                  "focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring",
+                  def.sortable && "cursor-pointer",
+                )}
                 key={c.id}
                 onClick={() => def.sortable && setConfig((cfg) => ({ ...cfg, sort: nextSort(cfg.sort, c.id) }))}
                 onKeyDown={(e) => {
@@ -236,12 +238,12 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
                 style={{ width: c.width }}
                 tabIndex={def.sortable ? 0 : undefined}
               >
-                <span className="th-label">
+                <span className="truncate">
                   {def.label}
                   {sorted}
                 </span>
                 <div
-                  className="th-resize"
+                  className="absolute inset-y-0 -right-0.75 z-10 w-1.5 cursor-col-resize hover:bg-primary"
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => startResize(e, c)}
                 />
@@ -249,27 +251,44 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
             );
           })}
         </div>
-        <div style={{ height: rows.length * ROW_HEIGHT, position: "relative", width: totalWidth }}>
-          {rows.slice(first, last).map((t, i) => (
-            <div
-              aria-rowindex={first + i + 2}
-              aria-selected={t.id === selectedId}
-              className={`tr ${(first + i) % 2 ? "odd" : "even"}${t.id === selectedId ? " selected" : ""}`}
-              // Position-based: a playlist may contain the same track twice.
-              key={first + i}
-              onClick={() => onSelect(t.id)}
-              role="row"
-              style={{ height: ROW_HEIGHT, top: (first + i) * ROW_HEIGHT }}
-            >
-              {visibleColumns.map((c) => (
-                <div className={`td td-${c.id}`} key={c.id} role="gridcell" style={{ width: c.width }}>
-                  {cell(t, c.id)}
-                </div>
-              ))}
-            </div>
-          ))}
+        <div className="relative" style={{ height: rows.length * ROW_HEIGHT, width: totalWidth }}>
+          {rows.slice(first, last).map((t, i) => {
+            const selected = t.id === selectedId;
+            return (
+              <div
+                aria-rowindex={first + i + 2}
+                aria-selected={selected}
+                className={cn(
+                  "absolute inset-x-0 flex items-center hover:bg-accent",
+                  (first + i) % 2 === 1 && "bg-stripe",
+                  selected && "bg-selected hover:bg-selected",
+                )}
+                // Position-based: a playlist may contain the same track twice.
+                key={first + i}
+                onClick={() => onSelect(t.id)}
+                role="row"
+                style={{ height: ROW_HEIGHT, top: (first + i) * ROW_HEIGHT }}
+              >
+                {visibleColumns.map((c) => (
+                  <div
+                    className={cn(
+                      "flex-none truncate px-1.5",
+                      (c.id === "bpm" || c.id === "length" || c.id === "links") && "text-right tabular-nums",
+                      c.id === "rating" && "text-rating",
+                      c.id === "artwork" && "px-1",
+                    )}
+                    key={c.id}
+                    role="gridcell"
+                    style={{ width: c.width }}
+                  >
+                    {cell(t, c.id)}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
-        {rows.length === 0 && <div className="placeholder">{tracks.length ? "No matches" : "No tracks"}</div>}
+        {rows.length === 0 && <Placeholder>{tracks.length ? "No matches" : "No tracks"}</Placeholder>}
       </div>
     </div>
   );
@@ -291,11 +310,17 @@ export function Artwork({
   const url = artworkUrl(trackId, size, version);
   const [failedUrl, setFailedUrl] = useState<string>();
   const missing = failedUrl === url || missingArtwork.has(url);
-  if (missing) return <div className={`artwork artwork-${size} artwork-placeholder`}>♪</div>;
+  const box = size === "small" ? "size-6" : "aspect-square w-full";
+  if (missing)
+    return (
+      <div className={cn("flex items-center justify-center rounded-[3px] bg-muted text-muted-foreground", box)}>
+        <Music className={size === "small" ? "size-3" : "size-16"} />
+      </div>
+    );
   return (
     <img
       alt=""
-      className={`artwork artwork-${size}`}
+      className={cn("block rounded-[3px] object-cover", box)}
       loading="lazy"
       onError={() => {
         missingArtwork.add(url);

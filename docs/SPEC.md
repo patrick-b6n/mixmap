@@ -5,6 +5,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ## Platform & architecture
 
 - **Tauri 2 + React + TypeScript**, Rust backend. Windows only. **Dark theme only.**
+- UI stack: **Tailwind CSS v4 + shadcn/ui** (theme tokens map the dark palette); **oxc** (oxlint, oxfmt) for linting and formatting; Vitest for tests.
 - **TypeScript first, Rust only where necessary.** Rust is a thin I/O layer for what a browser can't do; all domain logic lives in TypeScript.
 - Layout of the repo:
   - `crates/core` — I/O only: locating and decrypting rekordbox `master.db` and returning raw library data, file watching, artwork extraction and thumbnail cache, MixMap SQLite storage, network (mDNS, sync transport), memory reader for now-playing.
