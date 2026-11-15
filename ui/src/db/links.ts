@@ -186,11 +186,11 @@ export async function deleteLink(db: Db, from: string, to: string): Promise<Link
  * `updated_at` makes the restore win over the deletion in sync. Links whose tracks
  * are gone, or that were re-created meanwhile, are left as they are.
  */
-export async function restoreLinks(db: Db, links: Link[]): Promise<void> {
-  if (links.length === 0) return;
+export async function restoreLinks(db: Db, links: Link[]): Promise<number> {
+  if (links.length === 0) return 0;
   const ts = now();
   const bothTracks = "EXISTS (SELECT 1 FROM tracks WHERE key = ?) AND EXISTS (SELECT 1 FROM tracks WHERE key = ?)";
-  await db.execute(
+  const results = await db.execute(
     links.flatMap((l) => [
       {
         params: [tombstoneId(l.from, l.to), l.from, l.to, l.from, l.to],
@@ -204,4 +204,6 @@ export async function restoreLinks(db: Db, links: Link[]): Promise<void> {
       },
     ]),
   );
+  // Every second statement is an INSERT; count the rows it actually added.
+  return results.filter((_r, i) => i % 2 === 1).reduce((n, r) => n + r.changes, 0);
 }

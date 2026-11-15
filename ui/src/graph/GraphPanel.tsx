@@ -13,14 +13,26 @@ import { GraphCanvas } from "./GraphCanvas";
 import { useBoards } from "./useBoards";
 import type { MixmapData } from "./useMixmap";
 
-type Props = { artworkVersion: number; data: MixmapData };
+type Props = {
+  artworkVersion: number;
+  data: MixmapData;
+  onDeleteLink: (from: string, to: string) => void;
+  onSelectLink: (link: { from: string; to: string } | undefined) => void;
+  selectedLink?: { from: string; to: string };
+};
 
 /** Upper center area: board tabs and the graph canvas of the active board. */
-export function GraphPanel({ artworkVersion, data }: Props) {
+export function GraphPanel({ artworkVersion, data, onDeleteLink, onSelectLink, selectedLink }: Props) {
   const state = useBoards();
   const [error, setError] = useState<string>();
   const [nodes, setNodes] = useState<{ boardId: string; nodes: BoardNode[] }>();
   const boardId = state.active?.id;
+  // A link selected on another board is not shown here: clear the selection.
+  const [selectionBoard, setSelectionBoard] = useState(boardId);
+  if (selectionBoard !== boardId) {
+    setSelectionBoard(boardId);
+    if (selectedLink) onSelectLink(undefined);
+  }
   const shownError = error ?? state.error;
   const current = nodes && nodes.boardId === boardId ? nodes.nodes : undefined;
 
@@ -112,8 +124,11 @@ export function GraphPanel({ artworkVersion, data }: Props) {
                 data={data}
                 key={boardId}
                 nodes={current}
+                onDeleteLink={onDeleteLink}
                 onDropTrack={(d) => void onDropTrack(d)}
                 onLink={onLink}
+                onSelectLink={onSelectLink}
+                selectedLink={selectedLink}
                 onMoved={onMoved}
               />
               {current.length === 0 && (

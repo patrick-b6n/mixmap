@@ -63,7 +63,7 @@ describe("links", () => {
     expect(await listLinks(db)).toEqual([]);
     expect(await tombstones()).toEqual([{ id: tombstoneId(ka, kb), kind: "link" }]);
 
-    await restoreLinks(db, [deleted!]);
+    expect(await restoreLinks(db, [deleted!])).toBe(1);
     const [restored] = await listLinks(db);
     expect(restored).toMatchObject({ comment: "keep me", createdAt: created.createdAt, rating: 3, tags: ["x"] });
     expect(await tombstones()).toEqual([]);
@@ -80,7 +80,7 @@ describe("links", () => {
     expect(await tombstones()).toHaveLength(1);
 
     const gone = { ...(await listLinks(db))[0], from: "gone|track|1" };
-    await restoreLinks(db, [gone]);
+    expect(await restoreLinks(db, [gone])).toBe(0);
     expect(await listLinks(db)).toHaveLength(1);
   });
 
