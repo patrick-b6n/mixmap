@@ -5,6 +5,7 @@ use serde::Serialize;
 pub mod artwork;
 pub mod backups;
 mod error;
+pub mod network;
 pub mod paths;
 pub mod rekordbox;
 pub mod service;

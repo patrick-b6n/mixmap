@@ -19,6 +19,7 @@ use axum::{
     Json, Router,
 };
 use mixmap_core::artwork::{ArtworkCache, Size};
+use mixmap_core::network::{Device, Discovery, Peer};
 use mixmap_core::rekordbox::library::Track;
 use mixmap_core::rekordbox::playlists::Playlist;
 use mixmap_core::service::{LibraryService, Source, Status};
@@ -28,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_stream::{wrappers::BroadcastStream, Stream, StreamExt};
 
+/// Local API address; `MIXMAP_DEV_ADDR` overrides it (second instance for sync tests).
 const ADDR: &str = "127.0.0.1:5174";
 
 /// A backend event: `name` is the event type, `data` its JSON payload.
@@ -42,9 +44,18 @@ struct AppState {
     artwork: Arc<ArtworkCache>,
     events: broadcast::Sender<BackendEvent>,
     library: Arc<LibraryService>,
+    /// Network sync: this device and the running mDNS discovery (None in tests).
+    network: Arc<Mutex<Option<Network>>>,
     store: Arc<Store>,
     /// Keeps the master.db watcher alive.
     watcher: Arc<Mutex<Option<Box<dyn Send>>>>,
+}
+
+struct Network {
+    device: Device,
+    discovery: Option<Discovery>,
+    error: Option<String>,
+    port: u16,
 }
 
 impl AppState {
@@ -54,6 +65,7 @@ impl AppState {
             artwork: Arc::new(ArtworkCache::new(mixmap_core::paths::artwork_dir())),
             events,
             library: LibraryService::new(source),
+            network: Arc::new(Mutex::new(None)),
             store: Arc::new(store),
             watcher: Arc::new(Mutex::new(None)),
         };
@@ -309,6 +321,74 @@ async fn write_backup(Json(req): Json<WriteBackup>) -> ApiResult<Written> {
     }))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncStatus {
+    device: Option<Device>,
+    /// Why discovery isn't running (e.g. no network), if it isn't.
+    error: Option<String>,
+    peers: Vec<Peer>,
+    port: u16,
+}
+
+/// This device and the MixMap instances discovered on the LAN.
+async fn sync_status(State(s): State<AppState>) -> Json<SyncStatus> {
+    let net = s.network.lock().unwrap_or_else(|e| e.into_inner());
+    Json(match net.as_ref() {
+        Some(n) => SyncStatus {
+            device: Some(n.device.clone()),
+            error: n.error.clone(),
+            peers: n
+                .discovery
+                .as_ref()
+                .map(Discovery::peers)
+                .unwrap_or_default(),
+            port: n.port,
+        },
+        None => SyncStatus {
+            device: None,
+            error: Some("network sync is not running".into()),
+            peers: vec![],
+            port: 0,
+        },
+    })
+}
+
+/// Start the LAN listener and mDNS discovery; peer changes are emitted as `peers`.
+async fn start_network(state: &AppState) -> Result<(), Error> {
+    let device =
+        mixmap_core::network::identity::load_or_create(&mixmap_core::paths::device_path())?;
+    let (listener, port) = mixmap_core::network::server::bind().await?;
+    let router = mixmap_core::network::server::router(device.clone());
+    tokio::spawn(async move {
+        if let Err(e) = axum::serve(listener, router).await {
+            eprintln!("sync listener stopped: {e}");
+        }
+    });
+    let events = state.events.clone();
+    let (discovery, error) =
+        match Discovery::start(&device, port, move |peers| emit(&events, "peers", &peers)) {
+            Ok(d) => (Some(d), None),
+            Err(e) => (None, Some(e.to_string())),
+        };
+    println!(
+        "sync: {} ({}) on port {port}{}",
+        device.name,
+        device.id,
+        error
+            .as_ref()
+            .map(|e| format!(", discovery off: {e}"))
+            .unwrap_or_default()
+    );
+    *state.network.lock().unwrap_or_else(|e| e.into_inner()) = Some(Network {
+        device,
+        discovery,
+        error,
+        port,
+    });
+    Ok(())
+}
+
 /// Only answer requests addressed to this machine by name: blocks DNS-rebinding
 /// pages from reaching the API (e.g. the raw SQL bridge) through a foreign host name.
 async fn local_hosts_only(req: Request, next: Next) -> Response {
@@ -344,6 +424,7 @@ fn app(state: AppState) -> Router {
         .route("/api/library_status", post(library_status))
         .route("/api/refresh", post(refresh))
         .route("/api/set_library_source", post(set_library_source))
+        .route("/api/sync_status", post(sync_status))
         .route("/api/write_backup", post(write_backup))
         .layer(middleware::from_fn(local_hosts_only))
         .with_state(state)
@@ -364,9 +445,26 @@ async fn main() {
             .map(|e| format!(" (error: {e})"))
             .unwrap_or_default()
     );
-    let listener = tokio::net::TcpListener::bind(ADDR).await.expect("bind");
-    println!("devserver listening on http://{ADDR}");
-    axum::serve(listener, app(state)).await.expect("serve");
+    if let Err(e) = start_network(&state).await {
+        eprintln!("network sync disabled: {e}");
+    }
+    let addr = std::env::var("MIXMAP_DEV_ADDR").unwrap_or_else(|_| ADDR.into());
+    let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
+    println!("devserver listening on http://{addr}");
+    axum::serve(listener, app(state.clone()))
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+        })
+        .await
+        .expect("serve");
+    // Unregister from mDNS so other instances drop us right away.
+    drop(
+        state
+            .network
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take(),
+    );
 }
 
 #[cfg(test)]

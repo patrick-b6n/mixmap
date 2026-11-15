@@ -16,6 +16,7 @@ import { api, type LibrarySource, type LibraryStatus, type Track } from "../api"
 import { apiDb } from "../db/db";
 import { setSetting, SETTINGS } from "../db/settings";
 import { DataSection } from "./DataSection";
+import { SyncSection } from "./SyncSection";
 
 type Props = {
   /** rekordbox tracks by id (to describe manual matches portably in exports). */
@@ -108,6 +109,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         </fieldset>
         {result && <div data-testid="settings-result">{result}</div>}
         <DataSection library={library} onDataChanged={onDataChanged} />
+        <SyncSection />
         <DialogFooter>
           <Button disabled={busy} onClick={apply}>
             {busy ? "Loading…" : "Apply"}

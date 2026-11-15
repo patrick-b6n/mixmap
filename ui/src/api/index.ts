@@ -58,6 +58,17 @@ export type LibraryStatus = {
   version: number;
 };
 
+/** This MixMap instance on the network. */
+export type Device = { id: string; name: string };
+
+/** Another MixMap instance found on the LAN (mDNS). */
+export type Peer = Device & { addresses: string[]; port: number; protocol: number };
+
+export type SyncStatus = { device: Device | null; error: string | null; peers: Peer[]; port: number };
+
+/** Sync protocol version this app speaks. */
+export const SYNC_PROTOCOL = 1;
+
 type Args = Record<string, unknown>;
 
 declare global {
@@ -93,6 +104,7 @@ export const api = {
   libraryStatus: () => call<LibraryStatus>("library_status"),
   refresh: () => call<LibraryStatus>("refresh"),
   setLibrarySource: (source: LibrarySource) => call<LibraryStatus>("set_library_source", { source }),
+  syncStatus: () => call<SyncStatus>("sync_status"),
 };
 
 export { subscribe } from "./events";
