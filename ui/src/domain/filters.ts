@@ -1,6 +1,7 @@
 // Graph filters: which nodes match. Never applied to the track table.
 import type { Track } from "../api";
 import type { Link } from "../db/links";
+import { compatible, type CompatibilityRule } from "./compatibility";
 import { camelot, parseKey } from "./keys";
 
 /** Filter settings from the filter bar. Empty/undefined fields don't filter. */
@@ -11,6 +12,8 @@ export type GraphFilter = {
   /** Text in the track's rekordbox comment or in the comment of one of its links. */
   comment?: string;
   genre?: string;
+  /** "Compatible with selected": key and BPM must fit the selected track. */
+  compatible?: CompatibilityRule;
   /** Camelot key, e.g. "8A" (any notation that parseKey understands). */
   key?: string;
   /** Minimum rekordbox rating (stars). */
@@ -47,6 +50,7 @@ export function isActive(f: GraphFilter): boolean {
     !blank(f.name) ||
     f.bpmMin !== undefined ||
     f.bpmMax !== undefined ||
+    f.compatible !== undefined ||
     (f.minRating ?? 0) > 0
   );
 }
@@ -67,6 +71,7 @@ export function matches(f: GraphFilter, s: FilterSubject): boolean {
     const have = s.key ? parseKey(s.key) : undefined;
     if (!want || !have || camelot(want) !== camelot(have)) return false;
   }
+  if (f.compatible && !compatible(f.compatible, s)) return false;
   return true;
 }
 

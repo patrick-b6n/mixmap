@@ -53,6 +53,16 @@ describe("graph filters", () => {
   });
 });
 
+describe("compatible filter", () => {
+  it("combines with the other filters", () => {
+    const compat = { bpmTolerance: 6, halfDouble: false, reference: { bpm: 172, key: "10A" } };
+    expect(isActive({ compatible: compat })).toBe(true);
+    expect(matches({ compatible: compat }, subject)).toBe(true);
+    expect(matches({ compatible: compat, name: "cola" }, subject)).toBe(false);
+    expect(matches({ compatible: { ...compat, reference: { bpm: 128, key: "10A" } } }, subject)).toBe(false);
+  });
+});
+
 describe("matchingNodes", () => {
   const links = [{ comment: "drop swap", from: "a", to: "b" }];
   const nodes = [

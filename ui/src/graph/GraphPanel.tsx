@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { addNodeStatements, type BoardNode, listNodes, moveNodes, removeNode, restoreNode } from "../db/boards";
 import { apiDb } from "../db/db";
 import { createLink, createLinkStatements, listLinks } from "../db/links";
+import { DEFAULT_BPM_TOLERANCE } from "../domain/compatibility";
 import { type GraphFilter, isActive, matchingNodes } from "../domain/filters";
 import { buildGraph } from "../domain/graph";
 import { portableKey } from "../domain/matching";
 import { centeredAt, placeNextTo } from "../domain/placement";
 import { BoardTabs, nextBoardName } from "./BoardTabs";
-import { FilterBar } from "./FilterBar";
+import { type CompatSettings, FilterBar } from "./FilterBar";
 import type { TrackDrop } from "./dnd";
 import { GraphCanvas } from "./GraphCanvas";
 import { useBoards } from "./useBoards";
@@ -61,11 +62,36 @@ export function GraphPanel({
   // Graph filters: shared by all boards, never applied to the table.
   const [filter, setFilter] = useState<GraphFilter>({});
   const [hideUnmatched, setHideUnmatched] = useState(false);
+  const [compat, setCompat] = useState<CompatSettings>({
+    bpmTolerance: DEFAULT_BPM_TOLERANCE,
+    halfDouble: false,
+    on: false,
+  });
+  const selectedTrack = selectedTrackId ? data.library.get(selectedTrackId) : undefined;
+  // "Compatible with selected" follows the selection; without one it doesn't filter.
+  const effectiveFilter = useMemo<GraphFilter>(
+    () =>
+      compat.on && selectedTrack
+        ? {
+            ...filter,
+            compatible: {
+              bpmTolerance: compat.bpmTolerance,
+              halfDouble: compat.halfDouble,
+              reference: { bpm: selectedTrack.bpm, key: selectedTrack.key },
+            },
+          }
+        : filter,
+    [filter, compat, selectedTrack],
+  );
   const matched = useMemo(() => {
-    if (!current || !isActive(filter)) return undefined;
+    if (!current || !isActive(effectiveFilter)) return undefined;
     const { nodes: cards } = buildGraph(current, data.links, data.tracks, data.library);
-    return matchingNodes(filter, cards, data.links);
-  }, [current, filter, data.links, data.tracks, data.library]);
+    const ids = matchingNodes(effectiveFilter, cards, data.links);
+    // The reference track itself always stays visible.
+    const ref = effectiveFilter.compatible && selectedTrack ? portableKey(selectedTrack) : undefined;
+    if (ref && current.some((n) => n.trackKey === ref)) ids.add(ref);
+    return ids;
+  }, [current, effectiveFilter, selectedTrack, data.links, data.tracks, data.library]);
 
   // Nodes of the active board; reloaded when shared data changes (e.g. new links).
   useEffect(() => {
@@ -260,11 +286,19 @@ export function GraphPanel({
       </div>
       {state.active && (
         <FilterBar
+          active={matched !== undefined}
+          compat={compat}
           filter={filter}
           hide={hideUnmatched}
           matched={matched?.size ?? current?.length ?? 0}
           onChange={setFilter}
+          onClear={() => {
+            setFilter({});
+            setCompat((c) => ({ ...c, on: false }));
+          }}
+          onCompatChange={setCompat}
           onHideChange={setHideUnmatched}
+          selectedLabel={selectedTrack ? `${selectedTrack.artist} – ${selectedTrack.title}` : undefined}
           total={current?.length ?? 0}
         />
       )}
