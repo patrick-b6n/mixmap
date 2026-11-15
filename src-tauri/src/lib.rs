@@ -7,6 +7,8 @@
 
 use std::sync::Arc;
 
+mod hotkey;
+
 use mixmap_core::app::App;
 use mixmap_core::artwork::Size;
 use mixmap_core::service::Source;
@@ -129,6 +131,12 @@ pub fn run() {
                 .with_state_flags(StateFlags::all() - StateFlags::VISIBLE)
                 .build(),
         )
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(hotkey::on_shortcut)
+                .build(),
+        )
+        .manage(hotkey::Current::default())
         .on_window_event(|window, event| {
             // Closing the main window while the overlay is shown keeps the app running.
             if let (WindowEvent::CloseRequested { .. }, "main") = (event, window.label()) {
@@ -147,6 +155,11 @@ pub fn run() {
                 }),
             );
             tauri_app.manage(app.clone());
+            // The overlay hotkey (saved one or the default).
+            let accelerator = tauri::async_runtime::block_on(hotkey::saved(&app));
+            if let Err(e) = hotkey::register(tauri_app.handle(), &accelerator) {
+                eprintln!("overlay hotkey: {e}");
+            }
             tauri::async_runtime::spawn(async move { app.start_background().await });
             Ok(())
         })
@@ -155,7 +168,13 @@ pub fn run() {
             let uri = request.uri().clone();
             std::thread::spawn(move || responder.respond(artwork_response(&app, &uri)));
         })
-        .invoke_handler(tauri::generate_handler![call, overlay_hidden, show_main])
+        .invoke_handler(tauri::generate_handler![
+            call,
+            hotkey::overlay_hotkey,
+            hotkey::set_overlay_hotkey,
+            overlay_hidden,
+            show_main
+        ])
         .build(tauri::generate_context!())
         .expect("error while building MixMap")
         .run(|handle, event| {

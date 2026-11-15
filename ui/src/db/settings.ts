@@ -29,6 +29,8 @@ export async function setSetting(db: Db, key: string, value: unknown): Promise<v
 export const SETTINGS = {
   /** Where the rekordbox library comes from (`LibrarySource`). */
   librarySource: "local.library.source",
+  /** Global hotkey that shows/hides the overlay (desktop app; read by the backend at start). */
+  overlayHotkey: "local.overlay.hotkey",
 } as const;
 
 export const isLocalSetting = (key: string): boolean => key.startsWith("local.");

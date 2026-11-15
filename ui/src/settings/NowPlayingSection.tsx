@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { api, type CalibrationRound, subscribe, type Track } from "../api";
 import type { NowPlayingUpdate } from "../domain/nowPlaying";
+import { inTauri } from "../api";
+import { HotkeySetting } from "../desktop/HotkeySetting";
 import { TrackTypeahead } from "../library/TrackTypeahead";
 import { errorText } from "./SyncSection";
 
@@ -45,6 +47,7 @@ export function NowPlayingSection({ library }: Props) {
         </span>
         <Button onClick={() => setWizard(true)}>Calibrate…</Button>
       </div>
+      {inTauri() && <HotkeySetting />}
       {wizard && <CalibrationDialog library={library} onClose={() => setWizard(false)} />}
     </fieldset>
   );

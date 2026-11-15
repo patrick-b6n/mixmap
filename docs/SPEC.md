@@ -81,6 +81,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 - Small always-on-top, frameless, draggable window; adjustable opacity; click-through toggle; global show/hide hotkey (e.g. Ctrl+Alt+M); remembers position/size; can run without the main window. **Read-only.**
   - Desktop: window `overlay` (`overlay.html`), transparent, starts hidden; drag bar with opacity slider, click-through, open main window, hide. Main window toolbar → Overlay: show/hide, click-through (the way back once clicks pass through). Positions/sizes of both windows are remembered (not visibility). Closing the main window keeps the app running while the overlay is shown; the app quits when neither is left.
+  - Global hotkey (default Ctrl+Alt+M) toggles the overlay, also while rekordbox is in front; configurable under Settings → Now playing (needs Ctrl, Alt or Win; stored as `local.overlay.hotkey`). Hiding it by hotkey keeps the app running even without the main window.
 - One column per active deck, master highlighted; outgoing links with comment, rating, BPM, key; marks a linked track already loaded on another deck.
 - **Now-playing detection**, in order:
   1. Spike (done, rekordbox 7.2.19): history *is* written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
