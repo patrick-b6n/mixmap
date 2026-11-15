@@ -1,6 +1,6 @@
-# MixMap — Specification
+# mixmap — Specification
 
-MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** library and lets you build a **directed graph of transitions** between tracks (A → B = "I can mix A into B"). While mixing, a small overlay shows which tracks are linked to the ones currently loaded in rekordbox.
+mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** library and lets you build a **directed graph of transitions** between tracks (A → B = "I can mix A into B"). While mixing, a small overlay shows which tracks are linked to the ones currently loaded in rekordbox.
 
 ## Platform & architecture
 
@@ -8,7 +8,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - UI stack: **Tailwind CSS v4 + shadcn/ui** (theme tokens map the dark palette); **oxc** (oxlint, oxfmt) for linting and formatting; Vitest for tests.
 - **TypeScript first, Rust only where necessary.** Rust is a thin I/O layer for what a browser can't do; all domain logic lives in TypeScript.
 - Layout of the repo:
-  - `crates/core` — I/O only: locating and decrypting rekordbox `master.db` and returning raw library data, file watching, artwork extraction and thumbnail cache, MixMap SQLite storage, network (mDNS, sync transport), memory reader for now-playing.
+  - `crates/core` — I/O only: locating and decrypting rekordbox `master.db` and returning raw library data, file watching, artwork extraction and thumbnail cache, mixmap SQLite storage, network (mDNS, sync transport), memory reader for now-playing.
   - `crates/devserver` — small local HTTP server (axum) exposing the same API as the Tauri commands, for fast dev loops in a plain browser.
   - `ui/` — React (Vite) frontend **and all domain logic** (`ui/src/domain/`): keys and compatibility, portable track keys and matching, links/boards rules, export/import and merge/sync semantics, filters, pair import, path-finding. Talks to the backend through **one API adapter**: HTTP to the devserver in the browser, `invoke` in Tauri.
   - `src-tauri/` — thin shell over `core`. Needed only for overlay window, global hotkey, updater and installer.
@@ -19,7 +19,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ## Data
 
 ### rekordbox (source, read-only)
-- rekordbox 7.x `master.db` (SQLCipher-encrypted SQLite), opened **strictly read-only**. MixMap never writes to rekordbox data.
+- rekordbox 7.x `master.db` (SQLCipher-encrypted SQLite), opened **strictly read-only**. mixmap never writes to rekordbox data.
 - Location auto-detected via `%APPDATA%\Pioneer\rekordboxAgent\storage\options.json` (`db-path`), overridable in settings.
 - Fallback: import a rekordbox **XML export**.
 - File watcher on `master.db` → debounced automatic reload; manual **Refresh** button.
@@ -28,7 +28,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ### Artwork
 - rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise. On start (after a clean library load) thumbnails no current track uses any more are removed once they are a week old; unfinished temp files after an hour.
 
-### MixMap's own data
+### mixmap's own data
 - `%APPDATA%\mixmap\mixmap.db` (SQLite): links, boards, node positions, manual track matches, tombstones, settings.
   - Rust exposes it only as a generic bridge (`db_query`, `db_execute` = statements in one transaction). Schema, migrations (`PRAGMA user_version`) and all queries live in TypeScript (`ui/src/db`), tested against `node:sqlite`.
   - Rows have natural cross-machine identities: tracks by portable key, links by (from, to), board nodes by (board, track); boards use UUIDs. Timestamps are milliseconds since the epoch (`created_at`/`updated_at` on every row); deleting a synced row records a tombstone (`kind`, `id`, `deleted_at`). Settings with a `local.` prefix are machine-specific and never synced.
@@ -70,12 +70,12 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
   - Format (`format: "mixmap"`, `version: 1`): tracks (portable key, artist, title, duration), links, boards, board nodes, manual matches, tombstones and non-`local.` settings, each with its timestamps. Machine-local caches (rekordbox id, missing flag) are not exported. A manual match also carries `targetKey`, the portable key of the rekordbox track it points to, so another machine can resolve it instead of trusting a foreign rekordbox id.
   - Merge rules (import and sync share them, `ui/src/domain/merge.ts`): per item the later of row (`updated_at`) and tombstone (`deleted_at`) wins; on a tie a deletion wins, then the larger row, so both sides of a sync agree. A deleted board takes its nodes with it; links and nodes whose track or board doesn't survive are dropped; tracks still referenced are never deleted. All changes apply in one transaction.
   - Replace wipes all synced data (machine-local settings stay) after writing an automatic backup to `backups\`, then loads the file as is.
-- **Network sync** with another MixMap instance: mDNS discovery, first-time pairing with a 6-digit code, manual **"Sync now"** two-way merge, last-write-wins, **tombstones** so deletions propagate.
+- **Network sync** with another mixmap instance: mDNS discovery, first-time pairing with a 6-digit code, manual **"Sync now"** two-way merge, last-write-wins, **tombstones** so deletions propagate.
   - Each instance has an identity in `%APPDATA%\mixmap\device.json` (random id, name = computer name) and advertises `_mixmap._tcp.local.` (TXT: `id`, `name`, `protocol`) for a separate LAN listener on an OS-assigned port. The LAN listener serves only `/sync/*` endpoints; the local API stays on localhost. Windows asks once to allow it through the firewall.
   - Pairing: the initiator and the target exchange ephemeral X25519 keys; the target shows a random 6-digit code (valid 2 min, 3 attempts); the shared secret is HMAC(DH result, code, both ids, both keys). Each side proves it has the secret before storing it, so a wrong code or a man in the middle without the code never pairs. Paired peers and secrets live in `%APPDATA%\mixmap\paired.json` (machine-local). Requests between paired peers are HMAC-signed (method, path, timestamp, body hash); the secret never travels.
-  - Sync now (initiator A, peer B): A's UI exports its data; A's backend sends it signed to B's `/sync/exchange`; B's backend verifies it (paired, clocks within 5 min, not replayed) and hands it to B's UI (`sync-request`), which merges it and answers with its own export from before the merge; the signed answer goes back and A's UI merges it. Both sides then hold the same data. B's MixMap window must be open (otherwise: "MixMap isn't open on B"); nothing changes on either side if a step fails. Merges copy the whole winning row (including `created_at`).
+  - Sync now (initiator A, peer B): A's UI exports its data; A's backend sends it signed to B's `/sync/exchange`; B's backend verifies it (paired, clocks within 5 min, not replayed) and hands it to B's UI (`sync-request`), which merges it and answers with its own export from before the merge; the signed answer goes back and A's UI merges it. Both sides then hold the same data. B's mixmap window must be open (otherwise: "mixmap isn't open on B"); nothing changes on either side if a step fails. Merges copy the whole winning row (including `created_at`).
   - Dev: `MIXMAP_APP_DIR` and `MIXMAP_DEV_ADDR` start a second devserver instance (own data, own port) for sync tests on one machine; `MIXMAP_API` points a second Vite UI (e.g. `--port 5183`) at it.
-- **Reset database**: Settings → type `RESET` → automatic backup export first. Only affects MixMap data. Machine-local settings (e.g. the library source) stay, and no tombstones are written: a reset never deletes anything on a sync peer.
+- **Reset database**: Settings → type `RESET` → automatic backup export first. Only affects mixmap data. Machine-local settings (e.g. the library source) stay, and no tombstones are written: a reset never deletes anything on a sync peer.
 
 ## Live overlay
 
@@ -92,8 +92,8 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 ## Distribution
 
-- **Single portable `MixMap.exe`**, unsigned, no installer (SmartScreen warning on first run). The frontend is embedded; it needs only the WebView2 runtime (part of Windows 10/11). Data stays in `%APPDATA%\mixmap`, so the exe can live anywhere. Build: `ui/node_modules/.bin/tauri build --no-bundle` → `target/release/mixmap.exe`.
-- **Auto-update from GitHub Releases**: every push to `main` → GitHub Actions builds the exe and publishes a GitHub Release with `MixMap.exe` and `latest.json` (version, download URL, SHA-256). The app checks the latest release on startup and offers "install & restart": it downloads the new exe, verifies its SHA-256, swaps it in place of the running exe (the old one is renamed and removed on the next start) and restarts. It **never auto-installs**, and shows **no prompt while the overlay is active**. No updater signing key (the exe is unsigned; integrity comes from the SHA-256 published with the release over HTTPS).
+- **Single portable `mixmap.exe`**, unsigned, no installer (SmartScreen warning on first run). The frontend is embedded; it needs only the WebView2 runtime (part of Windows 10/11). Data stays in `%APPDATA%\mixmap`, so the exe can live anywhere. Build: `ui/node_modules/.bin/tauri build --no-bundle` → `target/release/mixmap.exe`.
+- **Auto-update from GitHub Releases**: every push to `main` → GitHub Actions builds the exe and publishes a GitHub Release with `mixmap.exe` and `latest.json` (version, download URL, SHA-256). The app checks the latest release on startup and offers "install & restart": it downloads the new exe, verifies its SHA-256, swaps it in place of the running exe (the old one is renamed and removed on the next start) and restarts. It **never auto-installs**, and shows **no prompt while the overlay is active**. No updater signing key (the exe is unsigned; integrity comes from the SHA-256 published with the release over HTTPS).
 - **Versioning: CalVer** `YYYY.MMDD.HHMMSS` in UTC as semver-compatible numbers (leading zeros drop, e.g. `2026.105.3012` for 5 Jan 00:30:12). Release title shows `2026-11-14 15:30:12 UTC`. `node ui/scripts/calver.ts --set` stamps it into `Cargo.toml`, `tauri.conf.json` and `ui/package.json` (logic in `ui/src/domain/calver.ts`); local dev builds stay `0.1.0` and never offer updates. Settings shows the running version.
 - Requires `gh auth refresh -s workflow` once before workflows can be pushed.
 

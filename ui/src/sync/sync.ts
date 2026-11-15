@@ -1,4 +1,4 @@
-// "Sync now" between two paired MixMap instances. Both sides merge the other's data
+// "Sync now" between two paired mixmap instances. Both sides merge the other's data
 // with the same rules (domain/merge), so afterwards they hold the same data:
 //   initiator: export → (network) → peer: export its own, merge ours, answer with its own
 //   initiator: merge the peer's answer.

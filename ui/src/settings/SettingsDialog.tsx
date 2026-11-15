@@ -25,7 +25,7 @@ type Props = {
   /** rekordbox tracks by id (to describe manual matches portably in exports). */
   library: ReadonlyMap<string, Track>;
   onClose: () => void;
-  /** MixMap data changed (import, reset): re-run matching and reload. */
+  /** mixmap data changed (import, reset): re-run matching and reload. */
   onDataChanged: () => void;
   status?: LibraryStatus;
 };
@@ -125,7 +125,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         <SyncSection library={library} onDataChanged={onDataChanged} />
         <DialogFooter className="items-center">
           <span className="mr-auto text-xs text-muted-foreground" data-testid="app-version">
-            {version && `MixMap ${version}`}
+            {version && `mixmap ${version}`}
             {inTauri() && (
               <button
                 className="ml-2 underline-offset-2 hover:underline"
@@ -134,7 +134,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
                   checkForUpdate().then(
                     (r) =>
                       setUpdateInfo(
-                        r.latest ? `${r.latest.title} is available: see the banner above.` : "MixMap is up to date.",
+                        r.latest ? `${r.latest.title} is available: see the banner above.` : "mixmap is up to date.",
                       ),
                     (e: unknown) => setUpdateInfo(`Couldn't check: ${String(e)}`),
                   );

@@ -168,7 +168,7 @@ impl SyncHub {
             .ok_or_else(|| Error::Invalid("bad request: no data".into()))?;
         if !self.ui_present() {
             return Err(Error::NotFound(format!(
-                "MixMap isn't open on {}: open it and sync again",
+                "mixmap isn't open on {}: open it and sync again",
                 self.device.name
             )));
         }
@@ -195,7 +195,7 @@ impl SyncHub {
         self.ui_requests().remove(&request_id);
         let reply = reply.map_err(|_| {
             Error::NotFound(format!(
-                "MixMap on {} didn't answer in time",
+                "mixmap on {} didn't answer in time",
                 self.device.name
             ))
         })?;

@@ -9,7 +9,7 @@ import type { MatchResult } from "../domain/matching";
 let queue: Promise<unknown> = Promise.resolve();
 
 /**
- * Match MixMap tracks against every new library version (after mixmap.db is ready)
+ * Match mixmap tracks against every new library version (after mixmap.db is ready)
  * and keep the results: missing tracks get flagged in the database, unmatched and
  * ambiguous ones are listed for manual mapping.
  */

@@ -58,10 +58,10 @@ export type LibraryStatus = {
   version: number;
 };
 
-/** This MixMap instance on the network. */
+/** This mixmap instance on the network. */
 export type Device = { id: string; name: string };
 
-/** Another MixMap instance found on the LAN (mDNS). */
+/** Another mixmap instance found on the LAN (mDNS). */
 export type Peer = Device & { addresses: string[]; port: number; protocol: number };
 
 /** A device this one is paired with (it may be offline). */

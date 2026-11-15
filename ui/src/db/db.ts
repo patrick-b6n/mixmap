@@ -8,7 +8,7 @@ export type Statement = { params?: SqlValue[]; sql: string };
 export type ExecResult = { changes: number; lastInsertRowid: number };
 
 /**
- * MixMap's database (mixmap.db). The backend is a thin SQLite bridge; schema,
+ * mixmap's database (mixmap.db). The backend is a thin SQLite bridge; schema,
  * migrations and queries all live in TypeScript.
  */
 export interface Db {

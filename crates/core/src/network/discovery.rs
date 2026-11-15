@@ -17,7 +17,7 @@ pub const SERVICE_TYPE: &str = "_mixmap._tcp.local.";
 /// Version of the sync protocol; peers with another version are listed but can't sync.
 pub const PROTOCOL: u32 = 1;
 
-/// Another MixMap instance on the network.
+/// Another mixmap instance on the network.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Peer {
@@ -151,7 +151,7 @@ fn apply(map: &mut HashMap<String, Peer>, event: ServiceEvent, my_id: &str) -> b
                 addresses,
                 name: s
                     .get_property_val_str("name")
-                    .unwrap_or("MixMap")
+                    .unwrap_or("mixmap")
                     .to_string(),
                 id,
                 port: s.get_port(),

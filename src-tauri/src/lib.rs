@@ -1,4 +1,4 @@
-//! MixMap desktop app: a thin Tauri shell over `mixmap_core::app::App`.
+//! mixmap desktop app: a thin Tauri shell over `mixmap_core::app::App`.
 //!
 //! The UI talks to the backend through one command, `call(command, args)` (the same
 //! commands the devserver serves as `POST /api/<command>`). Backend events are Tauri
@@ -181,7 +181,7 @@ pub fn run() {
             updater::update_manifest
         ])
         .build(tauri::generate_context!())
-        .expect("error while building MixMap")
+        .expect("error while building mixmap")
         .run(|handle, event| {
             if let RunEvent::Exit = event {
                 // Unregister from mDNS so other devices drop us right away.

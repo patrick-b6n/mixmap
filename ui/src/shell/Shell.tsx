@@ -81,7 +81,7 @@ export function Shell({ banner, details, filterBar, graph, playlists, table, too
         >
           <PanelLeft />
         </Button>
-        <span className="font-semibold">MixMap</span>
+        <span className="font-semibold">mixmap</span>
         <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>
         <Button
           aria-label={layout.rightCollapsed ? "Show details" : "Hide details"}

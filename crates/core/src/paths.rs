@@ -1,4 +1,4 @@
-//! MixMap's own data directories under `%APPDATA%\mixmap`.
+//! mixmap's own data directories under `%APPDATA%\mixmap`.
 
 use std::path::PathBuf;
 
@@ -39,7 +39,7 @@ pub fn calibration_dir() -> PathBuf {
     app_dir().join("calibration")
 }
 
-/// MixMap's own database.
+/// mixmap's own database.
 pub fn database_path() -> PathBuf {
     app_dir().join("mixmap.db")
 }

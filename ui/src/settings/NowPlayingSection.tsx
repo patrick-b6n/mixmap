@@ -60,7 +60,7 @@ type Step =
   | { kind: "saved"; path: string };
 
 /**
- * Calibration wizard: load tracks in rekordbox, tell MixMap which ones, repeat with
+ * Calibration wizard: load tracks in rekordbox, tell mixmap which ones, repeat with
  * other tracks until each deck's title can be followed; then save.
  */
 function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }) {
@@ -142,7 +142,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
         <DialogHeader>
           <DialogTitle className="text-base">Calibrate now-playing detection</DialogTitle>
           <DialogDescription>
-            MixMap learns where rekordbox{version ? ` ${version}` : ""} keeps the loaded tracks (read-only, nothing in
+            mixmap learns where rekordbox{version ? ` ${version}` : ""} keeps the loaded tracks (read-only, nothing in
             rekordbox is changed). Needed once per rekordbox version.
           </DialogDescription>
         </DialogHeader>

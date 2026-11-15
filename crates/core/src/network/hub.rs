@@ -176,7 +176,7 @@ impl SyncHub {
     ) -> Result<PairStartReply, Error> {
         if req.protocol != PROTOCOL {
             return Err(Error::Invalid(format!(
-                "this MixMap speaks sync protocol {PROTOCOL}, yours {}: update both",
+                "this mixmap speaks sync protocol {PROTOCOL}, yours {}: update both",
                 req.protocol
             )));
         }

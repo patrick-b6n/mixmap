@@ -1,4 +1,4 @@
-//! This MixMap instance's identity on the network: a random id (stable across
+//! This mixmap instance's identity on the network: a random id (stable across
 //! restarts) and a display name, stored in `%APPDATA%\mixmap\device.json`.
 
 use std::path::Path;
@@ -19,7 +19,7 @@ fn default_name() -> String {
     std::env::var("COMPUTERNAME")
         .ok()
         .filter(|n| !n.trim().is_empty())
-        .unwrap_or_else(|| "MixMap".into())
+        .unwrap_or_else(|| "mixmap".into())
 }
 
 /// Load the identity from `path`, creating (and saving) a new one if it is missing

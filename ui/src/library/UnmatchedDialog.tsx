@@ -35,7 +35,7 @@ const SECTIONS: { kind: Item["kind"]; label: string; hint: string }[] = [
   { hint: "Its rekordbox track is gone.", kind: "missing", label: "Missing" },
 ];
 
-/** "Unmatched tracks": map MixMap tracks to rekordbox tracks by hand (remembered on this machine). */
+/** "Unmatched tracks": map mixmap tracks to rekordbox tracks by hand (remembered on this machine). */
 export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }: Props) {
   const items = useMemo(
     () =>
@@ -104,7 +104,7 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
         <DialogHeader>
           <DialogTitle className="text-base">Unmatched tracks</DialogTitle>
           <DialogDescription>
-            Tracks in MixMap that couldn't be matched to one rekordbox track. Pick the right one; the mapping is
+            Tracks in mixmap that couldn't be matched to one rekordbox track. Pick the right one; the mapping is
             remembered on this machine.
           </DialogDescription>
         </DialogHeader>

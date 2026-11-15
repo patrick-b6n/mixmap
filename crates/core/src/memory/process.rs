@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(find_pid(name), Some(pid));
 
         // struct { pad: [u64; 3], title: *const u8 } on the heap, title NUL-terminated.
-        let title = format!("MixMap memory test {pid} Ü\0");
+        let title = format!("mixmap memory test {pid} Ü\0");
         let title: &'static str = Box::leak(title.into_boxed_str());
         let obj: &'static mut [u64; 4] = Box::leak(Box::new([0, 0, 0, title.as_ptr() as u64]));
         ROOT.store(obj.as_ptr() as u64, Ordering::SeqCst);

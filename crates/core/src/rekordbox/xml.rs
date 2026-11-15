@@ -2,7 +2,7 @@
 //!
 //! Collection tracks become `Track`s, the `PLAYLISTS` node tree becomes playlists
 //! (`Type="0"` folder, `Type="1"` playlist). Track ids are the XML `TrackID`s, which
-//! differ from master.db ids; MixMap matches tracks by portable key anyway.
+//! differ from master.db ids; mixmap matches tracks by portable key anyway.
 
 use std::collections::HashMap;
 use std::path::Path;

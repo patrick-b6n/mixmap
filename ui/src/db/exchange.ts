@@ -386,7 +386,7 @@ export function wipeStatements(): Statement[] {
 }
 
 /**
- * Reset: delete all MixMap data (links, boards, tracks, manual matches, tombstones,
+ * Reset: delete all mixmap data (links, boards, tracks, manual matches, tombstones,
  * shared settings). Machine-local settings stay. No tombstones are written, so a later
  * sync brings a peer's data back rather than deleting it there. Back up first.
  */

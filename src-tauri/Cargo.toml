@@ -1,6 +1,6 @@
 [package]
 name = "mixmap"
-description = "MixMap desktop app"
+description = "mixmap desktop app"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

@@ -16,7 +16,7 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
-        // MixMap's default: elevated surface with a border that lights up on hover.
+        // mixmap's default: elevated surface with a border that lights up on hover.
         subtle: "border border-border bg-card font-normal text-foreground hover:border-primary",
       },
       size: {
@@ -28,7 +28,7 @@ const buttonVariants = cva(
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
-        // Dense toolbar size (MixMap).
+        // Dense toolbar size (mixmap).
         compact: "h-6 px-2.5 text-[13px] has-[>svg]:px-2",
         "icon-compact": "size-6 [&_svg:not([class*='size-'])]:size-4",
       },

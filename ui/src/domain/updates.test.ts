@@ -5,7 +5,7 @@ const m = {
   sha256: "ab",
   size: 10,
   title: "2026-11-15 15:00:00 UTC",
-  url: "https://github.com/x/y/releases/download/v2026.1115.150000/MixMap.exe",
+  url: "https://github.com/x/y/releases/download/v2026.1115.150000/mixmap.exe",
   version: "2026.1115.150000",
 };
 

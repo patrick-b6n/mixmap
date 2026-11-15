@@ -15,7 +15,7 @@ export function OverlayBar({ onOpacity, opacity }: Props) {
       data-tauri-drag-region
     >
       <span className="font-semibold" data-tauri-drag-region>
-        MixMap
+        mixmap
       </span>
       <span className="flex-1" data-tauri-drag-region />
       <input
@@ -43,10 +43,10 @@ export function OverlayBar({ onOpacity, opacity }: Props) {
         <MousePointerClick className="size-3.5" />
       </Button>
       <Button
-        aria-label="Open MixMap"
+        aria-label="Open mixmap"
         onClick={() => void showMain()}
         size="icon-compact"
-        title="Open MixMap"
+        title="Open mixmap"
         variant="ghost"
       >
         <AppWindow className="size-3.5" />

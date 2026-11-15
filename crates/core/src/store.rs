@@ -1,4 +1,4 @@
-//! MixMap's own SQLite database (`%APPDATA%\mixmap\mixmap.db`), exposed as a thin,
+//! mixmap's own SQLite database (`%APPDATA%\mixmap\mixmap.db`), exposed as a thin,
 //! generic bridge. Schema, migrations and all queries live in TypeScript
 //! (`ui/src/db`); Rust only opens the file and runs statements.
 

@@ -1,6 +1,6 @@
 {
   "$schema": "../ui/node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "MixMap",
+  "productName": "mixmap",
   "identifier": "app.mixmap.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MixMap",
+        "title": "mixmap",
         "url": "index.html",
         "width": 1400,
         "height": 900,
@@ -23,7 +23,7 @@
       },
       {
         "label": "overlay",
-        "title": "MixMap overlay",
+        "title": "mixmap overlay",
         "url": "overlay.html",
         "width": 760,
         "height": 340,
@@ -51,7 +51,7 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "publisher": "MixMap",
+    "publisher": "mixmap",
     "shortDescription": "Transition graph and live overlay for rekordbox",
     "category": "Music"
   }

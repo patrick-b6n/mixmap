@@ -2,7 +2,7 @@ import type { Track } from "../api";
 import { type LibraryTrack, type MatchResult, matchTracks, portableKey } from "../domain/matching";
 import { type Db, now, type Statement } from "./db";
 
-/** A MixMap track row (identity = portable key). */
+/** A mixmap track row (identity = portable key). */
 export type TrackRow = {
   artist: string;
   duration: number;
@@ -64,7 +64,7 @@ export async function setManualMatch(db: Db, trackKey: string, rekordboxId: stri
 }
 
 /**
- * Match all MixMap tracks against the current rekordbox library and store the
+ * Match all mixmap tracks against the current rekordbox library and store the
  * outcome: matched tracks cache their rekordbox id; tracks whose rekordbox track is
  * gone are marked missing (they stay in the graph). Unmatched and ambiguous tracks
  * are returned for the "Unmatched tracks" view.

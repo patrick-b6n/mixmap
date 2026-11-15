@@ -1,4 +1,4 @@
-//! MixMap core: all logic shared by the devserver and the Tauri shell.
+//! mixmap core: all logic shared by the devserver and the Tauri shell.
 
 use serde::Serialize;
 

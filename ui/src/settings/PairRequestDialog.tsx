@@ -57,7 +57,7 @@ export function PairRequestDialog() {
         <DialogHeader>
           <DialogTitle className="text-base">Pair with {request.name}?</DialogTitle>
           <DialogDescription>
-            {request.name} wants to sync MixMap data with this device. To allow it, enter this code on {request.name}:
+            {request.name} wants to sync mixmap data with this device. To allow it, enter this code on {request.name}:
           </DialogDescription>
         </DialogHeader>
         <div

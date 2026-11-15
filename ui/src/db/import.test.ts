@@ -138,7 +138,7 @@ describe("parseExport", () => {
 });
 
 describe("reset", () => {
-  it("deletes all MixMap data but keeps machine-local settings", async () => {
+  it("deletes all mixmap data but keeps machine-local settings", async () => {
     const db = await fresh();
     await createLink(db, a, b);
     const board = await createBoard(db, "Peak");

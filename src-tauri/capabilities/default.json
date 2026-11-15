@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "MixMap windows: the backend command, backend events, and controlling the overlay window.",
+  "description": "mixmap windows: the backend command, backend events, and controlling the overlay window.",
   "windows": [
     "main",
     "overlay"

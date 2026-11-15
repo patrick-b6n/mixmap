@@ -40,7 +40,7 @@ export default function App() {
   const [importFrom, setImportFrom] = useState<Playlist>();
   const mixmap = useMixmap(library);
   const refreshMixmap = mixmap.refresh;
-  /** MixMap data changed outside the normal flows (import, reset, sync): re-match and reload. */
+  /** mixmap data changed outside the normal flows (import, reset, sync): re-match and reload. */
   const dataChanged = useCallback(() => {
     rematch();
     refreshMixmap();
@@ -163,7 +163,7 @@ export default function App() {
       {missingCount + unmatchedCount > 0 && (
         <Button
           onClick={() => setUnmatchedOpen(true)}
-          title="Map MixMap tracks that aren't matched to a rekordbox track"
+          title="Map mixmap tracks that aren't matched to a rekordbox track"
         >
           <Unlink />
           Unmatched tracks ({missingCount + unmatchedCount})

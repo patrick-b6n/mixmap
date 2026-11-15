@@ -70,7 +70,7 @@ describe("matchTracks", () => {
     ]);
   });
 
-  it("does not give a claimed rekordbox track to a second MixMap track", () => {
+  it("does not give a claimed rekordbox track to a second mixmap track", () => {
     const exact = lib("rb5", "Jay Bird", "Into the Groove", 324);
     const near = { artist: "Jay Bird", id: "x", length: 325, title: "Into the Groove" };
     // `near` would match rb5 via ±1 s, but rb5 belongs to the exact match.

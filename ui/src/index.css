@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* MixMap is dark only. shadcn/ui tokens mapped to the original palette. */
+/* mixmap is dark only. shadcn/ui tokens mapped to the original palette. */
 :root {
   --background: #121417;
   --foreground: #e6e8eb;
@@ -22,7 +22,7 @@
   --input: #2a2f37;
   --ring: #4f9cff;
   --radius: 0.25rem;
-  /* MixMap-specific */
+  /* mixmap-specific */
   --selected: #253246;
   --stripe: #16191d;
   --rating: #e8b64c;

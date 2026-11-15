@@ -1,5 +1,5 @@
 // Portable track identity: rekordbox ids and file paths differ between machines, so
-// MixMap identifies tracks by normalized artist + title + duration (seconds).
+// mixmap identifies tracks by normalized artist + title + duration (seconds).
 
 /** Minimal track shape needed for identity. */
 export type TrackIdentity = { artist: string; length: number; title: string };
@@ -49,7 +49,7 @@ export type MatchResult =
   | { kind: "missing"; trackKey: string };
 
 /**
- * Match MixMap tracks to the current library. Order: remembered manual match (if
+ * Match mixmap tracks to the current library. Order: remembered manual match (if
  * that rekordbox track still exists), exact portable key, same artist + title with
  * duration ±1 s. A unique hit is matched; several are ambiguous; none is missing
  * (previously matched) or unmatched.
@@ -64,7 +64,7 @@ export function matchTracks(
   const byKey = groupBy(library, portableKey);
   const byName = groupBy(library, nameKey);
   // rekordbox ids claimed by a manual or exact match; the ±1 s fallback must not
-  // hand them to a second MixMap track.
+  // hand them to a second mixmap track.
   const claimed = new Set<string>();
   for (const s of stored) {
     const manual = manualMatches.get(s.key);

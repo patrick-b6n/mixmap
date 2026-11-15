@@ -1,4 +1,4 @@
-// Merging MixMap data (import "merge" and network sync): last-write-wins per item,
+// Merging mixmap data (import "merge" and network sync): last-write-wins per item,
 // with tombstones so deletions propagate. Pure: works on two exports and returns
 // what to change locally.
 import type {

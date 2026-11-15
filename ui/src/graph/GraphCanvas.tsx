@@ -14,7 +14,7 @@ const nodeTypes = { track: TrackNode };
 
 const isTrackDrag = (e: DragEvent) => e.dataTransfer.types.includes(TRACK_MIME);
 
-/** Accept only MixMap track drags (shows the "link" cursor). */
+/** Accept only mixmap track drags (shows the "link" cursor). */
 function onDragOver(e: DragEvent<HTMLDivElement>) {
   if (!isTrackDrag(e)) return;
   e.preventDefault();
@@ -204,7 +204,7 @@ export function GraphCanvas({
         fitViewOptions={{ maxZoom: 1.2, padding: 0.2 }}
         // Links are drawn from a node's right handle; dragging the card only moves it.
         connectionRadius={40}
-        // Deleting is handled by MixMap (links only, with undo), never by React Flow.
+        // Deleting is handled by mixmap (links only, with undo), never by React Flow.
         deleteKeyCode={null}
         isValidConnection={(c) => canLink(data.links, c.source, c.target)}
         nodeTypes={nodeTypes}

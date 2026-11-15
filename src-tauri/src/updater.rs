@@ -21,7 +21,7 @@ fn manifest_url() -> String {
 fn agent(timeout: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
-        .user_agent("MixMap updater")
+        .user_agent("mixmap updater")
         .build()
         .into()
 }
@@ -36,7 +36,7 @@ pub struct Manifest {
 /// Only exe downloads from this repository's releases are allowed.
 fn allowed(url: &str) -> bool {
     url.starts_with(&format!("https://github.com/{REPO}/releases/download/"))
-        && url.ends_with("/MixMap.exe")
+        && url.ends_with("/mixmap.exe")
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -171,19 +171,19 @@ mod tests {
         Manifest {
             sha256: hex(&Sha256::digest(bytes)),
             size: bytes.len() as u64,
-            url: format!("https://github.com/{REPO}/releases/download/v2026.1115.1/MixMap.exe"),
+            url: format!("https://github.com/{REPO}/releases/download/v2026.1115.1/mixmap.exe"),
         }
     }
 
     #[test]
     fn only_this_repositorys_release_exes() {
         assert!(allowed(&manifest(b"").url));
-        assert!(!allowed("https://evil.example/MixMap.exe"));
+        assert!(!allowed("https://evil.example/mixmap.exe"));
         assert!(!allowed(&format!(
             "https://github.com/{REPO}/releases/download/v1/other.exe"
         )));
         assert!(!allowed(
-            "https://github.com/someone/else/releases/download/v1/MixMap.exe"
+            "https://github.com/someone/else/releases/download/v1/mixmap.exe"
         ));
     }
 
@@ -204,7 +204,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("mixmap-swap-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let exe = dir.join("MixMap.exe");
+        let exe = dir.join("mixmap.exe");
         std::fs::write(&exe, b"old").unwrap();
         swap(&exe, b"new").unwrap();
         assert_eq!(std::fs::read(&exe).unwrap(), b"new");

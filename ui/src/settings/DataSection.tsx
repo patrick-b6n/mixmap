@@ -21,7 +21,7 @@ import type { Counts, MergeSummary } from "../domain/merge";
 
 type Props = {
   library: ReadonlyMap<string, Track>;
-  /** MixMap data changed (import): re-run matching and reload. */
+  /** mixmap data changed (import): re-run matching and reload. */
   onDataChanged: () => void;
 };
 
@@ -56,7 +56,7 @@ export function summaryText(s: MergeSummary): string {
 /** What to type to confirm a reset. */
 const RESET_WORD = "RESET";
 
-/** Settings → MixMap data: export, import (merge / replace), reset. */
+/** Settings → mixmap data: export, import (merge / replace), reset. */
 export function DataSection({ library, onDataChanged }: Props) {
   const [message, setMessage] = useState<{ error?: boolean; text: string }>();
   const [pending, setPending] = useState<{ data: MixmapExport; name: string }>();
@@ -73,7 +73,7 @@ export function DataSection({ library, onDataChanged }: Props) {
       await resetData(apiDb);
       setResetConfirm(undefined);
       onDataChanged();
-      setMessage({ text: `MixMap data was reset. Backup: ${backup}` });
+      setMessage({ text: `mixmap data was reset. Backup: ${backup}` });
     } catch (e) {
       setMessage({ error: true, text: `Reset failed, nothing was deleted: ${String(e)}` });
     } finally {
@@ -133,7 +133,7 @@ export function DataSection({ library, onDataChanged }: Props) {
 
   return (
     <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
-      <legend className="px-1 text-muted-foreground">MixMap data</legend>
+      <legend className="px-1 text-muted-foreground">mixmap data</legend>
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => void exportFile()} title="Links, boards, positions and manual matches">
           Export .mixmap.json
@@ -209,7 +209,7 @@ export function DataSection({ library, onDataChanged }: Props) {
               <Label className="flex-col items-start gap-0 text-[13px] font-normal" htmlFor="import-replace">
                 Replace everything
                 <span className="text-xs text-muted-foreground">
-                  MixMap data here is replaced by the file. A backup is saved first.
+                  mixmap data here is replaced by the file. A backup is saved first.
                 </span>
               </Label>
             </div>

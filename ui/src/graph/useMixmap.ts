@@ -19,7 +19,7 @@ export type MixmapData = {
   version: number;
 };
 
-/** MixMap's own data that several views share: all links and stored tracks. */
+/** mixmap's own data that several views share: all links and stored tracks. */
 export function useMixmap(library: Library | undefined): MixmapData {
   const [links, setLinks] = useState<Link[]>([]);
   const [tracks, setTracks] = useState<TrackRow[]>([]);

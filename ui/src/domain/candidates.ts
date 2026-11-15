@@ -1,4 +1,4 @@
-// Candidate search for manually mapping a MixMap track to a rekordbox track.
+// Candidate search for manually mapping a mixmap track to a rekordbox track.
 import { normalize } from "./matching";
 
 type Target = { artist: string; duration: number; title: string };

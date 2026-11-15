@@ -24,7 +24,7 @@ export function rows(status: SyncStatus): Row[] {
 
 type Props = {
   library: ReadonlyMap<string, Track>;
-  /** MixMap data changed (a sync merged something): re-run matching and reload. */
+  /** mixmap data changed (a sync merged something): re-run matching and reload. */
   onDataChanged: () => void;
 };
 
@@ -146,10 +146,10 @@ export function SyncSection({ library, onDataChanged }: Props) {
       {problem && <div className="text-destructive">{problem}</div>}
       {status && !status.error && (
         <>
-          <div className="text-xs text-muted-foreground">Other MixMap devices:</div>
+          <div className="text-xs text-muted-foreground">Other mixmap devices:</div>
           {list.length === 0 ? (
             <div className="text-muted-foreground italic" data-testid="no-peers">
-              None found yet. Start MixMap on another computer in the same network.
+              None found yet. Start mixmap on another computer in the same network.
             </div>
           ) : (
             <ul aria-label="Devices" className="flex flex-col gap-1">
@@ -179,7 +179,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
                     )}
                     <span className="flex-1" />
                     {incompatible ? (
-                      <span className="text-xs text-destructive">other MixMap version — update both</span>
+                      <span className="text-xs text-destructive">other mixmap version — update both</span>
                     ) : row.paired ? (
                       <>
                         {row.online && (
