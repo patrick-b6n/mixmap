@@ -11,6 +11,8 @@ type Props = {
   playlists: ReactNode;
   table: ReactNode;
   toolbar?: ReactNode;
+  /** Full-width notice under the toolbar (e.g. an available update). */
+  banner?: ReactNode;
 };
 
 const KEY_STEP = 0.02;
@@ -19,7 +21,7 @@ const KEY_STEP = 0.02;
  * Main window: collapsible playlist tree | graph (top) + table (bottom) with a
  * draggable, remembered splitter | collapsible details panel.
  */
-export function Shell({ details, filterBar, graph, playlists, table, toolbar }: Props) {
+export function Shell({ banner, details, filterBar, graph, playlists, table, toolbar }: Props) {
   const [layout, setLayout] = useState<LayoutState>(loadLayout);
   const [dragging, setDragging] = useState(false);
   const centerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +93,7 @@ export function Shell({ details, filterBar, graph, playlists, table, toolbar }: 
           <PanelRight />
         </Button>
       </header>
+      {banner}
       <div className="flex min-h-0 flex-1">
         {!layout.leftCollapsed && <aside className="w-60 flex-none overflow-auto border-r bg-card">{playlists}</aside>}
         <div className="flex min-w-80 flex-1 flex-col" ref={centerRef}>

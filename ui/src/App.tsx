@@ -23,6 +23,7 @@ import { useLibrary } from "./library/useLibrary";
 import { useReconcile } from "./library/useReconcile";
 import { inTauri } from "./api";
 import { OverlayMenu } from "./desktop/OverlayMenu";
+import { UpdateBanner } from "./desktop/useUpdater";
 import { PairRequestDialog } from "./settings/PairRequestDialog";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { useSyncResponder } from "./sync/useSyncResponder";
@@ -211,6 +212,7 @@ export default function App() {
         />
       )}
       <Shell
+        banner={<UpdateBanner />}
         details={
           selectedLink ? (
             <LinkEditor

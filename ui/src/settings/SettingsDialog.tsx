@@ -15,6 +15,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api, type LibrarySource, type LibraryStatus, type Track } from "../api";
 import { apiDb } from "../db/db";
 import { setSetting, SETTINGS } from "../db/settings";
+import { inTauri } from "../api";
+import { checkForUpdate } from "../desktop/useUpdater";
 import { DataSection } from "./DataSection";
 import { NowPlayingSection } from "./NowPlayingSection";
 import { SyncSection } from "./SyncSection";
@@ -44,6 +46,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
   const [version, setVersion] = useState<string>();
+  const [updateInfo, setUpdateInfo] = useState<string>();
 
   useEffect(() => {
     api.hello().then(
@@ -123,6 +126,29 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         <DialogFooter className="items-center">
           <span className="mr-auto text-xs text-muted-foreground" data-testid="app-version">
             {version && `MixMap ${version}`}
+            {inTauri() && (
+              <button
+                className="ml-2 underline-offset-2 hover:underline"
+                onClick={() => {
+                  setUpdateInfo("Checking…");
+                  checkForUpdate().then(
+                    (r) =>
+                      setUpdateInfo(
+                        r.latest ? `${r.latest.title} is available: see the banner above.` : "MixMap is up to date.",
+                      ),
+                    (e: unknown) => setUpdateInfo(`Couldn't check: ${String(e)}`),
+                  );
+                }}
+                type="button"
+              >
+                Check for updates
+              </button>
+            )}
+            {updateInfo && (
+              <span className="ml-2" data-testid="update-info">
+                {updateInfo}
+              </span>
+            )}
           </span>
           <Button disabled={busy} onClick={apply}>
             {busy ? "Loading…" : "Apply"}

@@ -53,7 +53,16 @@ pub fn register(app: &AppHandle, accelerator: &str) -> Result<String, String> {
     if let Some(old) = &old {
         let _ = gs.unregister(*old);
     }
-    if let Err(e) = gs.register(shortcut) {
+    let mut result = gs.register(shortcut);
+    // Right after a self-update the previous process may still hold it briefly.
+    for _ in 0..10 {
+        if result.is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        result = gs.register(shortcut);
+    }
+    if let Err(e) = result {
         if let Some(old) = old {
             let _ = gs.register(old);
         }

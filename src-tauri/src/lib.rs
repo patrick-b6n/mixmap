@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 mod hotkey;
+mod updater;
 
 use mixmap_core::app::App;
 use mixmap_core::artwork::Size;
@@ -146,6 +147,8 @@ pub fn run() {
             }
         })
         .setup(move |tauri_app| {
+            // Left over by a self-update.
+            updater::cleanup_old();
             let handle = tauri_app.handle().clone();
             let app = App::new(
                 Source::Auto,
@@ -173,7 +176,9 @@ pub fn run() {
             hotkey::overlay_hotkey,
             hotkey::set_overlay_hotkey,
             overlay_hidden,
-            show_main
+            show_main,
+            updater::update_install,
+            updater::update_manifest
         ])
         .build(tauri::generate_context!())
         .expect("error while building MixMap")
