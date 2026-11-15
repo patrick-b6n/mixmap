@@ -270,12 +270,16 @@ mod tests {
         // Unrelated files in the folder are ignored...
         std::fs::write(db.with_file_name("other.txt"), b"x").unwrap();
         assert!(rx.recv_timeout(Duration::from_secs(3)).is_err());
-        // ...a burst of changes to master.db triggers one debounced reload.
+        // ...a burst of changes to master.db triggers a debounced reload. Windows can
+        // deliver one late change event for the same writes, so allow at most one
+        // extra reload, but no storm.
         let bytes = std::fs::read(&db).unwrap();
-        std::fs::write(&db, &bytes).unwrap();
-        std::fs::write(&db, &bytes).unwrap();
+        for _ in 0..5 {
+            std::fs::write(&db, &bytes).unwrap();
+        }
         assert_eq!(rx.recv_timeout(Duration::from_secs(10)).unwrap(), 2);
-        assert!(rx.recv_timeout(Duration::from_secs(3)).is_err());
+        let extra = std::iter::from_fn(|| rx.recv_timeout(Duration::from_secs(3)).ok()).count();
+        assert!(extra <= 1, "{extra} extra reloads after one burst");
         drop(watcher);
         std::fs::remove_dir_all(db.parent().unwrap()).ok();
     }
