@@ -7,6 +7,7 @@ import { apiDb } from "./db/db";
 import { startDatabaseOnce } from "./db/startup";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { GraphPanel } from "./graph/GraphPanel";
+import { useMixmap } from "./graph/useMixmap";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
@@ -22,6 +23,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dbError, setDbError] = useState<string>();
   const { error: matchError, results: matches } = useReconcile(library);
+  const mixmap = useMixmap(library);
   const missingCount = matches.filter((m) => m.kind === "missing").length;
   const unmatchedCount = matches.filter((m) => m.kind === "unmatched" || m.kind === "ambiguous").length;
 
@@ -76,7 +78,7 @@ export default function App() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
       <Shell
         details={<TrackDetails track={selectedTrack} version={library?.version ?? 0} />}
-        graph={<GraphPanel />}
+        graph={<GraphPanel artworkVersion={library?.version ?? 0} data={mixmap} />}
         playlists={
           library ? (
             <PlaylistTree
@@ -93,6 +95,7 @@ export default function App() {
         table={
           library ? (
             <TrackTable
+              linkCount={mixmap.linkCountById}
               onSelect={setTrackId}
               selectedId={selectedTrack?.id}
               tracks={tableTracks}

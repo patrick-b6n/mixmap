@@ -32,6 +32,8 @@ export type BoardsState = {
   /** Board whose name is being edited in its tab. */
   editingId?: string;
   error?: string;
+  /** False until the first load finished. */
+  loaded: boolean;
   remove: (id: string) => Promise<void>;
   rename: (id: string, name: string) => Promise<void>;
   select: (id: string) => void;
@@ -41,6 +43,7 @@ export type BoardsState = {
 /** Boards from mixmap.db plus the active one (remembered on this machine). */
 export function useBoards(): BoardsState {
   const [list, setList] = useState<Board[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [activeId, setActiveId] = useState<string | undefined>(loadActive);
   const [error, setError] = useState<string>();
   const [editingId, setEditingId] = useState<string>();
@@ -60,7 +63,11 @@ export function useBoards(): BoardsState {
     startDatabaseOnce(apiDb, api.setLibrarySource)
       .then(() => boards.listBoards(apiDb))
       .then(
-        (l) => live && setList(l),
+        (l) => {
+          if (!live) return;
+          setList(l);
+          setLoaded(true);
+        },
         (e) => live && setError(`boards: ${String(e)}`),
       );
     return () => {
@@ -111,5 +118,5 @@ export function useBoards(): BoardsState {
 
   // The remembered board may be gone (deleted, other machine): fall back to the first.
   const active = list.find((b) => b.id === activeId) ?? list[0];
-  return { active, boards: list, create, editingId, error, remove, rename, select, setEditingId };
+  return { active, boards: list, create, editingId, error, loaded, remove, rename, select, setEditingId };
 }
