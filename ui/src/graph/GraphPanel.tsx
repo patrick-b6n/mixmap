@@ -46,7 +46,7 @@ export function GraphPanel({
 }: Props) {
   /** Links counted when the confirmation opened: exactly these get deleted. */
   const [confirmDeleteAll, setConfirmDeleteAll] = useState<{ links: { from: string; to: string }[]; title: string }>();
-  const state = useBoards();
+  const state = useBoards(data.version);
   const [error, setError] = useState<string>();
   const [nodes, setNodes] = useState<{ boardId: string; nodes: BoardNode[] }>();
   const boardId = state.active?.id;

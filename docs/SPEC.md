@@ -66,6 +66,8 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 - **Export/import** `.mixmap.json` (links, boards, positions, manual matches, timestamps). Import = **merge** (last-write-wins per item) by default, or **replace**.
   - Format (`format: "mixmap"`, `version: 1`): tracks (portable key, artist, title, duration), links, boards, board nodes, manual matches, tombstones and non-`local.` settings, each with its timestamps. Machine-local caches (rekordbox id, missing flag) are not exported. A manual match also carries `targetKey`, the portable key of the rekordbox track it points to, so another machine can resolve it instead of trusting a foreign rekordbox id.
+  - Merge rules (import and sync share them, `ui/src/domain/merge.ts`): per item the later of row (`updated_at`) and tombstone (`deleted_at`) wins; on a tie a deletion wins, then the larger row, so both sides of a sync agree. A deleted board takes its nodes with it; links and nodes whose track or board doesn't survive are dropped; tracks still referenced are never deleted. All changes apply in one transaction.
+  - Replace wipes all synced data (machine-local settings stay) after writing an automatic backup to `backups\`, then loads the file as is.
 - **Network sync** with another MixMap instance: mDNS discovery, first-time pairing with a 6-digit code, manual **"Sync now"** two-way merge, last-write-wins, **tombstones** so deletions propagate.
 - **Reset database**: Settings → type `RESET` → automatic backup export first. Only affects MixMap data.
 

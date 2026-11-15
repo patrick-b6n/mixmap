@@ -40,8 +40,11 @@ export type BoardsState = {
   setEditingId: (id: string | undefined) => void;
 };
 
-/** Boards from mixmap.db plus the active one (remembered on this machine). */
-export function useBoards(): BoardsState {
+/**
+ * Boards from mixmap.db plus the active one (remembered on this machine). `version`
+ * reloads the list when shared data changed (e.g. after an import or sync).
+ */
+export function useBoards(version = 0): BoardsState {
   const [list, setList] = useState<Board[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [activeId, setActiveId] = useState<string | undefined>(loadActive);
@@ -73,7 +76,9 @@ export function useBoards(): BoardsState {
     return () => {
       live = false;
     };
-  }, []);
+    // version is a trigger: reload when shared data changed.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
+  }, [version]);
 
   const select = useCallback((id: string) => {
     setActiveId(id);

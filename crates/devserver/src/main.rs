@@ -285,6 +285,30 @@ async fn db_execute(
     Ok(Json(results))
 }
 
+#[derive(Deserialize)]
+struct WriteBackup {
+    content: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+struct Written {
+    path: String,
+}
+
+/// Write an automatic backup into `%APPDATA%\mixmapackups`.
+async fn write_backup(Json(req): Json<WriteBackup>) -> ApiResult<Written> {
+    let dir = mixmap_core::paths::backups_dir();
+    let path = tokio::task::spawn_blocking(move || {
+        mixmap_core::backups::write_backup(&dir, &req.name, &req.content)
+    })
+    .await
+    .map_err(|e| ApiError(Error::Invalid(format!("backup task: {e}"))))??;
+    Ok(Json(Written {
+        path: path.display().to_string(),
+    }))
+}
+
 /// Only answer requests addressed to this machine by name: blocks DNS-rebinding
 /// pages from reaching the API (e.g. the raw SQL bridge) through a foreign host name.
 async fn local_hosts_only(req: Request, next: Next) -> Response {
@@ -320,6 +344,7 @@ fn app(state: AppState) -> Router {
         .route("/api/library_status", post(library_status))
         .route("/api/refresh", post(refresh))
         .route("/api/set_library_source", post(set_library_source))
+        .route("/api/write_backup", post(write_backup))
         .layer(middleware::from_fn(local_hosts_only))
         .with_state(state)
 }

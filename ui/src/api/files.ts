@@ -13,3 +13,19 @@ export function saveTextFile(name: string, text: string, type = "application/jso
   // Give the browser a moment to start the download before revoking.
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** Let the user pick a file and read it as text; undefined when cancelled. */
+export function openTextFile(accept: string): Promise<{ name: string; text: string } | undefined> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(undefined);
+      file.text().then((text) => resolve({ name: file.name, text }), reject);
+    });
+    input.addEventListener("cancel", () => resolve(undefined));
+    input.click();
+  });
+}

@@ -15,6 +15,11 @@ pub fn artwork_dir() -> PathBuf {
     app_dir().join("artwork")
 }
 
+/// Automatic backups (before import "replace" and reset).
+pub fn backups_dir() -> PathBuf {
+    app_dir().join("backups")
+}
+
 /// MixMap's own database.
 pub fn database_path() -> PathBuf {
     app_dir().join("mixmap.db")
