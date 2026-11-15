@@ -21,6 +21,8 @@ import { TrackTable } from "./library/TrackTable";
 import { UnmatchedDialog } from "./library/UnmatchedDialog";
 import { useLibrary } from "./library/useLibrary";
 import { useReconcile } from "./library/useReconcile";
+import { inTauri } from "./api";
+import { OverlayMenu } from "./desktop/OverlayMenu";
 import { PairRequestDialog } from "./settings/PairRequestDialog";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { useSyncResponder } from "./sync/useSyncResponder";
@@ -156,6 +158,7 @@ export default function App() {
         <Settings />
         Settings
       </Button>
+      {inTauri() && <OverlayMenu />}
       {missingCount + unmatchedCount > 0 && (
         <Button
           onClick={() => setUnmatchedOpen(true)}

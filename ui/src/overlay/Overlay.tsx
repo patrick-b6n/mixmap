@@ -1,5 +1,5 @@
 import { Crown, MessageSquare, Pencil, Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,9 @@ import { useMixmap, type MixmapData } from "../graph/useMixmap";
 import { Artwork } from "../library/TrackTable";
 import { TrackTypeahead } from "../library/TrackTypeahead";
 import { useLibrary } from "../library/useLibrary";
+import { inTauri } from "../api";
+import { loadOpacity, OPACITY_KEY } from "../desktop/overlayWindow";
+import { OverlayBar } from "./OverlayBar";
 import { useNowPlaying } from "./useNowPlaying";
 
 /**
@@ -36,6 +39,15 @@ export function Overlay() {
   );
   const version = library?.version ?? 0;
   const [extraDecks, setExtraDecks] = useState<number[]>([]);
+  const [opacity, setOpacity] = useState(loadOpacity);
+  const desktop = inTauri();
+
+  // Opacity changed in another window (or by the slider here).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => e.key === OPACITY_KEY && setOpacity(loadOpacity());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   if (!library) return <Placeholder className="p-3">{error ?? "Loading…"}</Placeholder>;
   const decks = [...new Set([...shownDecks(state), ...extraDecks])].toSorted((a, b) => a - b);
@@ -51,7 +63,11 @@ export function Overlay() {
     setManual({ ...manual, master: manual.master === deck ? undefined : deck } satisfies ManualState);
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className={cn("flex h-full flex-col", desktop && "overflow-hidden rounded-md border bg-background")}
+      style={desktop ? { opacity } : undefined}
+    >
+      {desktop && <OverlayBar onOpacity={setOpacity} opacity={opacity} />}
       <div
         className="flex items-center gap-1.5 px-2 pt-1 text-[11px] text-muted-foreground"
         data-testid="overlay-source"

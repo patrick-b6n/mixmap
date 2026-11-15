@@ -13,7 +13,8 @@ use mixmap_core::service::Source;
 use mixmap_core::store::Store;
 use serde_json::Value;
 use tauri::http::{header, Response, StatusCode};
-use tauri::{Emitter, Manager, RunEvent};
+use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_window_state::StateFlags;
 
 /// The single backend command. Errors are returned as their message.
 #[tauri::command]
@@ -27,10 +28,50 @@ async fn call(
         .map_err(|e| e.to_string())
 }
 
+/// Show the main window, re-creating it if it was closed (the overlay can run alone).
+/// Async: creating a window in a synchronous command deadlocks on Windows.
+#[tauri::command]
+async fn show_main(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        w.show().map_err(|e| e.to_string())?;
+        return w.set_focus().map_err(|e| e.to_string());
+    }
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .ok_or("no main window configured")?;
+    WebviewWindowBuilder::from_config(&app, &config)
+        .and_then(|b| b.build())
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// The overlay was hidden: quit when no main window is left either.
+#[tauri::command]
+fn overlay_hidden(app: tauri::AppHandle) {
+    if app.get_webview_window("main").is_none() {
+        app.exit(0);
+    }
+}
+
+fn overlay_visible(app: &tauri::AppHandle) -> bool {
+    app.get_webview_window("overlay")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
+}
+
 fn artwork_response(app: &Arc<App>, uri: &tauri::http::Uri) -> Response<Vec<u8>> {
     let id = uri.path().trim_start_matches('/').to_string();
     let id = percent_decode(&id);
-    let size = if uri.query().is_some_and(|q| q.split('&').any(|p| p == "size=large")) {
+    let size = if uri
+        .query()
+        .is_some_and(|q| q.split('&').any(|p| p == "size=large"))
+    {
         Size::Large
     } else {
         Size::Small
@@ -40,7 +81,10 @@ fn artwork_response(app: &Arc<App>, uri: &tauri::http::Uri) -> Response<Vec<u8>>
     match result {
         Ok(Some(bytes)) => builder
             .header(header::CONTENT_TYPE, "image/jpeg")
-            .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
+            .header(
+                header::CACHE_CONTROL,
+                "private, max-age=31536000, immutable",
+            )
             .body(bytes),
         Ok(None) => builder.status(StatusCode::NO_CONTENT).body(vec![]),
         Err(e) => builder
@@ -78,6 +122,21 @@ pub fn run() {
     let store = Store::open(&db).unwrap_or_else(|e| panic!("cannot open {}: {e}", db.display()));
 
     tauri::Builder::default()
+        // Position and size of both windows; visibility isn't restored (the overlay
+        // starts hidden, the main window shown).
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all() - StateFlags::VISIBLE)
+                .build(),
+        )
+        .on_window_event(|window, event| {
+            // Closing the main window while the overlay is shown keeps the app running.
+            if let (WindowEvent::CloseRequested { .. }, "main") = (event, window.label()) {
+                if !overlay_visible(window.app_handle()) {
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .setup(move |tauri_app| {
             let handle = tauri_app.handle().clone();
             let app = App::new(
@@ -96,7 +155,7 @@ pub fn run() {
             let uri = request.uri().clone();
             std::thread::spawn(move || responder.respond(artwork_response(&app, &uri)));
         })
-        .invoke_handler(tauri::generate_handler![call])
+        .invoke_handler(tauri::generate_handler![call, overlay_hidden, show_main])
         .build(tauri::generate_context!())
         .expect("error while building MixMap")
         .run(|handle, event| {
