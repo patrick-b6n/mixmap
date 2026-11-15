@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { Track } from "../api";
@@ -13,6 +14,7 @@ import {
   importData,
   type MixmapExport,
   parseExport,
+  resetData,
   serializeExport,
 } from "../db/exchange";
 import type { Counts, MergeSummary } from "../domain/merge";
@@ -51,12 +53,33 @@ export function summaryText(s: MergeSummary): string {
   return lines.length ? lines.join(" · ") : "Nothing changed: everything was already up to date.";
 }
 
-/** Settings → MixMap data: export, import (merge / replace). */
+/** What to type to confirm a reset. */
+const RESET_WORD = "RESET";
+
+/** Settings → MixMap data: export, import (merge / replace), reset. */
 export function DataSection({ library, onDataChanged }: Props) {
   const [message, setMessage] = useState<{ error?: boolean; text: string }>();
   const [pending, setPending] = useState<{ data: MixmapExport; name: string }>();
   const [mode, setMode] = useState<ImportMode>("merge");
   const [busy, setBusy] = useState(false);
+  /** Typed confirmation while the reset panel is open; undefined = closed. */
+  const [resetConfirm, setResetConfirm] = useState<string>();
+
+  const runReset = async () => {
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      const backup = await writeBackup(apiDb, library, "before-reset");
+      await resetData(apiDb);
+      setResetConfirm(undefined);
+      onDataChanged();
+      setMessage({ text: `MixMap data was reset. Backup: ${backup}` });
+    } catch (e) {
+      setMessage({ error: true, text: `Reset failed, nothing was deleted: ${String(e)}` });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const exportFile = async () => {
     setMessage(undefined);
@@ -79,6 +102,7 @@ export function DataSection({ library, onDataChanged }: Props) {
     try {
       const file = await openTextFile(".json,application/json");
       if (!file) return;
+      setResetConfirm(undefined);
       setPending({ data: parseExport(file.text), name: file.name });
       setMode("merge");
     } catch (e) {
@@ -117,7 +141,49 @@ export function DataSection({ library, onDataChanged }: Props) {
         <Button disabled={busy} onClick={() => void chooseFile()}>
           Import .mixmap.json…
         </Button>
+        <Button
+          className="ml-auto"
+          disabled={busy}
+          onClick={() => {
+            setPending(undefined);
+            setMessage(undefined);
+            setResetConfirm("");
+          }}
+          variant="ghost"
+        >
+          Reset database…
+        </Button>
       </div>
+      {resetConfirm !== undefined && (
+        <div className="flex flex-col gap-2 rounded-sm border border-destructive/60 p-2" data-testid="reset-panel">
+          <div>
+            Deletes all links, boards, positions and manual matches. Your rekordbox library is not touched. A backup is
+            saved first to <code>{"%APPDATA%\\mixmap\\backups"}</code>.
+          </div>
+          <label className="flex items-center gap-2">
+            Type <code className="font-semibold">{RESET_WORD}</code> to confirm:
+            <Input
+              aria-label={`Type ${RESET_WORD} to confirm`}
+              autoComplete="off"
+              className="w-28"
+              onChange={(e) => setResetConfirm(e.target.value)}
+              value={resetConfirm}
+            />
+          </label>
+          <div className="flex gap-2">
+            <Button
+              disabled={busy || resetConfirm !== RESET_WORD}
+              onClick={() => void runReset()}
+              variant="destructive"
+            >
+              {busy ? "Resetting…" : "Back up and reset"}
+            </Button>
+            <Button disabled={busy} onClick={() => setResetConfirm(undefined)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
       {pending && (
         <div className="flex flex-col gap-2 rounded-sm border border-dashed p-2" data-testid="import-preview">
           <div>

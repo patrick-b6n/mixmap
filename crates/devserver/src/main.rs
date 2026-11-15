@@ -296,7 +296,7 @@ struct Written {
     path: String,
 }
 
-/// Write an automatic backup into `%APPDATA%\mixmapackups`.
+/// Write an automatic backup into `%APPDATA%\mixmap\backups`.
 async fn write_backup(Json(req): Json<WriteBackup>) -> ApiResult<Written> {
     let dir = mixmap_core::paths::backups_dir();
     let path = tokio::task::spawn_blocking(move || {

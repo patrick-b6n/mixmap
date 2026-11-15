@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { portableKey } from "../domain/matching";
 import { addNode, createBoard, deleteBoard, listBoards, listNodes } from "./boards";
-import { exportData, importData, parseExport, serializeExport } from "./exchange";
+import { exportData, importData, parseExport, resetData, serializeExport } from "./exchange";
 import { createLink, deleteLink, listLinks, updateLink } from "./links";
 import { migrate } from "./schema";
 import { getSetting, setSetting } from "./settings";
@@ -134,5 +134,24 @@ describe("parseExport", () => {
   it("drops machine-local settings", () => {
     const file = { ...ok, settings: [{ key: "local.library.source", updatedAt: 1, value: {} }] };
     expect(parseExport(JSON.stringify(file)).settings).toEqual([]);
+  });
+});
+
+describe("reset", () => {
+  it("deletes all MixMap data but keeps machine-local settings", async () => {
+    const db = await fresh();
+    await createLink(db, a, b);
+    const board = await createBoard(db, "Peak");
+    await addNode(db, board.id, c, 0, 0);
+    await deleteLink(db, ka, kb);
+    await setManualMatch(db, kc, "rb3");
+    await setSetting(db, "local.library.source", { kind: "auto" });
+    await setSetting(db, "shared.thing", 1);
+    await resetData(db);
+    const after = await exportData(db);
+    for (const k of ["boardNodes", "boards", "links", "manualMatches", "settings", "tombstones", "tracks"] as const) {
+      expect(after[k]).toEqual([]);
+    }
+    expect(await getSetting(db, "local.library.source")).toEqual({ kind: "auto" });
   });
 });
