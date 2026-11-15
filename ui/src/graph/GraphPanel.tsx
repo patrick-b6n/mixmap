@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Network, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useEffect, useRef, useState } from "react";
@@ -6,7 +6,7 @@ import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { addNodeStatements, type BoardNode, listNodes, moveNodes, removeNode, restoreNode } from "../db/boards";
 import { apiDb } from "../db/db";
-import { createLink, createLinkStatements } from "../db/links";
+import { createLink, createLinkStatements, listLinks } from "../db/links";
 import { portableKey } from "../domain/matching";
 import { centeredAt, placeNextTo } from "../domain/placement";
 import { BoardTabs, nextBoardName } from "./BoardTabs";
@@ -138,6 +138,55 @@ export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSele
     if (links.length > 0) setConfirmDeleteAll({ links, title: t ? `${t.artist} – ${t.title}` : trackKey });
   };
 
+  /** Bumped after an auto-layout: remounts the canvas so it shows the new positions. */
+  const [layoutRun, setLayoutRun] = useState<Record<string, number>>({});
+  const bumpLayout = (id: string) => setLayoutRun((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 }));
+  const [layingOut, setLayingOut] = useState(false);
+
+  /** ELK auto-layout of the whole board, saved at once; Ctrl+Z restores the old positions. */
+  const onAutoLayout = () => {
+    if (!boardId || !current || current.length === 0) return;
+    setLayingOut(true);
+    actions
+      .run(async () => {
+        // ELK is large: load it on first use.
+        const { autoLayout } = await import("../domain/layout");
+        const before = await listNodes(apiDb, boardId);
+        // Current links, not the ones captured at click time (the task may have waited).
+        const positions = await autoLayout(
+          before.map((n) => n.trackKey),
+          await listLinks(apiDb),
+        );
+        await moveNodes(
+          apiDb,
+          boardId,
+          positions.map((p) => ({ trackKey: p.key, x: p.x, y: p.y })),
+        );
+        // Show the new positions right away (the canvas remounts from this list).
+        const laidOut = new Map(positions.map((p) => [p.key, p]));
+        setNodes({
+          boardId,
+          nodes: before.map((n) => ({
+            ...n,
+            x: laidOut.get(n.trackKey)?.x ?? n.x,
+            y: laidOut.get(n.trackKey)?.y ?? n.y,
+          })),
+        });
+        bumpLayout(boardId);
+        data.refresh();
+        actions.undo.push({
+          label: "auto-layout",
+          undo: async () => {
+            await moveNodes(apiDb, boardId, before);
+            setNodes({ boardId, nodes: await listNodes(apiDb, boardId) });
+            bumpLayout(boardId);
+          },
+        });
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLayingOut(false));
+  };
+
   const onMoved = (positions: { trackKey: string; x: number; y: number }[]) => {
     if (boardId) moveNodes(apiDb, boardId, positions).catch((e) => setError(String(e)));
   };
@@ -163,7 +212,22 @@ export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSele
         />
       )}
       <div className="border-b bg-card">
-        <BoardTabs onError={setError} state={state} />
+        <div className="flex items-end">
+          <div className="min-w-0 flex-1">
+            <BoardTabs onError={setError} state={state} />
+          </div>
+          {current && current.length > 1 && (
+            <Button
+              className="mr-1 mb-1"
+              disabled={layingOut}
+              onClick={onAutoLayout}
+              title="Arrange the board left to right (Ctrl+Z to undo)"
+            >
+              <Network />
+              {layingOut ? "Arranging…" : "Auto-layout"}
+            </Button>
+          )}
+        </div>
       </div>
       {shownError && (
         <div className="flex items-center gap-2 border-b px-3 py-1 text-destructive" role="alert">
@@ -184,7 +248,7 @@ export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSele
               <GraphCanvas
                 artworkVersion={artworkVersion}
                 data={data}
-                key={boardId}
+                key={`${boardId}#${layoutRun[boardId ?? ""] ?? 0}`}
                 nodes={current}
                 onDeleteAllLinks={onDeleteAllLinks}
                 onDeleteLink={onDeleteLink}
