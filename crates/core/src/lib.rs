@@ -6,6 +6,7 @@ pub mod artwork;
 pub mod backups;
 mod error;
 pub mod network;
+pub mod nowplaying;
 pub mod paths;
 pub mod rekordbox;
 pub mod service;
