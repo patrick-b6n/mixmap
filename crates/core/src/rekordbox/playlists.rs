@@ -10,7 +10,7 @@ pub enum PlaylistKind {
     /// A history list (one DJ session). Histories live in their own tree.
     History,
     Playlist,
-    /// Smart playlist: rule-based. Contents are not evaluated (see `track_ids`).
+    /// Smart playlist: rule-based (`smart_list`); the UI evaluates the rules.
     Smart,
 }
 
@@ -26,9 +26,10 @@ pub struct Playlist {
     pub parent_id: Option<String>,
     /// Sort position among siblings.
     pub seq: i64,
-    /// Ordered track ids. Empty for folders and smart playlists (rule evaluation
-    /// is not supported).
+    /// Ordered track ids. Empty for folders and smart playlists.
     pub track_ids: Vec<String>,
+    /// Smart playlists: rekordbox's rule XML (`<NODE LogicalOperator…><CONDITION …/></NODE>`).
+    pub smart_list: Option<String>,
 }
 
 const ROOT: &str = "root";
@@ -37,7 +38,7 @@ pub(crate) fn read_playlists(conn: &Connection) -> rusqlite::Result<Vec<Playlist
     let mut lists = read_nodes(
         conn,
         "SELECT CAST(ID AS TEXT), IFNULL(Name, ''), IFNULL(Attribute, 0), CAST(ParentID AS TEXT),
-                IFNULL(Seq, 0)
+                IFNULL(Seq, 0), IFNULL(SmartList, '')
          FROM djmdPlaylist WHERE IFNULL(rb_local_deleted, 0) = 0",
         "",
         |attr| match attr {
@@ -61,7 +62,7 @@ pub(crate) fn read_histories(conn: &Connection) -> rusqlite::Result<Vec<Playlist
     let mut lists = read_nodes(
         conn,
         "SELECT CAST(ID AS TEXT), IFNULL(Name, ''), IFNULL(Attribute, 0), CAST(ParentID AS TEXT),
-                IFNULL(Seq, 0)
+                IFNULL(Seq, 0), ''
          FROM djmdHistory WHERE IFNULL(rb_local_deleted, 0) = 0",
         "h",
         |attr| match attr {
@@ -89,6 +90,7 @@ fn read_nodes(
     let mut stmt = conn.prepare(sql)?;
     let rows = stmt.query_map([], |r| {
         let parent: Option<String> = r.get(3)?;
+        let smart: String = r.get(5)?;
         Ok(Playlist {
             id: format!("{prefix}{}", r.get::<_, String>(0)?),
             kind: kind(r.get(2)?),
@@ -97,6 +99,7 @@ fn read_nodes(
                 .filter(|p| p != ROOT && !p.is_empty())
                 .map(|p| format!("{prefix}{p}")),
             seq: r.get(4)?,
+            smart_list: (!smart.is_empty()).then_some(smart),
             track_ids: Vec::new(),
         })
     })?;

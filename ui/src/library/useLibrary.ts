@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Library, type LibraryStatus, subscribe } from "../api";
+import { fillSmartPlaylists } from "../domain/smartlists";
 
 export type LibraryState = {
   error?: string;
@@ -26,7 +27,8 @@ export function useLibrary(): LibraryState {
           // Ignore responses that arrive after a newer request was started.
           if (!live || mine !== request) return;
           versionRef.current = l.version;
-          setLibrary(l);
+          // Smart playlists: evaluate their rules against this library.
+          setLibrary({ ...l, playlists: fillSmartPlaylists(l.playlists, l.tracks) });
           setError(undefined);
         },
         (e) => live && mine === request && setError(String(e)),

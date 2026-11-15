@@ -24,6 +24,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - Fallback: import a rekordbox **XML export**.
 - File watcher on `master.db` → debounced automatic reload; manual **Refresh** button.
 - Data shown: artwork, title, artist, album, genre, BPM, key (Camelot first + musical), rating, comment, length, playlists.
+- Smart playlists: the backend passes rekordbox's rule XML (`SmartList`) through; the UI evaluates it (`ui/src/domain/smartlists.ts`). Text rules are supported; a list using other rules stays empty and says which rules aren't supported yet.
 
 ### Artwork
 - rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise.

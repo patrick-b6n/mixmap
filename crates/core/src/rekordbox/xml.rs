@@ -92,6 +92,7 @@ pub(crate) fn parse(xml: &str) -> Result<Library, Error> {
                             name: a.get("Name").cloned().unwrap_or_default(),
                             parent_id,
                             seq,
+                            smart_list: None,
                             track_ids: Vec::new(),
                         });
                         Some(lib.playlists.len() - 1)

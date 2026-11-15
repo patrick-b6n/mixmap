@@ -30,8 +30,12 @@ export type Playlist = {
   name: string;
   parentId: string | null;
   seq: number;
-  /** Ordered contents; empty for folders and smart playlists. */
+  /** Ordered contents; empty for folders (smart playlists: evaluated in the UI). */
   trackIds: string[];
+  /** Smart playlists: rekordbox's rule XML. */
+  smartList?: string | null;
+  /** Smart playlists whose rules can't be evaluated: why the list is empty. */
+  smartNote?: string;
 };
 
 /** One consistent snapshot of the rekordbox library. */
