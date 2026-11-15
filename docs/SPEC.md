@@ -80,8 +80,8 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - Small always-on-top, frameless, draggable window; adjustable opacity; click-through toggle; global show/hide hotkey (e.g. Ctrl+Alt+M); remembers position/size; can run without the main window. **Read-only.**
 - One column per active deck, master highlighted; outgoing links with comment, rating, BPM, key; marks a linked track already loaded on another deck.
 - **Now-playing detection**, in order:
-  1. Spike: does rekordbox write history to `master.db` live? If yes → use it (version-independent).
-  2. Otherwise: own **memory reader** with a **calibration wizard** (load known tracks on deck 1/2, scan memory for the title, derive pointer chains, save per rekordbox version).
+  1. Spike (done, rekordbox 7.2.19): history *is* written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
+  2. Own **memory reader** with a **calibration wizard** (load known tracks on deck 1/2, scan memory for the title, derive pointer chains, save per rekordbox version).
   3. **Manual mode** (type-ahead to set the current track) always available as fallback.
 - rkbx_link is **not** used (newer rekordbox versions require a paid licence).
 

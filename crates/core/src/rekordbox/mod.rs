@@ -3,5 +3,5 @@
 pub mod library;
 pub mod location;
 pub mod playlists;
-mod sqlcipher;
+pub mod sqlcipher;
 pub mod xml;
