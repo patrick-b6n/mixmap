@@ -3,6 +3,7 @@
 // Here both are resolved to library tracks and combined (manual wins per deck).
 import type { Track } from "../api";
 import { normalize } from "./matching";
+import { searchTracks } from "./trackTable";
 
 /** A deck as an automatic source reports it (empty title = nothing loaded). */
 export type RawDeck = { artist: string; deck: number; title: string };
@@ -109,4 +110,22 @@ export function combine(
 /** Deck numbers whose track is `id` (to mark "already loaded on another deck"). */
 export function decksWith(state: NowPlayingState, id: string): number[] {
   return state.decks.filter((d) => d.resolution.kind === "matched" && d.resolution.track.id === id).map((d) => d.deck);
+}
+
+/**
+ * Type-ahead for manual mode. With a query: matching tracks (same search as the track
+ * table), title matches first. Without one: `suggestions` (e.g. link targets of the
+ * other decks), as the likely next tracks.
+ */
+export function typeahead(tracks: Track[], query: string, suggestions: Track[], limit = 8): Track[] {
+  const q = query.trim().toLocaleLowerCase();
+  if (!q) return suggestions.slice(0, limit);
+  const hits = searchTracks(tracks, q);
+  const inTitle = (t: Track) => (t.title.toLocaleLowerCase().includes(q) ? 0 : 1);
+  return hits.toSorted((a, b) => inTitle(a) - inTitle(b) || a.title.localeCompare(b.title)).slice(0, limit);
+}
+
+/** Deck numbers to show: decks 1 and 2 always (so manual mode can start), plus any in use. */
+export function shownDecks(state: NowPlayingState): number[] {
+  return [...new Set([1, 2, ...state.decks.map((d) => d.deck)])].toSorted((a, b) => a - b);
 }

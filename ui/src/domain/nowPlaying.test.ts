@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { track } from "../db/testing";
-import { buildIndex, combine, decksWith, resolveTrack } from "./nowPlaying";
+import { buildIndex, combine, decksWith, resolveTrack, shownDecks, typeahead } from "./nowPlaying";
 
 const lib = [
   track("1", "ATB", "Ecstasy (Ascend Mix)"),
@@ -73,5 +73,24 @@ describe("combining sources", () => {
     const s = combine(down, { decks: { 1: "2" } }, index, byId);
     expect(s.decks.map((d) => [d.deck, id(d.resolution)])).toEqual([[1, "2"]]);
     expect(s.master).toBeUndefined();
+  });
+});
+
+describe("manual mode type-ahead", () => {
+  it("finds tracks by title or artist, title matches first", () => {
+    const lib2 = [track("a", "Problem Child", "Song"), track("b", "X", "Problem")];
+    expect(typeahead(lib2, "problem", []).map((t) => t.id)).toEqual(["b", "a"]);
+    expect(typeahead(lib, "intro artist x", []).map((t) => t.id)).toEqual(["4", "6"]);
+  });
+
+  it("suggests without a query and respects the limit", () => {
+    expect(typeahead(lib, " ", [lib[2], lib[0]]).map((t) => t.id)).toEqual(["3", "1"]);
+    expect(typeahead(lib, "", lib, 2)).toHaveLength(2);
+  });
+
+  it("always shows decks 1 and 2", () => {
+    expect(shownDecks({ decks: [], master: undefined })).toEqual([1, 2]);
+    const s = combine(undefined, { decks: { 4: "1" } }, index, byId);
+    expect(shownDecks(s)).toEqual([1, 2, 4]);
   });
 });

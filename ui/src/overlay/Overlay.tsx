@@ -1,9 +1,19 @@
-import { MessageSquare } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Crown, MessageSquare, Pencil, Plus, X } from "lucide-react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { Placeholder } from "@/components/Placeholder";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Track } from "../api";
-import { buildIndex, combine, type DeckState, type NowPlayingState } from "../domain/nowPlaying";
+import {
+  buildIndex,
+  combine,
+  type DeckState,
+  type ManualState,
+  type NowPlayingState,
+  shownDecks,
+  typeahead,
+} from "../domain/nowPlaying";
 import { type OverlayLink, outgoingLinks } from "../domain/overlay";
 import { formatBpm, keyLabel, stars } from "../domain/trackTable";
 import { useMixmap, type MixmapData } from "../graph/useMixmap";
@@ -13,69 +23,110 @@ import { useNowPlaying } from "./useNowPlaying";
 
 /**
  * Live overlay: one column per deck with the loaded track and where you can go from
- * it (its outgoing links). Read-only.
+ * it (its outgoing links). Read-only apart from manual mode, which sets what a deck
+ * plays when automatic detection can't (or gets it wrong).
  */
 export function Overlay() {
   const { error, library } = useLibrary();
   const mixmap = useMixmap(library);
-  const { auto, manual } = useNowPlaying();
+  const { auto, manual, setManual } = useNowPlaying();
   const index = useMemo(() => buildIndex(library?.tracks ?? []), [library]);
   const state = useMemo(
     () => combine(auto, manual, index, mixmap.library, (t) => mixmap.linkCountById(t.id) > 0),
     [auto, manual, index, mixmap],
   );
   const version = library?.version ?? 0;
+  const [extraDecks, setExtraDecks] = useState<number[]>([]);
 
   if (!library) return <Placeholder className="p-3">{error ?? "Loading…"}</Placeholder>;
+  const decks = [...new Set([...shownDecks(state), ...extraDecks])].toSorted((a, b) => a - b);
+
+  const setDeck = (deck: number, trackId: string | undefined) =>
+    setManual({ ...manual, decks: { ...manual.decks, [deck]: trackId } });
+  /** Back to the automatic source for this deck (or empty without one). */
+  const clearDeck = (deck: number) => {
+    const { [deck]: _gone, ...rest } = manual.decks;
+    setManual({ ...manual, decks: rest, master: manual.master === deck ? undefined : manual.master });
+  };
+  const toggleMaster = (deck: number) =>
+    setManual({ ...manual, master: manual.master === deck ? undefined : deck } satisfies ManualState);
+
   return (
     <div className="flex h-full flex-col">
-      {state.decks.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-1 p-3 text-center text-muted-foreground">
-          <span>Nothing loaded.</span>
-          <span className="text-xs" data-testid="overlay-source">
-            {auto?.status === "unavailable"
-              ? `Automatic detection: ${auto.reason}`
-              : "Automatic detection isn't available yet."}{" "}
-            Set tracks manually.
-          </span>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 gap-1.5 p-1.5">
-          {state.decks.map((d) => (
-            <DeckColumn
-              data={mixmap}
-              deck={d}
-              key={d.deck}
-              master={state.master === d.deck}
-              state={state}
-              version={version}
-            />
-          ))}
-        </div>
-      )}
+      <div
+        className="flex items-center gap-1.5 px-2 pt-1 text-[11px] text-muted-foreground"
+        data-testid="overlay-source"
+      >
+        <span className="min-w-0 flex-1 truncate">
+          {auto?.status === "ok"
+            ? `Automatic: ${auto.source}`
+            : auto?.status === "unavailable"
+              ? `Automatic detection off: ${auto.reason}`
+              : "Automatic detection isn't available yet: set tracks manually"}
+        </span>
+        <Button
+          aria-label="Add deck"
+          onClick={() => setExtraDecks((d) => [...d, Math.max(...decks) + 1])}
+          size="icon-compact"
+          title="Add a deck"
+          variant="ghost"
+        >
+          <Plus />
+        </Button>
+      </div>
+      <div className="flex min-h-0 flex-1 gap-1.5 p-1.5">
+        {decks.map((n) => (
+          <DeckColumn
+            data={mixmap}
+            deck={state.decks.find((d) => d.deck === n) ?? { deck: n, manual: false, resolution: { kind: "empty" } }}
+            key={n}
+            library={library.tracks}
+            master={state.master === n}
+            onClear={() => clearDeck(n)}
+            onMaster={() => toggleMaster(n)}
+            onSet={(id) => setDeck(n, id)}
+            state={state}
+            version={version}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function DeckColumn({
-  data,
-  deck,
-  master,
-  state,
-  version,
-}: {
+type DeckProps = {
   data: MixmapData;
   deck: DeckState;
+  library: Track[];
   master: boolean;
+  onClear: () => void;
+  onMaster: () => void;
+  onSet: (trackId: string) => void;
   state: NowPlayingState;
   version: number;
-}) {
+};
+
+function DeckColumn({ data, deck, library, master, onClear, onMaster, onSet, state, version }: DeckProps) {
   const r = deck.resolution;
   const track = r.kind === "matched" ? r.track : undefined;
+  const [picking, setPicking] = useState(false);
   const links = useMemo(
     () => (track ? outgoingLinks(track, deck.deck, data.links, data.tracks, data.library, state) : []),
     [track, deck.deck, data, state],
   );
+  // Likely next tracks: where the other decks' tracks link to.
+  const suggestions = useMemo(() => {
+    const out: Track[] = [];
+    for (const d of state.decks) {
+      if (d.deck === deck.deck || d.resolution.kind !== "matched") continue;
+      for (const l of outgoingLinks(d.resolution.track, d.deck, data.links, data.tracks, data.library, state)) {
+        if (l.target && !out.includes(l.target)) out.push(l.target);
+      }
+    }
+    return out;
+  }, [state, deck.deck, data]);
+  const choosing = picking || r.kind === "empty" || r.kind === "ambiguous" || r.kind === "unknown";
+
   return (
     <section
       aria-label={`Deck ${deck.deck}`}
@@ -85,46 +136,156 @@ function DeckColumn({
       )}
       data-deck={deck.deck}
     >
-      <header className="flex items-center gap-1.5 border-b px-2 py-1 text-xs text-muted-foreground">
+      <header className="flex items-center gap-1 border-b px-2 py-0.5 text-xs text-muted-foreground">
         <span className="font-semibold">Deck {deck.deck}</span>
         {master && (
           <span className="rounded-sm bg-primary px-1 text-[10px] font-bold text-primary-foreground">MASTER</span>
         )}
         {deck.manual && <span title="Set manually">manual</span>}
+        <span className="flex-1" />
+        <Button
+          aria-label={master ? "Unset master" : "Make master"}
+          aria-pressed={master}
+          onClick={onMaster}
+          size="icon-compact"
+          title={master ? "Unset master" : "Make this the master deck"}
+          variant="ghost"
+        >
+          <Crown className="size-3.5" />
+        </Button>
+        {track && (
+          <Button
+            aria-label="Change track"
+            onClick={() => setPicking((p) => !p)}
+            size="icon-compact"
+            title="Set the track manually"
+            variant="ghost"
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+        )}
+        {deck.manual && (
+          <Button
+            aria-label="Clear deck"
+            onClick={onClear}
+            size="icon-compact"
+            title="Clear the manual track (back to automatic detection)"
+            variant="ghost"
+          >
+            <X className="size-3.5" />
+          </Button>
+        )}
       </header>
-      <div className="flex items-center gap-2 border-b p-2">
-        {track ? (
-          <>
-            <Artwork trackId={track.id} version={version} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{track.title}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {track.artist}
-                {track.bpm > 0 && ` · ${formatBpm(track.bpm)}`}
-                {track.key && ` · ${keyLabel(track.key)}`}
-              </div>
+      {track && (
+        <div className="flex items-center gap-2 border-b p-2">
+          <Artwork trackId={track.id} version={version} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{track.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {track.artist}
+              {track.bpm > 0 && ` · ${formatBpm(track.bpm)}`}
+              {track.key && ` · ${keyLabel(track.key)}`}
             </div>
-          </>
-        ) : (
-          <div className="text-xs text-muted-foreground">
-            {r.kind === "empty" && "Empty"}
-            {r.kind === "unknown" && `“${r.artist} – ${r.title}” isn't in the library`}
-            {r.kind === "ambiguous" &&
-              `${r.candidates.length} tracks match “${r.candidates[0].title}”: set it manually`}
           </div>
-        )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {track && links.length === 0 && (
-          <div className="p-2 text-xs text-muted-foreground">No links from this track.</div>
-        )}
-        <ul aria-label="Mixes into">
-          {links.map((l) => (
-            <LinkRow key={l.targetKey} link={l} />
-          ))}
-        </ul>
-      </div>
+        </div>
+      )}
+      {!track && r.kind !== "empty" && (
+        <div className="border-b px-2 py-1 text-xs text-muted-foreground">
+          {r.kind === "unknown" && `“${r.artist} – ${r.title}” isn't in the library`}
+          {r.kind === "ambiguous" && `${r.candidates.length} tracks match “${r.candidates[0].title}”: pick one`}
+        </div>
+      )}
+      {choosing && (
+        <TrackPicker
+          autoFocus={picking}
+          candidates={r.kind === "ambiguous" ? r.candidates : undefined}
+          library={library}
+          onPick={(id) => {
+            setPicking(false);
+            onSet(id);
+          }}
+          suggestions={suggestions}
+        />
+      )}
+      {!choosing && (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {links.length === 0 && <div className="p-2 text-xs text-muted-foreground">No links from this track.</div>}
+          <ul aria-label="Mixes into">
+            {links.map((l) => (
+              <LinkRow key={l.targetKey} link={l} />
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
+  );
+}
+
+/** Type-ahead: type to search; ↑/↓ + Enter or click to pick. */
+function TrackPicker({
+  autoFocus,
+  candidates,
+  library,
+  onPick,
+  suggestions,
+}: {
+  autoFocus: boolean;
+  candidates?: Track[];
+  library: Track[];
+  onPick: (trackId: string) => void;
+  suggestions: Track[];
+}) {
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const results = typeahead(library, query, candidates ?? suggestions);
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") setActive((a) => Math.min(a + 1, results.length - 1));
+    else if (e.key === "ArrowUp") setActive((a) => Math.max(a - 1, 0));
+    else if (e.key === "Enter" && results[active]) onPick(results[active].id);
+    else return;
+    e.preventDefault();
+  };
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1 p-1.5">
+      <Input
+        aria-label="Set track"
+        autoFocus={autoFocus}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setActive(0);
+        }}
+        onKeyDown={onKeyDown}
+        placeholder="Type to set the track…"
+        value={query}
+      />
+      {!query.trim() && results.length > 0 && (
+        <div className="px-1 text-[10px] text-muted-foreground uppercase">
+          {candidates ? "Candidates" : "Linked from the other decks"}
+        </div>
+      )}
+      <ul aria-label="Matching tracks" className="min-h-0 flex-1 overflow-y-auto" role="listbox">
+        {results.map((t, i) => (
+          <li aria-selected={i === active} key={t.id} role="option">
+            <button
+              className={cn(
+                "w-full rounded-sm px-1.5 py-0.5 text-left",
+                i === active ? "bg-accent" : "hover:bg-accent/50",
+              )}
+              onClick={() => onPick(t.id)}
+              onMouseEnter={() => setActive(i)}
+              type="button"
+            >
+              <div className="truncate">{t.title}</div>
+              <div className="truncate text-[11px] text-muted-foreground">
+                {t.artist}
+                {t.bpm > 0 && ` · ${formatBpm(t.bpm)}`}
+                {t.key && ` · ${keyLabel(t.key)}`}
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
