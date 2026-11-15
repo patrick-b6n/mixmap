@@ -3,7 +3,7 @@ import { Toaster } from "sonner";
 import { RefreshCw, Settings, Unlink } from "lucide-react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
-import { api } from "./api";
+import { api, type Playlist } from "./api";
 import { apiDb } from "./db/db";
 import { startDatabaseOnce } from "./db/startup";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
@@ -14,6 +14,7 @@ import { useMixmap } from "./graph/useMixmap";
 import { trackLinks } from "./domain/graph";
 import { portableKey } from "./domain/matching";
 import { isTyping } from "./domain/undo";
+import { PairImportDialog } from "./library/PairImportDialog";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
 import { TrackTable } from "./library/TrackTable";
@@ -31,6 +32,7 @@ export default function App() {
   const [dbError, setDbError] = useState<string>();
   const { error: matchError, rerun: rematch, results: matches } = useReconcile(library);
   const [unmatchedOpen, setUnmatchedOpen] = useState(false);
+  const [importFrom, setImportFrom] = useState<Playlist>();
   const mixmap = useMixmap(library);
   const [actionError, setActionError] = useState<string>();
   const onActionError = useCallback((m: string) => setActionError(m), []);
@@ -167,6 +169,15 @@ export default function App() {
     <>
       <Toaster position="bottom-center" theme="dark" toastOptions={{ className: "!text-[13px]" }} />
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} status={status} />}
+      {importFrom && (
+        <PairImportDialog
+          library={mixmap.library}
+          links={mixmap.links}
+          onClose={() => setImportFrom(undefined)}
+          onCreated={mixmap.refresh}
+          playlist={importFrom}
+        />
+      )}
       {unmatchedOpen && library && (
         <UnmatchedDialog
           library={library.tracks}
@@ -221,6 +232,7 @@ export default function App() {
           library ? (
             <PlaylistTree
               histories={library.histories}
+              onImportPairs={setImportFrom}
               onSelect={setPlaylistId}
               playlists={library.playlists}
               selectedId={selectedNode?.playlist.id}

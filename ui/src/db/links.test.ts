@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { portableKey } from "../domain/matching";
-import { cleanTags, createLink, deleteLink, listLinks, restoreLinks, updateLink } from "./links";
+import { cleanTags, createLink, createLinks, deleteLink, listLinks, restoreLinks, updateLink } from "./links";
 import { migrate, tombstoneId } from "./schema";
 import { memoryDb, track } from "./testing";
 
@@ -86,5 +86,21 @@ describe("links", () => {
 
   it("cleans tags", () => {
     expect(cleanTags(["a", " A ", "b", "  ", 7])).toEqual(["a", "b"]);
+  });
+
+  it("creates many links in one go, leaving existing ones alone", async () => {
+    const c = track("rb3", "Other", "Track");
+    await createLink(db, a, b, { comment: "keep" });
+    await createLinks(db, [
+      { from: a, to: b },
+      { from: b, to: c },
+    ]);
+    const links = await listLinks(db);
+    expect(links.map((x) => [x.from, x.to, x.comment])).toEqual(
+      [
+        [ka, kb, "keep"],
+        [kb, portableKey(c), ""],
+      ].toSorted((x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1])),
+    );
   });
 });

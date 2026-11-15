@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Folder, History, ListMusic, type LucideIcon, Music, Sparkles } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
 import { Placeholder } from "@/components/Placeholder";
 import { cn } from "@/lib/utils";
 import type { Playlist } from "../api";
@@ -7,6 +8,8 @@ import { buildTree, type TreeNode } from "../domain/playlistTree";
 
 type Props = {
   histories: Playlist[];
+  /** Context menu "Import pairs as links…" on a playlist or history. */
+  onImportPairs?: (playlist: Playlist) => void;
   onSelect: (id: string | undefined) => void;
   playlists: Playlist[];
   selectedId?: string;
@@ -21,7 +24,8 @@ const ICONS: Record<Playlist["kind"], LucideIcon> = {
 };
 
 /** rekordbox playlist and history trees; selecting a node filters the track table. */
-export function PlaylistTree({ histories, onSelect, playlists, selectedId, trackCount }: Props) {
+export function PlaylistTree({ histories, onImportPairs, onSelect, playlists, selectedId, trackCount }: Props) {
+  const [menu, setMenu] = useState<{ items: ContextMenuItem[]; x: number; y: number }>();
   const playlistTree = useMemo(() => buildTree(playlists), [playlists]);
   const historyTree = useMemo(() => buildTree(histories), [histories]);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -64,8 +68,11 @@ export function PlaylistTree({ histories, onSelect, playlists, selectedId, track
     id: string | undefined;
     name: string;
     open: boolean;
+    playlist?: Playlist;
     title?: string;
   }): ReactNode => {
+    const p = opts.playlist;
+    const canImport = onImportPairs && p && (p.kind === "playlist" || p.kind === "history") && p.trackIds.length > 1;
     const Icon = opts.icon;
     const selected = opts.id === selectedId;
     return (
@@ -77,6 +84,15 @@ export function PlaylistTree({ histories, onSelect, playlists, selectedId, track
         )}
         data-tree-row
         onClick={() => onSelect(opts.id)}
+        onContextMenu={(e) => {
+          if (!canImport) return;
+          e.preventDefault();
+          setMenu({
+            items: [{ label: "Import pairs as links…", onSelect: () => onImportPairs(p) }],
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
         onKeyDown={(e) => onKeyDown(e, opts.id, opts.hasChildren, opts.open)}
         style={{ paddingLeft: 8 + opts.depth * 14 }}
         tabIndex={0}
@@ -113,6 +129,7 @@ export function PlaylistTree({ histories, onSelect, playlists, selectedId, track
           id: p.id,
           name: p.name,
           open,
+          playlist: p,
           title: p.kind === "smart" ? "Smart playlist (contents not supported yet)" : undefined,
         })}
         {hasChildren && open && <ul role="group">{node.children.map((c) => renderNode(c, depth + 1))}</ul>}
@@ -141,6 +158,7 @@ export function PlaylistTree({ histories, onSelect, playlists, selectedId, track
       <Heading>History</Heading>
       <ul role="tree">{historyTree.map((n) => renderNode(n, 0))}</ul>
       {historyTree.length === 0 && <Placeholder>No history yet</Placeholder>}
+      {menu && <ContextMenu items={menu.items} onClose={() => setMenu(undefined)} x={menu.x} y={menu.y} />}
     </nav>
   );
 }

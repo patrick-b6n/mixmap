@@ -207,3 +207,9 @@ export async function restoreLinks(db: Db, links: Link[]): Promise<number> {
   // Every second statement is an INSERT; count the rows it actually added.
   return results.filter((_r, i) => i % 2 === 1).reduce((n, r) => n + r.changes, 0);
 }
+
+/** Create many links in one transaction (pair import). Existing ones are left alone. */
+export async function createLinks(db: Db, pairs: { from: Endpoint; to: Endpoint }[]): Promise<void> {
+  if (pairs.length === 0) return;
+  await db.execute(pairs.flatMap((p) => createLinkStatements(p.from, p.to).statements));
+}
