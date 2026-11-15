@@ -1,7 +1,7 @@
 import { Network, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { addNodeStatements, type BoardNode, listNodes, moveNodes, removeNode, restoreNode } from "../db/boards";
@@ -18,6 +18,9 @@ import type { MixmapData } from "./useMixmap";
 
 type Props = {
   actions: LinkActions;
+  locate?: { n: number; trackId: string };
+  onSelectTrack: (trackId: string | undefined) => void;
+  selectedTrackId?: string;
   artworkVersion: number;
   data: MixmapData;
   onDeleteLink: (from: string, to: string) => void;
@@ -26,7 +29,17 @@ type Props = {
 };
 
 /** Upper center area: board tabs and the graph canvas of the active board. */
-export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSelectLink, selectedLink }: Props) {
+export function GraphPanel({
+  actions,
+  artworkVersion,
+  data,
+  locate,
+  onDeleteLink,
+  onSelectLink,
+  onSelectTrack,
+  selectedLink,
+  selectedTrackId,
+}: Props) {
   /** Links counted when the confirmation opened: exactly these get deleted. */
   const [confirmDeleteAll, setConfirmDeleteAll] = useState<{ links: { from: string; to: string }[]; title: string }>();
   const state = useBoards();
@@ -187,6 +200,10 @@ export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSele
       .finally(() => setLayingOut(false));
   };
 
+  const onLocateMissing = useCallback(() => {
+    toast(`Not on “${state.active?.name ?? "this board"}” — drag it from the table to add it.`);
+  }, [state.active?.name]);
+
   const onMoved = (positions: { trackKey: string; x: number; y: number }[]) => {
     if (boardId) moveNodes(apiDb, boardId, positions).catch((e) => setError(String(e)));
   };
@@ -250,13 +267,17 @@ export function GraphPanel({ actions, artworkVersion, data, onDeleteLink, onSele
                 data={data}
                 key={`${boardId}#${layoutRun[boardId ?? ""] ?? 0}`}
                 nodes={current}
+                locate={locate}
                 onDeleteAllLinks={onDeleteAllLinks}
                 onDeleteLink={onDeleteLink}
                 onDropTrack={(d) => void onDropTrack(d)}
+                onLocateMissing={onLocateMissing}
                 onLink={onLink}
                 onRemoveFromBoard={onRemoveFromBoard}
                 onSelectLink={onSelectLink}
+                onSelectTrack={onSelectTrack}
                 selectedLink={selectedLink}
+                selectedTrackId={selectedTrackId}
                 onMoved={onMoved}
               />
               {current.length === 0 && (

@@ -44,6 +44,8 @@ const STORAGE_KEY = "mixmap.table";
 
 type Props = {
   linkCount?: (trackId: string) => number;
+  /** Double-click / Ctrl+L: show this track in the graph. */
+  onLocate?: (trackId: string) => void;
   onSelect: (trackId: string) => void;
   selectedId?: string;
   tracks: Track[];
@@ -62,7 +64,7 @@ const LABELS = new Map(COLUMNS.map((c) => [c.id, c]));
 const NO_LINKS = () => 0;
 
 /** Virtualized track table with search, sorting, column choice and resizing. */
-export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks, version }: Props) {
+export function TrackTable({ linkCount = NO_LINKS, onLocate, onSelect, selectedId, tracks, version }: Props) {
   const [config, setConfig] = useState<TableConfig>(loadConfig);
   const [query, setQuery] = useState("");
   const [scrollTop, setScrollTop] = useState(0);
@@ -104,6 +106,22 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
   }, [tracks, deferredQuery, config.sort]);
 
   /** Arrow keys move the selection; the selected row is scrolled into view. */
+  // A selection made elsewhere (e.g. a graph click) scrolls its row into view.
+  useEffect(() => {
+    const body = bodyRef.current;
+    const i = rows.findIndex((t) => t.id === selectedId);
+    if (!body || i < 0) return;
+    // Rows start below the sticky header.
+    const top = i * ROW_HEIGHT;
+    const visibleTop = body.scrollTop;
+    const visibleBottom = body.scrollTop + body.clientHeight - HEADER_HEIGHT - ROW_HEIGHT / 2;
+    if (top < visibleTop || top + ROW_HEIGHT > visibleBottom) {
+      body.scrollTop = Math.max(0, top - (body.clientHeight - HEADER_HEIGHT) / 2);
+    }
+    // Only when the selection changes, not on every re-sort.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     if ((e.target as HTMLElement).tagName === "INPUT") return;
@@ -268,6 +286,7 @@ export function TrackTable({ linkCount = NO_LINKS, onSelect, selectedId, tracks,
                 draggable
                 key={first + i}
                 onClick={() => onSelect(t.id)}
+                onDoubleClick={() => onLocate?.(t.id)}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(TRACK_MIME, t.id);
                   e.dataTransfer.effectAllowed = "copyLink";

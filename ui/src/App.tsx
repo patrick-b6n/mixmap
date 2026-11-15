@@ -11,6 +11,8 @@ import { GraphPanel } from "./graph/GraphPanel";
 import { LinkEditor } from "./graph/LinkEditor";
 import { useLinkActions } from "./graph/useLinkActions";
 import { useMixmap } from "./graph/useMixmap";
+import { trackLinks } from "./domain/graph";
+import { portableKey } from "./domain/matching";
 import { isTyping } from "./domain/undo";
 import { PlaylistTree } from "./library/PlaylistTree";
 import { TrackDetails } from "./library/TrackDetails";
@@ -94,6 +96,41 @@ export default function App() {
   }, [library, playlistTrackIds]);
 
   const selectedTrack = useMemo(() => library?.tracks.find((t) => t.id === trackId), [library, trackId]);
+  const [locate, setLocate] = useState<{ n: number; trackId: string }>();
+  const locateTrack = useCallback((id: string) => setLocate((l) => ({ n: (l?.n ?? 0) + 1, trackId: id })), []);
+
+  /** Incoming/outgoing links of the selected track, for the details panel. */
+  const selectedLinks = useMemo(() => {
+    if (!selectedTrack) return { incoming: [], outgoing: [] };
+    const { incoming, outgoing } = trackLinks(mixmap.links, portableKey(selectedTrack));
+    const label = (key: string) => {
+      const t = mixmap.tracks.get(key);
+      return t ? `${t.artist} – ${t.title}` : key;
+    };
+    const item = (l: (typeof mixmap.links)[number], other: string) => ({
+      comment: l.comment,
+      from: l.from,
+      label: label(other),
+      rating: l.rating,
+      to: l.to,
+    });
+    return {
+      incoming: incoming.map((l) => item(l, l.from)),
+      outgoing: outgoing.map((l) => item(l, l.to)),
+    };
+  }, [selectedTrack, mixmap.links, mixmap.tracks]);
+
+  // Ctrl+L: locate the selected track in the graph.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l" && trackId && !isTyping(e.target)) {
+        e.preventDefault();
+        locateTrack(trackId);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [trackId, locateTrack]);
 
   const shownError = actionError ?? dbError ?? matchError ?? status?.error ?? error;
   const toolbar = (
@@ -134,7 +171,13 @@ export default function App() {
               toLabel={trackLabel(selectedLink.to)}
             />
           ) : (
-            <TrackDetails track={selectedTrack} version={library?.version ?? 0} />
+            <TrackDetails
+              incoming={selectedLinks.incoming}
+              onSelectLink={setSelectedLinkId}
+              outgoing={selectedLinks.outgoing}
+              track={selectedTrack}
+              version={library?.version ?? 0}
+            />
           )
         }
         graph={
@@ -142,9 +185,13 @@ export default function App() {
             actions={linkActions}
             artworkVersion={library?.version ?? 0}
             data={mixmap}
+            locate={locate}
             onDeleteLink={deleteLink}
             onSelectLink={setSelectedLinkId}
+            // A missing card has no rekordbox track: clear the selection.
+            onSelectTrack={setTrackId}
             selectedLink={selectedLinkId}
+            selectedTrackId={selectedTrack?.id}
           />
         }
         playlists={
@@ -164,6 +211,10 @@ export default function App() {
           library ? (
             <TrackTable
               linkCount={mixmap.linkCountById}
+              onLocate={(id) => {
+                setTrackId(id);
+                locateTrack(id);
+              }}
               onSelect={(id) => {
                 setTrackId(id);
                 setSelectedLinkId(undefined);

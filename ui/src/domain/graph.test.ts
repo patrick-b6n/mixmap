@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Track } from "../api";
 import type { Link } from "../db/links";
 import type { TrackRow } from "../db/tracks";
-import { buildGraph, canLink, edgeId, edgeWidth, linkCounts } from "./graph";
+import { buildGraph, canLink, edgeId, edgeWidth, linkCounts, trackLinks } from "./graph";
 
 const link = (from: string, to: string, rating: number | null = null, comment = ""): Link => ({
   comment,
@@ -39,6 +39,13 @@ const rb = (id: string, title: string): Track => ({
 });
 
 describe("graph", () => {
+  it("splits a track's links by direction, best rated first", () => {
+    const links = [link("a", "b", 2), link("a", "c", 5), link("d", "a"), link("b", "c")];
+    const { incoming, outgoing } = trackLinks(links, "a");
+    expect(outgoing.map((l) => l.to)).toEqual(["c", "b"]);
+    expect(incoming.map((l) => l.from)).toEqual(["d"]);
+  });
+
   it("allows new directions only", () => {
     const links = [link("a", "b")];
     expect(canLink(links, "a", "b")).toBe(false);

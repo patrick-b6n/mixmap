@@ -37,6 +37,18 @@ export function canLink(links: Pick<Link, "from" | "to">[], source: string, targ
   return source !== target && !links.some((l) => l.from === source && l.to === target);
 }
 
+/** A track's links, split by direction, best rated first. */
+export function trackLinks<L extends Pick<Link, "from" | "rating" | "to">>(
+  links: L[],
+  key: string,
+): { incoming: L[]; outgoing: L[] } {
+  const byRating = (a: L, b: L) => (b.rating ?? 0) - (a.rating ?? 0);
+  return {
+    incoming: links.filter((l) => l.to === key).toSorted(byRating),
+    outgoing: links.filter((l) => l.from === key).toSorted(byRating),
+  };
+}
+
 /** Unrated 1.5 px; rating 1–5 → 1.5…5.5 px. */
 export function edgeWidth(rating: number | null): number {
   return rating === null ? 1.5 : 0.5 + rating;

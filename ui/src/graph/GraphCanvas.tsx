@@ -1,6 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import { applyNodeChanges, Background, Controls, MarkerType, MiniMap, type NodeChange, ReactFlow } from "@xyflow/react";
-import { type DragEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import type { BoardNode } from "../db/boards";
 import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
@@ -33,6 +33,12 @@ type Props = {
   onMoved: (positions: { trackKey: string; x: number; y: number }[]) => void;
   /** Delete every link of a track (card context menu; asks for confirmation). */
   onDeleteAllLinks: (trackKey: string) => void;
+  /** Request to center a track (double-click / Ctrl+L); `n` changes per request. */
+  locate?: { n: number; trackId: string };
+  /** The located track isn't on this board. */
+  onLocateMissing: () => void;
+  /** Card click: select its rekordbox track (undefined for missing tracks). */
+  onSelectTrack: (trackId: string | undefined) => void;
   /** Remove a link (context menu "Remove"). */
   onDeleteLink: (from: string, to: string) => void;
   /** A connection was dragged from `source`'s right handle onto `target`. */
@@ -42,21 +48,27 @@ type Props = {
   /** Click on a link selects it; click on empty canvas clears the selection. */
   onSelectLink: (link: { from: string; to: string } | undefined) => void;
   selectedLink?: { from: string; to: string };
+  /** Track selected in the table: its card is highlighted (no pan/zoom). */
+  selectedTrackId?: string;
 };
 
 /** The active board's graph: track cards and directed links. Key it by board id. */
 export function GraphCanvas({
   artworkVersion,
   data,
+  locate,
   nodes: boardNodes,
   onDeleteAllLinks,
   onDeleteLink,
   onDropTrack,
+  onLocateMissing,
   onLink,
   onMoved,
   onRemoveFromBoard,
   onSelectLink,
+  onSelectTrack,
   selectedLink,
+  selectedTrackId,
 }: Props) {
   const [menu, setMenu] = useState<{ items: ContextMenuItem[]; x: number; y: number }>();
   const closeMenu = useCallback(() => setMenu(undefined), []);
@@ -69,12 +81,16 @@ export function GraphCanvas({
   const fromGraph = useMemo<TrackFlowNode[]>(
     () =>
       graph.nodes.map((n) => ({
-        data: { artworkVersion, card: n.card, highlighted: false },
+        data: {
+          artworkVersion,
+          card: n.card,
+          highlighted: selectedTrackId !== undefined && n.card.track?.id === selectedTrackId,
+        },
         id: n.id,
         position: { x: n.x, y: n.y },
         type: "track",
       })),
-    [graph.nodes, artworkVersion],
+    [graph.nodes, artworkVersion, selectedTrackId],
   );
 
   // The canvas owns positions once a node is shown (drags are saved from here, so a
@@ -115,6 +131,26 @@ export function GraphCanvas({
       })),
     [graph.edges, selectedLink],
   );
+
+  // Double-click / Ctrl+L in the table: center that track's card (keeping zoom >= 1).
+  const lastLocate = useRef(locate?.n);
+  useEffect(() => {
+    const f = flow.current;
+    // Not ready yet: keep the request until the canvas is initialized.
+    if (!locate || locate.n === lastLocate.current || !f) return;
+    lastLocate.current = locate.n;
+    const node = nodes.find((n) => n.data.card.track?.id === locate.trackId);
+    if (!node) {
+      onLocateMissing();
+      return;
+    }
+    const w = node.measured?.width ?? 208;
+    const h = node.measured?.height ?? 56;
+    void f.setCenter(node.position.x + w / 2, node.position.y + h / 2, {
+      duration: 300,
+      zoom: Math.max(f.getZoom(), 1),
+    });
+  }, [locate, nodes, onLocateMissing]);
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (!isTrackDrag(e) || !flow.current) return;
@@ -183,6 +219,10 @@ export function GraphCanvas({
             x: e.clientX,
             y: e.clientY,
           });
+        }}
+        onNodeClick={(_e, node) => {
+          onSelectLink(undefined);
+          onSelectTrack(node.data.card.track?.id);
         }}
         onPaneClick={() => onSelectLink(undefined)}
         // Dropped on a card but not near its handle: link to that card anyway.
