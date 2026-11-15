@@ -154,16 +154,14 @@ pub(crate) mod tests {
                 Commnt, Length, FolderPath, ImagePath, rb_local_deleted);
              CREATE TABLE djmdArtist (ID, Name); CREATE TABLE djmdAlbum (ID, Name);
              CREATE TABLE djmdGenre (ID, Name); CREATE TABLE djmdKey (ID, ScaleName);
-             CREATE TABLE djmdPlaylist (ID, Seq, Name, Attribute, ParentID, rb_local_deleted, SmartList);
+             CREATE TABLE djmdPlaylist (ID, Seq, Name, Attribute, ParentID, rb_local_deleted);
              CREATE TABLE djmdSongPlaylist (PlaylistID, ContentID, TrackNo, rb_local_deleted);
              CREATE TABLE djmdHistory (ID, Seq, Name, Attribute, ParentID, rb_local_deleted);
              CREATE TABLE djmdSongHistory (HistoryID, ContentID, TrackNo, rb_local_deleted);
              INSERT INTO djmdContent VALUES ('1','A',NULL,NULL,NULL,12800,NULL,3,'',300,'a.mp3','',0),
                 ('2','B',NULL,NULL,NULL,12600,NULL,0,'',200,'b.mp3','',0);
-             INSERT INTO djmdPlaylist VALUES ('10',2,'Sets',1,'root',0,NULL), ('11',1,'Warm-up',0,'10',0,''),
-                ('12',1,'Top',0,'root',0,NULL),
-                ('13',2,'Smart',4,'10',0,'<NODE LogicalOperator=\"1\"><CONDITION PropertyName=\"bpm\"/></NODE>'),
-                ('14',3,'Gone',0,'root',1,NULL);
+             INSERT INTO djmdPlaylist VALUES ('10',2,'Sets',1,'root',0), ('11',1,'Warm-up',0,'10',0),
+                ('12',1,'Top',0,'root',0), ('13',2,'Smart',4,'10',0), ('14',3,'Gone',0,'root',1);
              INSERT INTO djmdSongPlaylist VALUES ('11','2',2,0), ('11','1',1,0), ('11','2',3,1),
                 ('11','99',4,0), ('13','1',1,0);
              INSERT INTO djmdHistory VALUES ('20',1,'2026-11',1,'root',0), ('21',1,'2026-11-14',0,'20',0);
@@ -192,14 +190,6 @@ pub(crate) mod tests {
                 ("13", Smart, Some("10"), String::new()),
             ]
         );
-        // Smart playlists carry their rules; others none (an empty column counts as none).
-        assert!(lib.playlists[3]
-            .smart_list
-            .as_deref()
-            .unwrap()
-            .contains("bpm"));
-        assert!(lib.playlists[2].smart_list.is_none() && lib.playlists[0].smart_list.is_none());
-        assert!(lib.histories.iter().all(|h| h.smart_list.is_none()));
         assert_eq!(lib.histories[1].id, "h21");
         assert_eq!(lib.histories[1].parent_id.as_deref(), Some("h20"));
         assert_eq!(lib.histories[1].kind, History);

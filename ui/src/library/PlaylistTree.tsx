@@ -130,7 +130,7 @@ export function PlaylistTree({ histories, onImportPairs, onSelect, playlists, se
           name: p.name,
           open,
           playlist: p,
-          title: p.kind === "smart" ? (p.smartNote ?? `Smart playlist: ${p.name}`) : undefined,
+          title: p.kind === "smart" ? "Smart playlist (contents not supported yet)" : undefined,
         })}
         {hasChildren && open && <ul role="group">{node.children.map((c) => renderNode(c, depth + 1))}</ul>}
       </li>

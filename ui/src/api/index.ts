@@ -30,12 +30,8 @@ export type Playlist = {
   name: string;
   parentId: string | null;
   seq: number;
-  /** Ordered contents; empty for folders (smart playlists: evaluated in the UI). */
+  /** Ordered contents; empty for folders and smart playlists. */
   trackIds: string[];
-  /** Smart playlists: rekordbox's rule XML. */
-  smartList?: string | null;
-  /** Smart playlists whose rules can't be evaluated: why the list is empty. */
-  smartNote?: string;
 };
 
 /** One consistent snapshot of the rekordbox library. */
@@ -138,11 +134,6 @@ export const api = {
   /** Attach to the running rekordbox; fails when it isn't running. */
   calibrationStart: () => call<{ version: string }>("calibration_start"),
   hello: () => call<Hello>("hello"),
-  /** One master round: `deck` is master in rekordbox right now. */
-  masterRound: (deck: number) => call<{ candidates: number; ready: boolean; rounds: number }>("master_round", { deck }),
-  masterSave: () => call<{ path: string }>("master_save"),
-  /** Start learning the master deck (needs a title calibration). */
-  masterStart: () => call<{ version: string }>("master_start"),
   library: () => call<Library>("library"),
   /** Last now-playing update from the automatic source (null before the first). */
   nowPlaying: () => call<unknown>("now_playing"),

@@ -9,7 +9,6 @@ use serde_json::{json, Value};
 
 use crate::artwork::{ArtworkCache, Size};
 use crate::memory::calibration::{Loaded, Session};
-use crate::memory::master::MasterSession;
 use crate::network::exchange::UiReply;
 use crate::network::paired::PairedStore;
 use crate::network::{Discovery, SyncHub};
@@ -28,18 +27,11 @@ struct Network {
     hub: Arc<SyncHub>,
 }
 
-struct MasterState {
-    calibration: crate::memory::calibration::Calibration,
-    mem: Arc<dyn crate::memory::Memory>,
-    session: MasterSession,
-}
-
 pub struct App {
     artwork: Arc<ArtworkCache>,
     calibration: Arc<Mutex<Option<Session>>>,
     emit: Emit,
     library: Arc<LibraryService>,
-    master: Arc<Mutex<Option<MasterState>>>,
     network: Mutex<Option<Network>>,
     now_playing: Arc<Mutex<(Option<Update>, Option<Poller>)>>,
     store: Arc<Store>,
@@ -92,7 +84,6 @@ impl App {
             calibration: Arc::default(),
             emit,
             library: LibraryService::new(source),
-            master: Arc::default(),
             network: Mutex::new(None),
             now_playing: Arc::default(),
             store: Arc::new(store),
@@ -452,84 +443,7 @@ impl App {
             }
             "calibration_cancel" => {
                 *lock(&self.calibration) = None;
-                *lock(&self.master) = None;
                 Ok(json!(true))
-            }
-            "master_start" => {
-                let slot = self.master.clone();
-                let version = blocking(move || {
-                    use crate::memory::source::Attach;
-                    let (mem, version) =
-                        crate::memory::source::RekordboxProcess::default().attach()?;
-                    let (calibration, _) = crate::memory::calibration::load(
-                        &crate::paths::calibration_dir(),
-                        &version,
-                    )
-                    .ok_or_else(|| {
-                        Error::NotFound(format!(
-                            "calibrate the deck titles of rekordbox {version} first"
-                        ))
-                    })?;
-                    let session = MasterSession::new(&calibration, mem.as_ref())?;
-                    *lock(&slot) = Some(MasterState {
-                        calibration,
-                        mem,
-                        session,
-                    });
-                    Ok(version)
-                })
-                .await?;
-                Ok(json!({ "version": version }))
-            }
-            "master_round" => {
-                #[derive(Deserialize)]
-                struct A {
-                    deck: u8,
-                }
-                let a: A = arg(args)?;
-                let slot = self.master.clone();
-                to_value(
-                    blocking(move || {
-                        let mut guard = lock(&slot);
-                        let st = guard.as_mut().ok_or_else(|| {
-                            Error::NotFound("start the master calibration first".into())
-                        })?;
-                        let r = st.session.round(st.mem.as_ref(), a.deck);
-                        println!(
-                            "master calibration: round {} (deck {} master) → {} candidates{}",
-                            r.rounds,
-                            a.deck,
-                            r.candidates,
-                            if r.ready { ", ready" } else { "" }
-                        );
-                        for line in st.session.report() {
-                            println!("  {line}");
-                        }
-                        Ok(r)
-                    })
-                    .await?,
-                )
-            }
-            "master_save" => {
-                let slot = self.master.clone();
-                let path = blocking(move || {
-                    let mut guard = lock(&slot);
-                    let st = guard.as_mut().ok_or_else(|| {
-                        Error::NotFound("start the master calibration first".into())
-                    })?;
-                    let field = st
-                        .session
-                        .field()
-                        .ok_or_else(|| Error::Invalid("not enough rounds yet".into()))?;
-                    let mut c = st.calibration.clone();
-                    c.master = Some(field);
-                    let path =
-                        crate::memory::calibration::save(&crate::paths::calibration_dir(), &c)?;
-                    *guard = None;
-                    Ok(path)
-                })
-                .await?;
-                Ok(json!({ "path": path.display().to_string() }))
             }
             other => Err(Error::NotFound(format!("unknown command {other}"))),
         }

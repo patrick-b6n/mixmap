@@ -24,7 +24,6 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - Fallback: import a rekordbox **XML export**.
 - File watcher on `master.db` → debounced automatic reload; manual **Refresh** button.
 - Data shown: artwork, title, artist, album, genre, BPM, key (Camelot first + musical), rating, comment, length, playlists.
-- Smart playlists: the backend passes rekordbox's rule XML (`SmartList`) through; the UI evaluates it (`ui/src/domain/smartlists.ts`). Text rules are supported; a list using other rules stays empty and says which rules aren't supported yet.
 
 ### Artwork
 - rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise. On start (after a clean library load) thumbnails no current track uses any more are removed once they are a week old; unfinished temp files after an hour.
@@ -87,7 +86,7 @@ MixMap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - **Now-playing detection**, in order:
   1. Spike (done, rekordbox 7.2.19): history *is* written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
   2. Own **memory reader** with a **calibration wizard** (load known tracks on deck 1/2, scan memory for the title, derive pointer chains, save per rekordbox version).
-     - Implemented in `crates/core/src/memory/`: the process is opened with query + read rights only. Calibration rounds (Settings → Now playing → Calibrate) find every UTF-8/UTF-16 copy of the loaded titles/artists, collect pointer chains from the executable's image (depth ≤ 5, offset ≤ 0x800) and keep those that follow the next tracks. Saved as `%APPDATA%\mixmap\calibration\rekordbox-<version>.json`; read once per second and emitted as `now-playing`. A missing or non-matching calibration shows "recalibrate or set tracks manually" in the overlay. rekordbox 7.2.19: one static object holds both decks' title/artist. The master deck is not read from memory yet.
+     - Implemented in `crates/core/src/memory/`: the process is opened with query + read rights only. Calibration rounds (Settings → Now playing → Calibrate) find every UTF-8/UTF-16 copy of the loaded titles/artists, collect pointer chains from the executable's image (depth ≤ 5, offset ≤ 0x800) and keep those that follow the next tracks. Saved as `%APPDATA%\mixmap\calibration\rekordbox-<version>.json`; read once per second and emitted as `now-playing`. A missing or non-matching calibration shows "recalibrate or set tracks manually" in the overlay. rekordbox 7.2.19: one static object holds both decks' title/artist. The master deck is not read from memory; it is set by hand in the overlay (crown).
   3. **Manual mode** (type-ahead to set the current track) always available as fallback.
 - rkbx_link is **not** used (newer rekordbox versions require a paid licence).
 
