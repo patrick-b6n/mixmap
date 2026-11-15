@@ -109,7 +109,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         </fieldset>
         {result && <div data-testid="settings-result">{result}</div>}
         <DataSection library={library} onDataChanged={onDataChanged} />
-        <SyncSection />
+        <SyncSection library={library} onDataChanged={onDataChanged} />
         <DialogFooter>
           <Button disabled={busy} onClick={apply}>
             {busy ? "Loading…" : "Apply"}

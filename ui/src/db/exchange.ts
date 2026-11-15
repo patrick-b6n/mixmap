@@ -208,6 +208,11 @@ export function parseExport(text: string): MixmapExport {
   } catch {
     fail("the file is not JSON");
   }
+  return checkExport(raw);
+}
+
+/** Check already-parsed data (a file, or what a sync peer sent). Throws a readable error. */
+export function checkExport(raw: unknown): MixmapExport {
   if (!isObj(raw) || raw.format !== FORMAT) fail(`missing format "${FORMAT}"`);
   if (raw.version !== FORMAT_VERSION) {
     fail(`version ${String(raw.version)} is not supported (this app reads version ${FORMAT_VERSION})`);
@@ -321,7 +326,7 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
       sql: `INSERT INTO tracks (key, artist, title, duration, rekordbox_id, missing, created_at, updated_at)
             VALUES (?, ?, ?, ?, NULL, 0, ?, ?)
             ON CONFLICT (key) DO UPDATE SET artist = excluded.artist, title = excluded.title,
-              duration = excluded.duration, updated_at = excluded.updated_at`,
+              duration = excluded.duration, updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
   for (const b of plan.boards) {
@@ -329,7 +334,7 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
       params: [b.id, b.name, b.position, b.createdAt, b.updatedAt],
       sql: `INSERT INTO boards (id, name, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET name = excluded.name, position = excluded.position,
-              updated_at = excluded.updated_at`,
+              updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
   for (const l of plan.links) {
@@ -338,7 +343,7 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
       sql: `INSERT INTO links (from_track, to_track, comment, rating, tags, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (from_track, to_track) DO UPDATE SET comment = excluded.comment,
-              rating = excluded.rating, tags = excluded.tags, updated_at = excluded.updated_at`,
+              rating = excluded.rating, tags = excluded.tags, updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
   for (const n of plan.boardNodes) {
@@ -346,7 +351,7 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
       params: [n.boardId, n.trackKey, n.x, n.y, n.createdAt, n.updatedAt],
       sql: `INSERT INTO board_nodes (board_id, track_key, x, y, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT (board_id, track_key) DO UPDATE SET x = excluded.x, y = excluded.y,
-              updated_at = excluded.updated_at`,
+              updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
   for (const m of plan.manualMatches) {
@@ -354,7 +359,7 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
       params: [m.trackKey, m.rekordboxId, m.createdAt, m.updatedAt],
       sql: `INSERT INTO manual_matches (track_key, rekordbox_id, created_at, updated_at) VALUES (?, ?, ?, ?)
             ON CONFLICT (track_key) DO UPDATE SET rekordbox_id = excluded.rekordbox_id,
-              updated_at = excluded.updated_at`,
+              updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
   for (const s of plan.settings) {

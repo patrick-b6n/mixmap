@@ -23,6 +23,7 @@ import { useLibrary } from "./library/useLibrary";
 import { useReconcile } from "./library/useReconcile";
 import { PairRequestDialog } from "./settings/PairRequestDialog";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { useSyncResponder } from "./sync/useSyncResponder";
 import { Shell } from "./shell/Shell";
 
 export default function App() {
@@ -35,6 +36,13 @@ export default function App() {
   const [unmatchedOpen, setUnmatchedOpen] = useState(false);
   const [importFrom, setImportFrom] = useState<Playlist>();
   const mixmap = useMixmap(library);
+  const refreshMixmap = mixmap.refresh;
+  /** MixMap data changed outside the normal flows (import, reset, sync): re-match and reload. */
+  const dataChanged = useCallback(() => {
+    rematch();
+    refreshMixmap();
+  }, [rematch, refreshMixmap]);
+  useSyncResponder(mixmap.library, dataChanged);
   const [actionError, setActionError] = useState<string>();
   const onActionError = useCallback((m: string) => setActionError(m), []);
   const linkActions = useLinkActions(mixmap.refresh, onActionError);
@@ -174,10 +182,7 @@ export default function App() {
         <SettingsDialog
           library={mixmap.library}
           onClose={() => setSettingsOpen(false)}
-          onDataChanged={() => {
-            rematch();
-            mixmap.refresh();
-          }}
+          onDataChanged={dataChanged}
           status={status}
         />
       )}

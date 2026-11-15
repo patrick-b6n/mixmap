@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { errorText, rows } from "./SyncSection";
 
 const peer = (id: string, name: string) => ({ addresses: ["192.168.1.2"], id, name, port: 4000, protocol: 1 });
-const paired = (id: string, name: string) => ({ id, lastAddress: null, name, pairedAt: 1 });
+const paired = (id: string, name: string) => ({ id, lastAddress: null, lastSyncAt: null, name, pairedAt: 1 });
 
 describe("sync device list", () => {
   it("merges discovered and paired devices, sorted by name", () => {

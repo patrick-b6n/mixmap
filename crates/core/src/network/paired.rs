@@ -15,6 +15,8 @@ struct Stored {
     id: String,
     /// Last address:port it was reached at (fallback when mDNS doesn't see it).
     last_address: Option<String>,
+    #[serde(default)]
+    last_sync_at: Option<u64>,
     name: String,
     paired_at: u64,
     secret: String,
@@ -26,6 +28,8 @@ struct Stored {
 pub struct PairedPeer {
     pub id: String,
     pub last_address: Option<String>,
+    /// When the last sync with it succeeded (ms since the epoch).
+    pub last_sync_at: Option<u64>,
     pub name: String,
     pub paired_at: u64,
 }
@@ -70,6 +74,7 @@ impl PairedStore {
             .map(|s| PairedPeer {
                 id: s.id.clone(),
                 last_address: s.last_address.clone(),
+                last_sync_at: s.last_sync_at,
                 name: s.name.clone(),
                 paired_at: s.paired_at,
             })
@@ -105,6 +110,7 @@ impl PairedStore {
         peers.push(Stored {
             id: id.into(),
             last_address: address,
+            last_sync_at: None,
             name: name.into(),
             paired_at: now_ms(),
             secret: hex(secret),
@@ -132,6 +138,19 @@ impl PairedStore {
         }
         if *p == before {
             return Ok(());
+        }
+        self.save(&peers)
+    }
+
+    /// Record a successful sync (and the address that worked, if known).
+    pub fn synced(&self, id: &str, address: Option<String>) -> Result<(), Error> {
+        let mut peers = self.lock();
+        let Some(p) = peers.iter_mut().find(|p| p.id == id) else {
+            return Ok(());
+        };
+        p.last_sync_at = Some(now_ms());
+        if address.is_some() {
+            p.last_address = address;
         }
         self.save(&peers)
     }

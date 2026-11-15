@@ -2,6 +2,7 @@
 
 pub mod crypto;
 pub mod discovery;
+pub mod exchange;
 pub mod hub;
 pub mod identity;
 pub mod paired;

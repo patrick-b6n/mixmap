@@ -10,6 +10,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: { "/api": "http://127.0.0.1:5174" },
+    // MIXMAP_API points a second UI at a second devserver (sync tests on one machine).
+    proxy: { "/api": process.env.MIXMAP_API ?? "http://127.0.0.1:5174" },
   },
 });

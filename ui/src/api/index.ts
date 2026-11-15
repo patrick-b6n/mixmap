@@ -65,7 +65,7 @@ export type Device = { id: string; name: string };
 export type Peer = Device & { addresses: string[]; port: number; protocol: number };
 
 /** A device this one is paired with (it may be offline). */
-export type PairedPeer = Device & { lastAddress: string | null; pairedAt: number };
+export type PairedPeer = Device & { lastAddress: string | null; lastSyncAt: number | null; pairedAt: number };
 
 export type SyncStatus = {
   device: Device | null;
@@ -115,6 +115,12 @@ export const api = {
   setLibrarySource: (source: LibrarySource) => call<LibraryStatus>("set_library_source", { source }),
   pairConfirm: (peerId: string, code: string) => call<PairedPeer>("pair_confirm", { code, peerId }),
   pairStart: (peerId: string) => call<{ name: string }>("pair_start", { peerId }),
+  /** "Sync now": send our export to a paired device; returns its export and what changed there. */
+  syncExchange: (peerId: string, data: unknown) =>
+    call<{ data: unknown; summary: unknown }>("sync_exchange", { data, peerId }),
+  /** Answer a `sync-request` event (our export before merging, or an error). */
+  syncReply: (requestId: string, reply: { data?: unknown; error?: string; summary?: unknown }) =>
+    call<boolean>("sync_reply", { reply, requestId }),
   syncStatus: () => call<SyncStatus>("sync_status"),
   unpair: (peerId: string) => call<boolean>("unpair", { peerId }),
 };

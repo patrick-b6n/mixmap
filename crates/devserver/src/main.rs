@@ -8,7 +8,7 @@ use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::{Path, Query, Request, State},
+    extract::{DefaultBodyLimit, Path, Query, Request, State},
     http::{header, StatusCode},
     middleware::{self, Next},
     response::{
@@ -19,6 +19,7 @@ use axum::{
     Json, Router,
 };
 use mixmap_core::artwork::{ArtworkCache, Size};
+use mixmap_core::network::exchange::UiReply;
 use mixmap_core::network::paired::{PairedPeer, PairedStore};
 use mixmap_core::network::{Device, Discovery, Peer, SyncHub};
 use mixmap_core::rekordbox::library::Track;
@@ -410,6 +411,38 @@ async fn pair_confirm(
     ))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExchangeArg {
+    data: serde_json::Value,
+    peer_id: String,
+}
+
+/// "Sync now": send our export to a paired device, get its export back.
+async fn sync_exchange(
+    State(s): State<AppState>,
+    Json(a): Json<ExchangeArg>,
+) -> ApiResult<serde_json::Value> {
+    let hub = hub(&s)?;
+    Ok(Json(
+        blocking(move || hub.exchange(&a.peer_id, a.data)).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReplyArg {
+    reply: UiReply,
+    request_id: String,
+}
+
+/// Our UI's answer to a `sync-request` from a paired device.
+async fn sync_reply(State(s): State<AppState>, Json(a): Json<ReplyArg>) -> ApiResult<bool> {
+    let hub = hub(&s)?;
+    blocking(move || hub.ui_reply(&a.request_id, a.reply)).await?;
+    Ok(Json(true))
+}
+
 /// Forget a paired device (on this side).
 async fn unpair(State(s): State<AppState>, Json(a): Json<PeerArg>) -> ApiResult<bool> {
     let hub = hub(&s)?;
@@ -429,6 +462,9 @@ async fn start_network(state: &AppState) -> Result<(), Error> {
         PairedStore::load(mixmap_core::paths::paired_path()),
         Arc::new(move |name, payload| emit(&events, name, &payload)),
     ));
+    // A sync request can only be answered while a UI listens for events.
+    let listeners = state.events.clone();
+    hub.set_ui_presence(Arc::new(move || listeners.receiver_count() > 0));
     let lan = hub.clone();
     tokio::spawn(async move {
         if let Err(e) = mixmap_core::network::server::serve(listener, lan).await {
@@ -498,9 +534,13 @@ fn app(state: AppState) -> Router {
         .route("/api/set_library_source", post(set_library_source))
         .route("/api/pair_confirm", post(pair_confirm))
         .route("/api/pair_start", post(pair_start))
+        .route("/api/sync_exchange", post(sync_exchange))
+        .route("/api/sync_reply", post(sync_reply))
         .route("/api/sync_status", post(sync_status))
         .route("/api/unpair", post(unpair))
         .route("/api/write_backup", post(write_backup))
+        // Imports and sync carry a whole library's links and boards.
+        .layer(DefaultBodyLimit::max(256 * 1024 * 1024))
         .layer(middleware::from_fn(local_hosts_only))
         .with_state(state)
 }

@@ -1,25 +1,44 @@
-import { Laptop, Link2, Wifi, WifiOff } from "lucide-react";
+import { Laptop, Link2, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api, type Peer, subscribe, SYNC_PROTOCOL, type SyncStatus } from "../api";
+import { api, type Peer, subscribe, SYNC_PROTOCOL, type SyncStatus, type Track } from "../api";
+import { apiDb } from "../db/db";
+import { changeCount, syncNow } from "../sync/sync";
+import { summaryText } from "./DataSection";
 
 /** One device in the list: discovered on the network and/or paired. */
-type Row = { id: string; name: string; online?: Peer; paired: boolean };
+type Row = { id: string; lastSyncAt?: number; name: string; online?: Peer; paired: boolean };
 
 export function rows(status: SyncStatus): Row[] {
   const byId = new Map<string, Row>();
   for (const p of status.peers) byId.set(p.id, { id: p.id, name: p.name, online: p, paired: false });
   for (const p of status.paired) {
     const row = byId.get(p.id);
-    if (row) row.paired = true;
-    else byId.set(p.id, { id: p.id, name: p.name, paired: true });
+    const lastSyncAt = p.lastSyncAt ?? undefined;
+    if (row) Object.assign(row, { lastSyncAt, paired: true });
+    else byId.set(p.id, { id: p.id, lastSyncAt, name: p.name, paired: true });
   }
   return [...byId.values()].toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Settings → Network sync: this device, devices on the LAN, pairing. */
-export function SyncSection() {
+type Props = {
+  library: ReadonlyMap<string, Track>;
+  /** MixMap data changed (a sync merged something): re-run matching and reload. */
+  onDataChanged: () => void;
+};
+
+/** "2 min ago", "yesterday 21:14"-style, short. */
+function ago(ms: number, now = Date.now()): string {
+  const s = Math.round((now - ms) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  return new Date(ms).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+}
+
+/** Settings → Network sync: this device, devices on the LAN, pairing, Sync now. */
+export function SyncSection({ library, onDataChanged }: Props) {
+  const [syncing, setSyncing] = useState<string>();
   const [status, setStatus] = useState<SyncStatus>();
   const [error, setError] = useState<string>();
   /** Pairing in progress: waiting for the code shown on that device. */
@@ -85,6 +104,23 @@ export function SyncSection() {
     }
   };
 
+  const sync = async (row: Row) => {
+    setSyncing(row.id);
+    setMessage(undefined);
+    try {
+      const result = await syncNow(apiDb, library, (data) => api.syncExchange(row.id, data));
+      onDataChanged();
+      const got = changeCount(result.received) ? summaryText(result.received) : "nothing new";
+      const gave = changeCount(result.sent) ? summaryText(result.sent!) : "nothing new";
+      setMessage({ text: `Synced with ${row.name}. Here: ${got} Over there: ${gave}` });
+      await load();
+    } catch (e) {
+      setMessage({ error: true, text: `Sync with ${row.name} failed, nothing changed here: ${errorText(e)}` });
+    } finally {
+      setSyncing(undefined);
+    }
+  };
+
   const forget = async (row: Row) => {
     setMessage(undefined);
     try {
@@ -131,22 +167,41 @@ export function SyncSection() {
                       {row.online ? `${row.online.addresses[0] ?? "?"}:${row.online.port}` : "offline"}
                     </span>
                     {row.paired && (
-                      <span className="flex items-center gap-0.5 rounded-sm bg-muted px-1 text-xs text-muted-foreground">
+                      <span
+                        className="flex items-center gap-0.5 rounded-sm bg-muted px-1 text-xs text-muted-foreground"
+                        title={
+                          row.lastSyncAt ? `Last synced ${new Date(row.lastSyncAt).toLocaleString()}` : "Never synced"
+                        }
+                      >
                         <Link2 className="size-3" />
-                        paired
+                        {row.lastSyncAt ? `synced ${ago(row.lastSyncAt)}` : "paired"}
                       </span>
                     )}
                     <span className="flex-1" />
                     {incompatible ? (
                       <span className="text-xs text-destructive">other MixMap version — update both</span>
                     ) : row.paired ? (
-                      <Button
-                        onClick={() => void forget(row)}
-                        title="Remove the pairing on this device"
-                        variant="ghost"
-                      >
-                        Forget
-                      </Button>
+                      <>
+                        {row.online && (
+                          <Button
+                            disabled={syncing !== undefined}
+                            onClick={() => void sync(row)}
+                            title="Exchange links, boards and positions both ways (newer changes win)"
+                            variant="default"
+                          >
+                            <RefreshCw className={syncing === row.id ? "animate-spin" : undefined} />
+                            {syncing === row.id ? "Syncing…" : "Sync now"}
+                          </Button>
+                        )}
+                        <Button
+                          disabled={syncing !== undefined}
+                          onClick={() => void forget(row)}
+                          title="Remove the pairing on this device"
+                          variant="ghost"
+                        >
+                          Forget
+                        </Button>
+                      </>
                     ) : (
                       row.online && (
                         <Button disabled={busy || pairing !== undefined} onClick={() => void startPairing(row)}>

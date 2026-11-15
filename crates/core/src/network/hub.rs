@@ -17,6 +17,9 @@ use crate::Error;
 /// Sends an event to this instance's UI (`name`, JSON payload).
 pub type Emit = Arc<dyn Fn(&'static str, serde_json::Value) + Send + Sync>;
 
+/// Whether this instance's UI is connected (so it can answer sync requests).
+pub type UiPresence = Arc<dyn Fn() -> bool + Send + Sync>;
+
 /// How long a pairing code is valid.
 const PAIRING_TTL: Duration = Duration::from_secs(120);
 /// Wrong codes allowed before a pairing request is dropped.
@@ -77,6 +80,11 @@ pub struct SyncHub {
     discovered: Mutex<Vec<Peer>>,
     incoming: Mutex<HashMap<String, Incoming>>,
     outgoing: Mutex<HashMap<String, Outgoing>>,
+    /// Signatures seen recently (replay protection), with their request time.
+    seen: Mutex<HashMap<[u8; 32], u64>>,
+    /// Sync requests waiting for our UI's answer.
+    ui_requests: Mutex<HashMap<String, std::sync::mpsc::Sender<super::exchange::UiReply>>>,
+    ui_presence: Mutex<UiPresence>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -93,7 +101,40 @@ impl SyncHub {
             outgoing: Mutex::default(),
             paired,
             port,
+            seen: Mutex::default(),
+            ui_presence: Mutex::new(Arc::new(|| true)),
+            ui_requests: Mutex::default(),
         }
+    }
+
+    /// Tell the hub how to check that our UI is connected (default: always).
+    pub fn set_ui_presence(&self, f: UiPresence) {
+        *lock(&self.ui_presence) = f;
+    }
+
+    pub(super) fn ui_present(&self) -> bool {
+        let f = lock(&self.ui_presence).clone();
+        f()
+    }
+
+    pub(super) fn emit(&self, name: &'static str, payload: serde_json::Value) {
+        (self.emit)(name, payload)
+    }
+
+    pub(super) fn ui_requests(
+        &self,
+    ) -> std::sync::MutexGuard<'_, HashMap<String, std::sync::mpsc::Sender<super::exchange::UiReply>>>
+    {
+        lock(&self.ui_requests)
+    }
+
+    /// Remember a request signature; false if it was seen before (a replay).
+    /// Entries older than the allowed clock skew are dropped (their time no longer passes).
+    pub(super) fn remember_signature(&self, sig: [u8; 32], time: u64) -> bool {
+        let mut seen = lock(&self.seen);
+        let horizon = super::paired::now_ms().saturating_sub(10 * 60 * 1000);
+        seen.retain(|_, t| *t >= horizon);
+        seen.insert(sig, time).is_none()
     }
 
     /// Discovery reports the current peers here.

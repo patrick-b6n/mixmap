@@ -5,8 +5,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
+    body::Bytes,
     extract::{ConnectInfo, DefaultBodyLimit, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -14,6 +15,7 @@ use axum::{
 use serde::Serialize;
 use tokio::net::TcpListener;
 
+use super::exchange::{self, Signed};
 use super::hub::{PairConfirm, PairStart, SyncHub};
 use super::PROTOCOL;
 use crate::Error;
@@ -70,6 +72,36 @@ async fn pair_confirm(State(hub): Hub, Json(req): Json<PairConfirm>) -> Result<R
         .map_err(LanError)
 }
 
+/// A paired peer's signed exchange request; our UI merges and answers.
+async fn exchange(State(hub): Hub, headers: HeaderMap, body: Bytes) -> Result<Response, LanError> {
+    let header = |k: &str| {
+        headers
+            .get(k)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+    };
+    let signed = Signed {
+        peer: header(exchange::HEADER_PEER).unwrap_or_default(),
+        signature: header(exchange::HEADER_SIGNATURE).unwrap_or_default(),
+        time: header(exchange::HEADER_TIME)
+            .and_then(|t| t.parse().ok())
+            .unwrap_or(0),
+    };
+    let (out, time, sig) = tokio::task::spawn_blocking(move || hub.handle_exchange(signed, &body))
+        .await
+        .map_err(|e| LanError(Error::Invalid(e.to_string())))?
+        .map_err(LanError)?;
+    Ok((
+        [
+            (exchange::HEADER_TIME, time.to_string()),
+            (exchange::HEADER_SIGNATURE, sig),
+            ("content-type", "application/json".to_string()),
+        ],
+        out,
+    )
+        .into_response())
+}
+
 /// Routes other instances may call.
 pub fn router(hub: Arc<SyncHub>) -> Router {
     Router::new()
@@ -77,6 +109,11 @@ pub fn router(hub: Arc<SyncHub>) -> Router {
         .route("/sync/pair/start", post(pair_start))
         .route("/sync/pair/confirm", post(pair_confirm))
         .layer(DefaultBodyLimit::max(64 * 1024))
+        // A whole library's links and boards.
+        .route(
+            exchange::PATH,
+            post(exchange).layer(DefaultBodyLimit::max(256 * 1024 * 1024)),
+        )
         .with_state(hub)
 }
 
@@ -156,7 +193,6 @@ pub(crate) mod tests {
     }
 
     /// Pair `a` with `b` (as the user would: start on a, type b's code on a).
-    #[allow(dead_code)] // for the sync tests (#35)
     pub(crate) async fn pair(a: &Instance, b: &Instance) {
         see(a, b);
         let (hub, id) = (a.hub.clone(), b.hub.device.id.clone());
