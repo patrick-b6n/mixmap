@@ -29,6 +29,11 @@ pub fn device_path() -> PathBuf {
     app_dir().join("device.json")
 }
 
+/// Paired peers and their secrets (machine-local).
+pub fn paired_path() -> PathBuf {
+    app_dir().join("paired.json")
+}
+
 /// MixMap's own database.
 pub fn database_path() -> PathBuf {
     app_dir().join("mixmap.db")

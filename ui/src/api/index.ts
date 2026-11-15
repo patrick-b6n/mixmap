@@ -64,7 +64,16 @@ export type Device = { id: string; name: string };
 /** Another MixMap instance found on the LAN (mDNS). */
 export type Peer = Device & { addresses: string[]; port: number; protocol: number };
 
-export type SyncStatus = { device: Device | null; error: string | null; peers: Peer[]; port: number };
+/** A device this one is paired with (it may be offline). */
+export type PairedPeer = Device & { lastAddress: string | null; pairedAt: number };
+
+export type SyncStatus = {
+  device: Device | null;
+  error: string | null;
+  paired: PairedPeer[];
+  peers: Peer[];
+  port: number;
+};
 
 /** Sync protocol version this app speaks. */
 export const SYNC_PROTOCOL = 1;
@@ -104,7 +113,10 @@ export const api = {
   libraryStatus: () => call<LibraryStatus>("library_status"),
   refresh: () => call<LibraryStatus>("refresh"),
   setLibrarySource: (source: LibrarySource) => call<LibraryStatus>("set_library_source", { source }),
+  pairConfirm: (peerId: string, code: string) => call<PairedPeer>("pair_confirm", { code, peerId }),
+  pairStart: (peerId: string) => call<{ name: string }>("pair_start", { peerId }),
   syncStatus: () => call<SyncStatus>("sync_status"),
+  unpair: (peerId: string) => call<boolean>("unpair", { peerId }),
 };
 
 export { subscribe } from "./events";

@@ -6,6 +6,9 @@ pub enum Error {
     Invalid(String),
     #[error("{0}")]
     NotFound(String),
+    /// Not allowed (e.g. wrong pairing code, unknown or unsigned peer).
+    #[error("{0}")]
+    Forbidden(String),
 }
 
 impl Serialize for Error {

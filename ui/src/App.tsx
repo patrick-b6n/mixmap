@@ -21,6 +21,7 @@ import { TrackTable } from "./library/TrackTable";
 import { UnmatchedDialog } from "./library/UnmatchedDialog";
 import { useLibrary } from "./library/useLibrary";
 import { useReconcile } from "./library/useReconcile";
+import { PairRequestDialog } from "./settings/PairRequestDialog";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { Shell } from "./shell/Shell";
 
@@ -168,6 +169,7 @@ export default function App() {
   return (
     <>
       <Toaster position="bottom-center" theme="dark" toastOptions={{ className: "!text-[13px]" }} />
+      <PairRequestDialog />
       {settingsOpen && (
         <SettingsDialog
           library={mixmap.library}

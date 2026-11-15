@@ -19,7 +19,8 @@ use axum::{
     Json, Router,
 };
 use mixmap_core::artwork::{ArtworkCache, Size};
-use mixmap_core::network::{Device, Discovery, Peer};
+use mixmap_core::network::paired::{PairedPeer, PairedStore};
+use mixmap_core::network::{Device, Discovery, Peer, SyncHub};
 use mixmap_core::rekordbox::library::Track;
 use mixmap_core::rekordbox::playlists::Playlist;
 use mixmap_core::service::{LibraryService, Source, Status};
@@ -52,10 +53,10 @@ struct AppState {
 }
 
 struct Network {
-    device: Device,
-    discovery: Option<Discovery>,
+    /// Kept alive for the advertisement; dropped (unregistered) on shutdown.
+    _discovery: Option<Discovery>,
     error: Option<String>,
-    port: u16,
+    hub: Arc<SyncHub>,
 }
 
 impl AppState {
@@ -117,6 +118,7 @@ impl IntoResponse for ApiError {
             Error::Invalid(_) => StatusCode::BAD_REQUEST,
             // Not 404: that would look like a missing route.
             Error::NotFound(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Error::Forbidden(_) => StatusCode::FORBIDDEN,
         };
         (status, self.0.to_string()).into_response()
     }
@@ -327,50 +329,121 @@ struct SyncStatus {
     device: Option<Device>,
     /// Why discovery isn't running (e.g. no network), if it isn't.
     error: Option<String>,
+    paired: Vec<PairedPeer>,
     peers: Vec<Peer>,
     port: u16,
 }
 
-/// This device and the MixMap instances discovered on the LAN.
+fn hub(s: &AppState) -> Result<Arc<SyncHub>, ApiError> {
+    s.network
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .map(|n| n.hub.clone())
+        .ok_or_else(|| ApiError(Error::NotFound("network sync is not running".into())))
+}
+
+/// This device, the MixMap instances discovered on the LAN and the paired ones.
 async fn sync_status(State(s): State<AppState>) -> Json<SyncStatus> {
     let net = s.network.lock().unwrap_or_else(|e| e.into_inner());
     Json(match net.as_ref() {
         Some(n) => SyncStatus {
-            device: Some(n.device.clone()),
+            device: Some(n.hub.device.clone()),
             error: n.error.clone(),
-            peers: n
-                .discovery
-                .as_ref()
-                .map(Discovery::peers)
-                .unwrap_or_default(),
-            port: n.port,
+            paired: n.hub.paired_peers(),
+            peers: n.hub.discovered(),
+            port: n.hub.port,
         },
         None => SyncStatus {
             device: None,
             error: Some("network sync is not running".into()),
+            paired: vec![],
             peers: vec![],
             port: 0,
         },
     })
 }
 
-/// Start the LAN listener and mDNS discovery; peer changes are emitted as `peers`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PeerArg {
+    peer_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PairConfirmArg {
+    code: String,
+    peer_id: String,
+}
+
+#[derive(Serialize)]
+struct Named {
+    name: String,
+}
+
+/// Run blocking network work off the async runtime.
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T, Error> + Send + 'static,
+) -> Result<T, ApiError> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| ApiError(Error::Invalid(format!("task: {e}"))))?
+        .map_err(ApiError)
+}
+
+/// Ask a discovered device to pair; it shows a 6-digit code.
+async fn pair_start(State(s): State<AppState>, Json(a): Json<PeerArg>) -> ApiResult<Named> {
+    let hub = hub(&s)?;
+    let name = blocking(move || hub.pair_start(&a.peer_id)).await?;
+    Ok(Json(Named { name }))
+}
+
+/// Finish pairing with the code shown on the other device.
+async fn pair_confirm(
+    State(s): State<AppState>,
+    Json(a): Json<PairConfirmArg>,
+) -> ApiResult<PairedPeer> {
+    let hub = hub(&s)?;
+    Ok(Json(
+        blocking(move || hub.pair_confirm(&a.peer_id, &a.code)).await?,
+    ))
+}
+
+/// Forget a paired device (on this side).
+async fn unpair(State(s): State<AppState>, Json(a): Json<PeerArg>) -> ApiResult<bool> {
+    let hub = hub(&s)?;
+    Ok(Json(blocking(move || hub.unpair(&a.peer_id)).await?))
+}
+
+/// Start the LAN listener and mDNS discovery. Peer changes are emitted as `peers`,
+/// pairing requests from other devices as `pair-request` / `pair-finished`.
 async fn start_network(state: &AppState) -> Result<(), Error> {
     let device =
         mixmap_core::network::identity::load_or_create(&mixmap_core::paths::device_path())?;
     let (listener, port) = mixmap_core::network::server::bind().await?;
-    let router = mixmap_core::network::server::router(device.clone());
+    let events = state.events.clone();
+    let hub = Arc::new(SyncHub::new(
+        device.clone(),
+        port,
+        PairedStore::load(mixmap_core::paths::paired_path()),
+        Arc::new(move |name, payload| emit(&events, name, &payload)),
+    ));
+    let lan = hub.clone();
     tokio::spawn(async move {
-        if let Err(e) = axum::serve(listener, router).await {
+        if let Err(e) = mixmap_core::network::server::serve(listener, lan).await {
             eprintln!("sync listener stopped: {e}");
         }
     });
     let events = state.events.clone();
-    let (discovery, error) =
-        match Discovery::start(&device, port, move |peers| emit(&events, "peers", &peers)) {
-            Ok(d) => (Some(d), None),
-            Err(e) => (None, Some(e.to_string())),
-        };
+    let seen = hub.clone();
+    let (discovery, error) = match Discovery::start(&device, port, move |peers| {
+        seen.set_discovered(peers.clone());
+        emit(&events, "peers", &peers)
+    }) {
+        Ok(d) => (Some(d), None),
+        Err(e) => (None, Some(e.to_string())),
+    };
     println!(
         "sync: {} ({}) on port {port}{}",
         device.name,
@@ -381,10 +454,9 @@ async fn start_network(state: &AppState) -> Result<(), Error> {
             .unwrap_or_default()
     );
     *state.network.lock().unwrap_or_else(|e| e.into_inner()) = Some(Network {
-        device,
-        discovery,
+        _discovery: discovery,
         error,
-        port,
+        hub,
     });
     Ok(())
 }
@@ -424,7 +496,10 @@ fn app(state: AppState) -> Router {
         .route("/api/library_status", post(library_status))
         .route("/api/refresh", post(refresh))
         .route("/api/set_library_source", post(set_library_source))
+        .route("/api/pair_confirm", post(pair_confirm))
+        .route("/api/pair_start", post(pair_start))
         .route("/api/sync_status", post(sync_status))
+        .route("/api/unpair", post(unpair))
         .route("/api/write_backup", post(write_backup))
         .layer(middleware::from_fn(local_hosts_only))
         .with_state(state)
