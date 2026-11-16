@@ -1,14 +1,17 @@
 import {
+  createContext,
   type KeyboardEvent,
   type PointerEvent,
   type UIEvent,
   useDeferredValue,
   useEffect,
   useMemo,
+  useContext,
   useRef,
   useState,
 } from "react";
 import { flushSync } from "react-dom";
+import { createColumnHelper, metaHelper, tableFeatures, useTable } from "@tanstack/react-table";
 import { Button } from "@/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +28,7 @@ import { TrackCard } from "@/ui/graph/TrackCard";
 import { Artwork } from "./Artwork";
 import {
   COLUMNS,
+  type ColumnDef,
   type ColumnId,
   type ColumnState,
   formatBpm,
@@ -65,7 +69,63 @@ function loadConfig(): TableConfig {
 const LABELS = new Map(COLUMNS.map((c) => [c.id, c]));
 const NO_LINKS = () => 0;
 
-/** Virtualized track table with search, sorting, column choice and resizing. */
+/** What cells need beyond their track: link counts and the artwork cache version. */
+const CellContext = createContext<{ linkCount: (trackId: string) => number; version: number }>({
+  linkCount: NO_LINKS,
+  version: 0,
+});
+
+/** One cell's content. */
+function TrackCell({ id, track: t }: { id: ColumnId; track: Track }) {
+  const { linkCount, version } = useContext(CellContext);
+  switch (id) {
+    case "artwork":
+      return <Artwork trackId={t.id} version={version} />;
+    case "bpm":
+      return formatBpm(t.bpm);
+    case "key":
+      return keyLabel(t.key);
+    case "length":
+      return formatLength(t.length);
+    case "links":
+      return linkCount(t.id) || "";
+    case "rating":
+      return stars(t.rating);
+    default:
+      return t[id];
+  }
+}
+
+const features = tableFeatures({ columnMeta: metaHelper<{ def: ColumnDef }>() });
+const column = createColumnHelper<typeof features, Track>();
+
+/** All columns; the configured visible ones are passed to the table, in order. */
+const ALL_COLUMNS = new Map(
+  COLUMNS.map((def) => [
+    def.id,
+    column.display({
+      id: def.id,
+      header: def.label,
+      cell: ({ row }) => <TrackCell id={def.id} track={row.original} />,
+      meta: { def },
+    }),
+  ]),
+);
+
+/** Cell classes per column: numbers right-aligned, stars in the rating color. */
+function cellClass(id: ColumnId): string {
+  return cn(
+    "flex-none truncate px-1.5",
+    (id === "bpm" || id === "length" || id === "links") && "text-right tabular-nums",
+    id === "rating" && "text-rating",
+    id === "artwork" && "px-1",
+  );
+}
+
+/**
+ * Virtualized track table (TanStack Table) with search, sorting, column choice and
+ * resizing; the column setup is remembered on this machine.
+ */
 export function TrackTable({
   linkCount = NO_LINKS,
   onLocate,
@@ -150,8 +210,19 @@ export function TrackTable({
     else if (top + ROW_HEIGHT > body.scrollTop + body.clientHeight - HEADER_HEIGHT)
       body.scrollTop = top + ROW_HEIGHT - body.clientHeight + HEADER_HEIGHT;
   };
-  const visibleColumns = config.columns.filter((c) => c.visible);
+  const visibleColumns = useMemo(() => config.columns.filter((c) => c.visible), [config.columns]);
   const totalWidth = visibleColumns.reduce((w, c) => w + c.width, 0);
+
+  // Visible columns in the configured order. Sorting and search happen in
+  // business/trackTable (rows arrive sorted); the virtualized body renders a slice.
+  const columns = useMemo(
+    () => visibleColumns.flatMap((c) => ALL_COLUMNS.get(c.id) ?? []),
+    [visibleColumns],
+  );
+  const widths = new Map(visibleColumns.map((c) => [c.id, c]));
+  const cellContext = useMemo(() => ({ linkCount, version }), [linkCount, version]);
+  const table = useTable({ features, columns, data: rows });
+  const tableRows = table.getRowModel().rows;
 
   const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   const last = Math.min(rows.length, Math.ceil((scrollTop + viewHeight) / ROW_HEIGHT) + OVERSCAN);
@@ -178,25 +249,6 @@ export function TrackTable({
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", up);
     handle.addEventListener("pointercancel", up);
-  };
-
-  const cell = (t: Track, id: ColumnId) => {
-    switch (id) {
-      case "artwork":
-        return <Artwork trackId={t.id} version={version} />;
-      case "bpm":
-        return formatBpm(t.bpm);
-      case "key":
-        return keyLabel(t.key);
-      case "length":
-        return formatLength(t.length);
-      case "links":
-        return linkCount(t.id) || "";
-      case "rating":
-        return stars(t.rating);
-      default:
-        return t[id];
-    }
   };
 
   /** Columns in chooser order: everything but artwork, then artwork last. */
@@ -238,111 +290,109 @@ export function TrackTable({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div
-        aria-label="Tracks"
-        aria-rowcount={rows.length + 1}
-        className="relative min-h-0 flex-1 scroll-pt-6.5 overflow-auto outline-none focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring"
-        onKeyDown={onGridKeyDown}
-        onScroll={(e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)}
-        ref={bodyRef}
-        role="grid"
-        tabIndex={0}
-      >
+      <CellContext.Provider value={cellContext}>
         <div
-          className="sticky top-0 z-10 flex h-6.5 border-b bg-card"
-          role="row"
-          style={{ width: totalWidth }}
+          aria-label="Tracks"
+          aria-rowcount={rows.length + 1}
+          className="relative min-h-0 flex-1 scroll-pt-6.5 overflow-auto outline-none focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring"
+          onKeyDown={onGridKeyDown}
+          onScroll={(e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)}
+          ref={bodyRef}
+          role="grid"
+          tabIndex={0}
         >
-          {visibleColumns.map((c) => {
-            const def = LABELS.get(c.id)!;
-            const sorted = config.sort?.column === c.id ? (config.sort.desc ? " ▼" : " ▲") : "";
-            return (
-              <div
-                aria-sort={sorted ? (config.sort?.desc ? "descending" : "ascending") : undefined}
-                className={cn(
-                  "relative flex flex-none items-center px-1.5 text-muted-foreground outline-none select-none",
-                  "focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring",
-                  def.sortable && "cursor-pointer",
-                )}
-                key={c.id}
-                onClick={() =>
-                  def.sortable && setConfig((cfg) => ({ ...cfg, sort: nextSort(cfg.sort, c.id) }))
-                }
-                onKeyDown={(e) => {
-                  if (def.sortable && (e.key === "Enter" || e.key === " ")) {
-                    e.preventDefault();
-                    setConfig((cfg) => ({ ...cfg, sort: nextSort(cfg.sort, c.id) }));
-                  }
-                }}
-                role="columnheader"
-                style={{ width: c.width }}
-                tabIndex={def.sortable ? 0 : undefined}
-              >
-                <span className="truncate">
-                  {def.label}
-                  {sorted}
-                </span>
+          <div
+            className="sticky top-0 z-10 flex h-6.5 border-b bg-card"
+            role="row"
+            style={{ width: totalWidth }}
+          >
+            {table.getHeaderGroups()[0]?.headers.map((header) => {
+              const { def } = header.column.columnDef.meta!;
+              const c = widths.get(def.id)!;
+              const sorted = config.sort?.column === c.id ? (config.sort.desc ? " ▼" : " ▲") : "";
+              return (
                 <div
-                  className="absolute inset-y-0 -right-0.75 z-10 w-1.5 cursor-col-resize hover:bg-primary"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => startResize(e, c)}
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div className="relative" style={{ height: rows.length * ROW_HEIGHT, width: totalWidth }}>
-          {rows.slice(first, last).map((t, i) => {
-            const selected = t.id === selectedId;
-            return (
-              <div
-                aria-rowindex={first + i + 2}
-                aria-selected={selected}
-                className={cn(
-                  "absolute inset-x-0 flex items-center hover:bg-accent",
-                  (first + i) % 2 === 1 && "bg-stripe",
-                  selected && "bg-selected hover:bg-selected",
-                )}
-                // Position-based: a playlist may contain the same track twice.
-                draggable
-                key={first + i}
-                onClick={() => onSelect(t.id)}
-                onDoubleClick={() => onLocate?.(t.id)}
-                onDragEnd={() => setDragged(undefined)}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(TRACK_MIME, t.id);
-                  e.dataTransfer.effectAllowed = "copyLink";
-                  // Show the track as it will look on the graph, not as a table row.
-                  flushSync(() => setDragged(t));
-                  if (ghostRef.current) e.dataTransfer.setDragImage(ghostRef.current, 16, 16);
-                }}
-                role="row"
-                style={{ height: ROW_HEIGHT, top: (first + i) * ROW_HEIGHT }}
-              >
-                {visibleColumns.map((c) => (
+                  aria-sort={sorted ? (config.sort?.desc ? "descending" : "ascending") : undefined}
+                  className={cn(
+                    "relative flex flex-none items-center px-1.5 text-muted-foreground outline-none select-none",
+                    "focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring",
+                    def.sortable && "cursor-pointer",
+                  )}
+                  key={c.id}
+                  onClick={() =>
+                    def.sortable && setConfig((cfg) => ({ ...cfg, sort: nextSort(cfg.sort, c.id) }))
+                  }
+                  onKeyDown={(e) => {
+                    if (def.sortable && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      setConfig((cfg) => ({ ...cfg, sort: nextSort(cfg.sort, c.id) }));
+                    }
+                  }}
+                  role="columnheader"
+                  style={{ width: c.width }}
+                  tabIndex={def.sortable ? 0 : undefined}
+                >
+                  <span className="truncate">
+                    <table.FlexRender header={header} />
+                    {sorted}
+                  </span>
                   <div
-                    className={cn(
-                      "flex-none truncate px-1.5",
-                      (c.id === "bpm" || c.id === "length" || c.id === "links") &&
-                        "text-right tabular-nums",
-                      c.id === "rating" && "text-rating",
-                      c.id === "artwork" && "px-1",
-                    )}
-                    key={c.id}
-                    role="gridcell"
-                    style={{ width: c.width }}
-                  >
-                    {cell(t, c.id)}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
+                    className="absolute inset-y-0 -right-0.75 z-10 w-1.5 cursor-col-resize hover:bg-primary"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => startResize(e, c)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="relative" style={{ height: rows.length * ROW_HEIGHT, width: totalWidth }}>
+            {tableRows.slice(first, last).map((row, i) => {
+              const t = row.original;
+              const selected = t.id === selectedId;
+              return (
+                <div
+                  aria-rowindex={first + i + 2}
+                  aria-selected={selected}
+                  className={cn(
+                    "absolute inset-x-0 flex items-center hover:bg-accent",
+                    (first + i) % 2 === 1 && "bg-stripe",
+                    selected && "bg-selected hover:bg-selected",
+                  )}
+                  // Position-based: a playlist may contain the same track twice.
+                  draggable
+                  key={first + i}
+                  onClick={() => onSelect(t.id)}
+                  onDoubleClick={() => onLocate?.(t.id)}
+                  onDragEnd={() => setDragged(undefined)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(TRACK_MIME, t.id);
+                    e.dataTransfer.effectAllowed = "copyLink";
+                    // Show the track as it will look on the graph, not as a table row.
+                    flushSync(() => setDragged(t));
+                    if (ghostRef.current) e.dataTransfer.setDragImage(ghostRef.current, 16, 16);
+                  }}
+                  role="row"
+                  style={{ height: ROW_HEIGHT, top: (first + i) * ROW_HEIGHT }}
+                >
+                  {row.getAllCells().map((cell) => (
+                    <div
+                      className={cellClass(cell.column.columnDef.meta!.def.id)}
+                      key={cell.column.id}
+                      role="gridcell"
+                      style={{ width: widths.get(cell.column.columnDef.meta!.def.id)?.width }}
+                    >
+                      <table.FlexRender cell={cell} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          {rows.length === 0 && (
+            <Placeholder>{tracks.length ? "No matches" : "No tracks"}</Placeholder>
+          )}
         </div>
-        {rows.length === 0 && (
-          <Placeholder>{tracks.length ? "No matches" : "No tracks"}</Placeholder>
-        )}
-      </div>
+      </CellContext.Provider>
       {/* Drag image source: rendered off-screen while a row is dragged. */}
       <div aria-hidden className="pointer-events-none fixed top-0 -left-[1000px]" ref={ghostRef}>
         {dragged && (

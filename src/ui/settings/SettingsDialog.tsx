@@ -12,6 +12,7 @@ import {
 import { Input } from "@/ui/components/ui/input";
 import { Label } from "@/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/ui/components/ui/radio-group";
+import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useAppServices } from "@/app/app-services";
 import { queryKeys } from "../queries";
@@ -44,43 +45,30 @@ const KINDS: { kind: Kind; label: string }[] = [
 export function SettingsDialog({ library, onClose, onDataChanged, status }: Props) {
   const { backend: api, settings } = useAppServices();
   const current = status?.source ?? { kind: "auto" };
-  const [kind, setKindState] = useState<Kind>(current.kind);
-  const [path, setPath] = useState(current.kind === "auto" ? "" : current.path);
-  const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
   const { data: version } = useQuery({ queryKey: queryKeys.version, queryFn: api.version });
   const [updateInfo, setUpdateInfo] = useState<string>();
 
-  /** A path only makes sense for its kind: switching clears it. */
-  const setKind = (k: Kind) => {
-    setKindState(k);
-    setPath(current.kind === k && current.kind !== "auto" ? current.path : "");
-    setResult(undefined);
-  };
-
-  const apply = async () => {
-    const source: LibrarySource = kind === "auto" ? { kind } : { kind, path: path.trim() };
-    if (source.kind !== "auto" && !source.path) {
-      setResult("Enter a path.");
-      return;
-    }
-    setBusy(true);
-    setResult(undefined);
-    try {
-      const s = await api.setLibrarySource(source);
-      if (s.error) {
-        setResult(`Error: ${s.error}`);
-      } else {
-        // Only a source that loaded is remembered for the next start.
-        await settings.set(SETTINGS.librarySource, source);
-        setResult(`Loaded ${s.trackCount} tracks, ${s.playlistCount} playlists.`);
+  const form = useForm({
+    defaultValues: { kind: current.kind, path: current.kind === "auto" ? "" : current.path },
+    onSubmit: async ({ value }) => {
+      const source: LibrarySource =
+        value.kind === "auto" ? { kind: "auto" } : { kind: value.kind, path: value.path.trim() };
+      setResult(undefined);
+      try {
+        const s = await api.setLibrarySource(source);
+        if (s.error) {
+          setResult(`Error: ${s.error}`);
+        } else {
+          // Only a source that loaded is remembered for the next start.
+          await settings.set(SETTINGS.librarySource, source);
+          setResult(`Loaded ${s.trackCount} tracks, ${s.playlistCount} playlists.`);
+        }
+      } catch (e) {
+        setResult(String(e));
       }
-    } catch (e) {
-      setResult(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+    },
+  });
 
   return (
     <Dialog defaultOpen onOpenChange={(open) => !open && onClose()}>
@@ -93,27 +81,70 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         </DialogHeader>
         <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
           <legend className="px-1 text-muted-foreground">rekordbox library</legend>
-          <RadioGroup className="gap-1.5" onValueChange={(v) => setKind(v as Kind)} value={kind}>
-            {KINDS.map((k) => (
-              <div className="flex items-center gap-2" key={k.kind}>
-                <RadioGroupItem id={`source-${k.kind}`} value={k.kind} />
-                <Label className="text-[13px] font-normal" htmlFor={`source-${k.kind}`}>
-                  {k.label}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
-          {kind !== "auto" && (
-            <Input
-              aria-label="Path"
-              className="mt-1"
-              onChange={(e) => setPath(e.target.value)}
-              placeholder={
-                kind === "xml" ? "C:\\Users\\…\\rekordbox.xml" : "C:\\Users\\…\\master.db"
-              }
-              value={path}
-            />
-          )}
+          <form.Field
+            listeners={{
+              // A path only makes sense for its kind: switching clears it.
+              onChange: ({ value }) => {
+                form.setFieldValue(
+                  "path",
+                  current.kind === value && current.kind !== "auto" ? current.path : "",
+                );
+                setResult(undefined);
+              },
+            }}
+            name="kind"
+          >
+            {(field) => (
+              <RadioGroup
+                className="gap-1.5"
+                onValueChange={(v) => field.handleChange(v as Kind)}
+                value={field.state.value}
+              >
+                {KINDS.map((k) => (
+                  <div className="flex items-center gap-2" key={k.kind}>
+                    <RadioGroupItem id={`source-${k.kind}`} value={k.kind} />
+                    <Label className="text-[13px] font-normal" htmlFor={`source-${k.kind}`}>
+                      {k.label}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            )}
+          </form.Field>
+          <form.Subscribe selector={(state) => state.values.kind}>
+            {(kind) =>
+              kind !== "auto" && (
+                <form.Field
+                  name="path"
+                  validators={{
+                    onSubmit: ({ value }) => (value.trim() ? undefined : "Enter a path."),
+                  }}
+                >
+                  {(field) => (
+                    <>
+                      <Input
+                        aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                        aria-label="Path"
+                        className="mt-1"
+                        name={field.name}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        placeholder={
+                          kind === "xml" ? "C:\\Users\\…\\rekordbox.xml" : "C:\\Users\\…\\master.db"
+                        }
+                        value={field.state.value}
+                      />
+                      {field.state.meta.errors.length > 0 && (
+                        <div className="text-destructive" role="alert">
+                          {field.state.meta.errors.join(" ")}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </form.Field>
+              )
+            }
+          </form.Subscribe>
           {status?.location && (
             <div className="text-xs [overflow-wrap:anywhere] text-muted-foreground">
               Current: {status.location.dbPath}
@@ -153,9 +184,13 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
               </span>
             )}
           </span>
-          <Button disabled={busy} onClick={apply}>
-            {busy ? "Loading…" : "Apply"}
-          </Button>
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(busy) => (
+              <Button disabled={busy} onClick={() => void form.handleSubmit()}>
+                {busy ? "Loading…" : "Apply"}
+              </Button>
+            )}
+          </form.Subscribe>
           <DialogClose render={<Button />}>Close</DialogClose>
         </DialogFooter>
       </DialogContent>

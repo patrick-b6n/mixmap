@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/ui/components/ui/button";
-import { Input } from "@/ui/components/ui/input";
 import { Label } from "@/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/ui/components/ui/radio-group";
 import type { Track } from "@/business/model";
 import { openTextFile, saveTextFile } from "@/app/files";
 import { useAppServices } from "@/app/app-services";
+import { ResetPanel } from "./ResetPanel";
 import {
   exportFileName,
   type ImportMode,
@@ -48,9 +48,6 @@ export function summaryText(s: MergeSummary): string {
   return lines.length ? lines.join(" · ") : "Nothing changed: everything was already up to date.";
 }
 
-/** What to type to confirm a reset. */
-const RESET_WORD = "RESET";
-
 /** Settings → mixmap data: export, import (merge / replace), reset. */
 export function DataSection({ library, onDataChanged }: Props) {
   const { backup: writeBackup, exchange } = useAppServices();
@@ -58,8 +55,7 @@ export function DataSection({ library, onDataChanged }: Props) {
   const [pending, setPending] = useState<{ data: MixmapExport; name: string }>();
   const [mode, setMode] = useState<ImportMode>("merge");
   const [busy, setBusy] = useState(false);
-  /** Typed confirmation while the reset panel is open; undefined = closed. */
-  const [resetConfirm, setResetConfirm] = useState<string>();
+  const [resetOpen, setResetOpen] = useState(false);
 
   const runReset = async () => {
     setBusy(true);
@@ -67,7 +63,7 @@ export function DataSection({ library, onDataChanged }: Props) {
     try {
       const backup = await writeBackup(library, "before-reset");
       await exchange.reset();
-      setResetConfirm(undefined);
+      setResetOpen(false);
       onDataChanged();
       setMessage({ text: `mixmap data was reset. Backup: ${backup}` });
     } catch (e) {
@@ -98,7 +94,7 @@ export function DataSection({ library, onDataChanged }: Props) {
     try {
       const file = await openTextFile(".json,application/json");
       if (!file) return;
-      setResetConfirm(undefined);
+      setResetOpen(false);
       setPending({ data: parseExport(file.text), name: file.name });
       setMode("merge");
     } catch (e) {
@@ -143,46 +139,14 @@ export function DataSection({ library, onDataChanged }: Props) {
           onClick={() => {
             setPending(undefined);
             setMessage(undefined);
-            setResetConfirm("");
+            setResetOpen(true);
           }}
           variant="ghost"
         >
           Reset database…
         </Button>
       </div>
-      {resetConfirm !== undefined && (
-        <div
-          className="flex flex-col gap-2 rounded-sm border border-destructive/60 p-2"
-          data-testid="reset-panel"
-        >
-          <div>
-            Deletes all links, graph positions and manual matches. Your rekordbox library is not
-            touched. A backup is saved first to <code>{"%APPDATA%\\mixmap\\backups"}</code>.
-          </div>
-          <label className="flex items-center gap-2">
-            Type <code className="font-semibold">{RESET_WORD}</code> to confirm:
-            <Input
-              aria-label={`Type ${RESET_WORD} to confirm`}
-              autoComplete="off"
-              className="w-28"
-              onChange={(e) => setResetConfirm(e.target.value)}
-              value={resetConfirm}
-            />
-          </label>
-          <div className="flex gap-2">
-            <Button
-              disabled={busy || resetConfirm !== RESET_WORD}
-              onClick={() => void runReset()}
-              variant="destructive"
-            >
-              {busy ? "Resetting…" : "Back up and reset"}
-            </Button>
-            <Button disabled={busy} onClick={() => setResetConfirm(undefined)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
+      {resetOpen && <ResetPanel onCancel={() => setResetOpen(false)} onReset={runReset} />}
       {pending && (
         <div
           className="flex flex-col gap-2 rounded-sm border border-dashed p-2"

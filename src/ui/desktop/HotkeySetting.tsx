@@ -1,56 +1,83 @@
+import { useForm } from "@tanstack/react-form";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Keyboard } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
-import { Button } from "@/ui/components/ui/button";
-import { Input } from "@/ui/components/ui/input";
+import { useState } from "react";
+
 import { useAppServices } from "@/app/app-services";
 import { SETTINGS } from "@/business/settings";
+import { Button } from "@/ui/components/ui/button";
+import { Input } from "@/ui/components/ui/input";
+
+import { queryKeys } from "../queries";
+
+async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
+  return tauriInvoke<T>(command, args);
+}
 
 /** "Overlay hotkey" field (desktop app only): registered right away, then remembered. */
 export function HotkeySetting() {
   const { settings } = useAppServices();
-  const [current, setCurrent] = useState<string>();
-  const [value, setValue] = useState("");
+  const queryClient = useQueryClient();
+  const { data: current } = useQuery({
+    queryKey: queryKeys.overlayHotkey,
+    queryFn: () => invoke<string>("overlay_hotkey"),
+  });
   const [message, setMessage] = useState<{ error?: boolean; text: string }>();
 
-  useEffect(() => {
-    void import("@tauri-apps/api/core").then(({ invoke }) =>
-      invoke<string>("overlay_hotkey").then((h) => {
-        setCurrent(h);
-        setValue(h);
-      }),
-    );
-  }, []);
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    setMessage(undefined);
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const h = await invoke<string>("set_overlay_hotkey", { accelerator: value });
-      await settings.set(SETTINGS.overlayHotkey, h);
-      setCurrent(h);
-      setMessage({ text: `${h} now shows and hides the overlay.` });
-    } catch (err) {
-      setMessage({ error: true, text: String(err) });
-    }
-  };
+  const form = useForm({
+    defaultValues: { hotkey: current ?? "" },
+    onSubmit: async ({ value }) => {
+      setMessage(undefined);
+      try {
+        const h = await invoke<string>("set_overlay_hotkey", { accelerator: value.hotkey });
+        await settings.set(SETTINGS.overlayHotkey, h);
+        queryClient.setQueryData(queryKeys.overlayHotkey, h);
+        setMessage({ text: `${h} now shows and hides the overlay.` });
+      } catch (err) {
+        setMessage({ error: true, text: String(err) });
+      }
+    },
+  });
 
   return (
-    <form className="flex flex-col gap-1" onSubmit={(e) => void save(e)}>
-      <label className="flex items-center gap-2">
-        <Keyboard className="size-3.5 flex-none text-muted-foreground" />
-        Overlay hotkey
-        <Input
-          aria-label="Overlay hotkey"
-          className="w-40"
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Ctrl+Alt+M"
-          value={value}
-        />
-        <Button disabled={!value.trim() || value.trim() === current} type="submit">
-          Save
-        </Button>
-      </label>
+    <form
+      className="flex flex-col gap-1"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void form.handleSubmit();
+      }}
+    >
+      <form.Field name="hotkey">
+        {(field) => (
+          <label className="flex items-center gap-2">
+            <Keyboard className="size-3.5 flex-none text-muted-foreground" />
+            Overlay hotkey
+            <Input
+              aria-label="Overlay hotkey"
+              className="w-40"
+              name={field.name}
+              onBlur={field.handleBlur}
+              onChange={(e) => field.handleChange(e.target.value)}
+              placeholder="Ctrl+Alt+M"
+              // The registered hotkey once it is known, until the user edits it.
+              value={field.state.meta.isDirty ? field.state.value : (current ?? "")}
+            />
+            <form.Subscribe selector={(state) => state.isSubmitting}>
+              {(submitting) => (
+                <Button
+                  disabled={
+                    submitting || !field.state.value.trim() || field.state.value.trim() === current
+                  }
+                  type="submit"
+                >
+                  Save
+                </Button>
+              )}
+            </form.Subscribe>
+          </label>
+        )}
+      </form.Field>
       <span className="text-xs text-muted-foreground">
         Works everywhere, also while rekordbox is in front. E.g. Ctrl+Alt+M, Ctrl+Shift+F9.
       </span>

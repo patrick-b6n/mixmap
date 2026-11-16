@@ -1,7 +1,6 @@
 import { Laptop, Link2, RefreshCw, Wifi, WifiOff } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/ui/components/ui/button";
-import { Input } from "@/ui/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppServices } from "@/app/app-services";
 import { type Peer, SYNC_PROTOCOL, type SyncStatus, type Track } from "@/business/model";
@@ -9,6 +8,7 @@ import { subscribe } from "@/app/events";
 import { changeCount } from "@/business/sync";
 import { queryKeys } from "../queries";
 import { summaryText } from "./DataSection";
+import { PairCodeForm } from "./PairCodeForm";
 
 /** One device in the list: discovered on the network and/or paired. */
 type Row = { id: string; lastSyncAt?: number; name: string; online?: Peer; paired: boolean };
@@ -45,7 +45,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
   const { backend: api, sync: syncService } = useAppServices();
   const [syncing, setSyncing] = useState<string>();
   /** Pairing in progress: waiting for the code shown on that device. */
-  const [pairing, setPairing] = useState<{ code: string; id: string; name: string }>();
+  const [pairing, setPairing] = useState<{ id: string; name: string }>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ error?: boolean; text: string }>();
 
@@ -82,7 +82,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
     setMessage(undefined);
     try {
       const { name } = await api.pairStart(row.id);
-      setPairing({ code: "", id: row.id, name });
+      setPairing({ id: row.id, name });
     } catch (e) {
       setMessage({ error: true, text: `Couldn't reach ${row.name}: ${errorText(e)}` });
     } finally {
@@ -90,13 +90,12 @@ export function SyncSection({ library, onDataChanged }: Props) {
     }
   };
 
-  const confirm = async (e: FormEvent) => {
-    e.preventDefault();
+  const confirm = async (code: string) => {
     if (!pairing) return;
     setBusy(true);
     setMessage(undefined);
     try {
-      const peer = await api.pairConfirm(pairing.id, pairing.code);
+      const peer = await api.pairConfirm(pairing.id, code);
       setPairing(undefined);
       setMessage({ text: `Paired with ${peer.name}.` });
       await load();
@@ -239,38 +238,12 @@ export function SyncSection({ library, onDataChanged }: Props) {
             </ul>
           )}
           {pairing && (
-            <form
-              className="flex flex-col gap-2 rounded-sm border border-dashed p-2"
-              data-testid="pair-code"
-              onSubmit={(e) => void confirm(e)}
-            >
-              <div>
-                Enter the code shown on <span className="font-medium">{pairing.name}</span>:
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  aria-label="Pairing code"
-                  autoComplete="off"
-                  autoFocus
-                  className="w-28 text-center font-mono tracking-widest"
-                  inputMode="numeric"
-                  maxLength={7}
-                  onChange={(e) => setPairing({ ...pairing, code: e.target.value })}
-                  placeholder="000000"
-                  value={pairing.code}
-                />
-                <Button
-                  disabled={busy || pairing.code.replace(/\D/g, "").length !== 6}
-                  type="submit"
-                  variant="default"
-                >
-                  {busy ? "Pairing…" : "Pair"}
-                </Button>
-                <Button disabled={busy} onClick={() => setPairing(undefined)} type="button">
-                  Cancel
-                </Button>
-              </div>
-            </form>
+            <PairCodeForm
+              deviceName={pairing.name}
+              key={pairing.id}
+              onCancel={() => setPairing(undefined)}
+              onSubmit={confirm}
+            />
           )}
           {message && (
             <div
