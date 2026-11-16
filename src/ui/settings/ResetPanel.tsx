@@ -2,6 +2,7 @@ import { useForm } from "@tanstack/react-form";
 
 import { Button } from "@/ui/components/ui/button";
 import { Input } from "@/ui/components/ui/input";
+import { m } from "@/paraglide/messages.js";
 
 /** What to type to confirm a reset. */
 export const RESET_WORD = "RESET";
@@ -28,15 +29,15 @@ export function ResetPanel({
       }}
     >
       <div>
-        Deletes all links, graph positions and manual matches. Your rekordbox library is not
-        touched. A backup is saved first to <code>{"%APPDATA%\\mixmap\\backups"}</code>.
+        {m.reset_description()} <code>{"%APPDATA%\\mixmap\\backups"}</code>.
       </div>
       <form.Field name="confirm">
         {(field) => (
           <label className="flex items-center gap-2">
-            Type <code className="font-semibold">{RESET_WORD}</code> to confirm:
+            {m.reset_type_before()} <code className="font-semibold">{RESET_WORD}</code>{" "}
+            {m.reset_type_after()}
             <Input
-              aria-label={`Type ${RESET_WORD} to confirm`}
+              aria-label={m.reset_confirm_label({ word: RESET_WORD })}
               autoComplete="off"
               className="w-28"
               name={field.name}
@@ -51,10 +52,10 @@ export function ResetPanel({
         {([busy, confirmed]) => (
           <div className="flex gap-2">
             <Button disabled={busy || !confirmed} type="submit" variant="destructive">
-              {busy ? "Resetting…" : "Back up and reset"}
+              {busy ? m.reset_running() : m.reset_submit()}
             </Button>
             <Button disabled={busy} onClick={onCancel} type="button">
-              Cancel
+              {m.common_cancel()}
             </Button>
           </div>
         )}

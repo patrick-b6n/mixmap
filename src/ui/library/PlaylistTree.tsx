@@ -14,6 +14,7 @@ import { Placeholder } from "@/ui/components/Placeholder";
 import { cn } from "@/ui/lib/utils";
 import type { Playlist } from "@/business/model";
 import { buildTree, type TreeNode } from "@/business/playlistTree";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   histories: Playlist[];
@@ -113,7 +114,7 @@ export function PlaylistTree({
           if (!canImport) return;
           e.preventDefault();
           setMenu({
-            items: [{ label: "Import pairs as links…", onSelect: () => onImportPairs(p) }],
+            items: [{ label: m.playlists_import_pairs(), onSelect: () => onImportPairs(p) }],
             x: e.clientX,
             y: e.clientY,
           });
@@ -163,7 +164,7 @@ export function PlaylistTree({
           name: p.name,
           open,
           playlist: p,
-          title: p.kind === "smart" ? "Smart playlist (contents not supported yet)" : undefined,
+          title: p.kind === "smart" ? m.playlists_smart_hint() : undefined,
         })}
         {hasChildren && open && (
           <ul role="group">{node.children.map((c) => renderNode(c, depth + 1))}</ul>
@@ -173,7 +174,7 @@ export function PlaylistTree({
   };
 
   return (
-    <nav aria-label="Playlists" data-tree>
+    <nav aria-label={m.playlists_heading()} data-tree>
       <ul role="tree">
         <li aria-selected={selectedId === undefined} role="treeitem">
           {row({
@@ -182,17 +183,17 @@ export function PlaylistTree({
             hasChildren: false,
             icon: Music,
             id: undefined,
-            name: "All tracks",
+            name: m.playlists_all_tracks(),
             open: false,
           })}
         </li>
       </ul>
-      <Heading>Playlists</Heading>
+      <Heading>{m.playlists_heading()}</Heading>
       <ul role="tree">{playlistTree.map((n) => renderNode(n, 0))}</ul>
-      {playlistTree.length === 0 && <Placeholder>No playlists</Placeholder>}
-      <Heading>History</Heading>
+      {playlistTree.length === 0 && <Placeholder>{m.playlists_none()}</Placeholder>}
+      <Heading>{m.playlists_history()}</Heading>
       <ul role="tree">{historyTree.map((n) => renderNode(n, 0))}</ul>
-      {historyTree.length === 0 && <Placeholder>No history yet</Placeholder>}
+      {historyTree.length === 0 && <Placeholder>{m.playlists_history_none()}</Placeholder>}
       {menu && (
         <ContextMenu items={menu.items} onClose={() => setMenu(undefined)} x={menu.x} y={menu.y} />
       )}

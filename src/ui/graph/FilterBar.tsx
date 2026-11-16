@@ -6,6 +6,7 @@ import { Input } from "@/ui/components/ui/input";
 import { cn } from "@/ui/lib/utils";
 import type { GraphFilter } from "@/business/filters";
 import { parseKey } from "@/business/keys";
+import { m } from "@/paraglide/messages.js";
 
 /** "Compatible with selected" settings (the reference is the selected track). */
 export type CompatSettings = { bpmTolerance: number; halfDouble: boolean; on: boolean };
@@ -70,42 +71,42 @@ export function FilterBar({
       <Filter
         className={cn("size-3.5 flex-none", active ? "text-primary" : "text-muted-foreground")}
       />
-      {text("name", "Name", "w-32")}
-      {text("artist", "Artist", "w-28")}
-      {text("genre", "Genre", "w-24")}
+      {text("name", m.filter_name(), "w-32")}
+      {text("artist", m.column_artist(), "w-28")}
+      {text("genre", m.column_genre(), "w-24")}
       <Input
-        aria-label="BPM from"
+        aria-label={m.filter_bpm_from()}
         className="w-14"
         inputMode="decimal"
         onChange={(e) => set({ bpmMin: num(e.target.value) })}
-        placeholder="BPM"
+        placeholder={m.column_bpm()}
         value={filter.bpmMin ?? ""}
       />
       <span className="text-muted-foreground">–</span>
       <Input
-        aria-label="BPM to"
+        aria-label={m.filter_bpm_to()}
         className="w-14"
         inputMode="decimal"
         onChange={(e) => set({ bpmMax: num(e.target.value) })}
-        placeholder="BPM"
+        placeholder={m.column_bpm()}
         value={filter.bpmMax ?? ""}
       />
       <Input
         aria-invalid={badKey || undefined}
-        aria-label="Key"
+        aria-label={m.column_key()}
         className="w-14"
         onChange={(e) => set({ key: e.target.value })}
-        placeholder="Key"
-        title="Camelot (8A), Open Key (1m) or musical (Am)"
+        placeholder={m.column_key()}
+        title={m.filter_key_hint()}
         value={filter.key ?? ""}
       />
       <select
-        aria-label="Minimum rating"
+        aria-label={m.filter_min_rating()}
         className="h-6 rounded-sm border border-input bg-input/30 px-1 text-[13px]"
         onChange={(e) => set({ minRating: Number(e.target.value) || undefined })}
         value={filter.minRating ?? 0}
       >
-        <option value={0}>Any rating</option>
+        <option value={0}>{m.filter_any_rating()}</option>
         {[1, 2, 3, 4, 5].map((r) => (
           <option key={r} value={r}>
             {"★".repeat(r)}
@@ -113,7 +114,7 @@ export function FilterBar({
           </option>
         ))}
       </select>
-      {text("comment", "Comment", "w-28")}
+      {text("comment", m.column_comment(), "w-28")}
       <div className="flex items-center gap-1">
         <Button
           aria-pressed={compat.on}
@@ -121,19 +122,19 @@ export function FilterBar({
           onClick={() => onCompatChange({ ...compat, on: !compat.on })}
           title={
             selectedLabel
-              ? `Key (same, ±1, relative) and BPM compatible with ${selectedLabel}`
-              : "Select a track to find compatible ones"
+              ? m.filter_compatible_hint({ track: selectedLabel })
+              : m.filter_compatible_select()
           }
           variant={compat.on ? "default" : "subtle"}
         >
           <Music2 />
-          Compatible
+          {m.filter_compatible()}
         </Button>
         {compat.on && (
           <>
             <span className="text-muted-foreground">±</span>
             <Input
-              aria-label="BPM tolerance in percent"
+              aria-label={m.filter_bpm_tolerance()}
               className="w-10"
               inputMode="decimal"
               onChange={(e) => {
@@ -145,7 +146,7 @@ export function FilterBar({
             <span className="text-muted-foreground">%</span>
             <label
               className="flex items-center gap-1 text-muted-foreground"
-              title="Also half and double tempo"
+              title={m.filter_half_double_hint()}
             >
               <Checkbox
                 checked={compat.halfDouble}
@@ -153,25 +154,32 @@ export function FilterBar({
               />
               ½×/2×
             </label>
-            {!selectedLabel && <span className="text-muted-foreground italic">select a track</span>}
+            {!selectedLabel && (
+              <span className="text-muted-foreground italic">{m.filter_select_track()}</span>
+            )}
           </>
         )}
       </div>
       <Button
         aria-pressed={hide}
         onClick={() => onHideChange(!hide)}
-        title={hide ? "Non-matching tracks are hidden" : "Non-matching tracks are dimmed"}
+        title={hide ? m.filter_hidden_hint() : m.filter_dimmed_hint()}
         variant={hide ? "default" : "subtle"}
       >
         {hide ? <EyeOff /> : <Eye />}
-        {hide ? "Hide" : "Dim"}
+        {hide ? m.filter_hide() : m.filter_dim()}
       </Button>
       {active && (
         <>
           <span className="text-muted-foreground tabular-nums" data-testid="filter-count">
             {matched} of {total}
           </span>
-          <Button aria-label="Clear filters" onClick={onClear} size="icon-compact" variant="ghost">
+          <Button
+            aria-label={m.filter_clear()}
+            onClick={onClear}
+            size="icon-compact"
+            variant="ghost"
+          >
             <X />
           </Button>
         </>

@@ -17,6 +17,7 @@ import { type TrackRow } from "@/business/model";
 import { rankCandidates } from "@/business/candidates";
 import type { MatchResult } from "@/business/matching";
 import { formatBpm, formatLength, keyLabel } from "@/business/trackTable";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   library: Track[];
@@ -34,14 +35,10 @@ type Item = {
   trackKey: string;
 };
 
-const SECTIONS: { kind: Item["kind"]; label: string; hint: string }[] = [
-  {
-    hint: "Never matched on this machine (e.g. after an import).",
-    kind: "unmatched",
-    label: "Unmatched",
-  },
-  { hint: "Several rekordbox tracks fit.", kind: "ambiguous", label: "Ambiguous" },
-  { hint: "Its rekordbox track is gone.", kind: "missing", label: "Missing" },
+const SECTIONS: { kind: Item["kind"]; label: () => string; hint: () => string }[] = [
+  { hint: m.unmatched_unmatched_hint, kind: "unmatched", label: m.unmatched_unmatched },
+  { hint: m.unmatched_ambiguous_hint, kind: "ambiguous", label: m.unmatched_ambiguous },
+  { hint: m.unmatched_missing_hint, kind: "missing", label: m.unmatched_missing },
 ];
 
 /** "Unmatched tracks": map mixmap tracks to rekordbox tracks by hand (remembered on this machine). */
@@ -115,20 +112,17 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
         showCloseButton={false}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">Unmatched tracks</DialogTitle>
-          <DialogDescription>
-            Tracks in mixmap that couldn't be matched to one rekordbox track. Pick the right one;
-            the mapping is remembered on this machine.
-          </DialogDescription>
+          <DialogTitle className="text-base">{m.unmatched_title()}</DialogTitle>
+          <DialogDescription>{m.unmatched_description()}</DialogDescription>
         </DialogHeader>
         {items.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">
-            All tracks are matched.
+            {m.unmatched_all_matched()}
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 gap-3">
             <ul
-              aria-label="Tracks to map"
+              aria-label={m.unmatched_list_label()}
               className="w-64 flex-none overflow-y-auto rounded-sm border"
             >
               {SECTIONS.map((s) => {
@@ -138,9 +132,9 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
                   <li key={s.kind}>
                     <div
                       className="sticky top-0 bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                      title={s.hint}
+                      title={s.hint()}
                     >
-                      {s.label} ({list.length})
+                      {s.label()} ({list.length})
                     </div>
                     <ul>
                       {list.map((i) => (
@@ -176,22 +170,21 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
                       : selected.trackKey}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {SECTIONS.find((s) => s.kind === selected.kind)?.hint}
-                    {selected.row && ` Length ${formatLength(selected.row.duration)}.`}
+                    {SECTIONS.find((s) => s.kind === selected.kind)?.hint()}
+                    {selected.row &&
+                      ` ${m.unmatched_length({ length: formatLength(selected.row.duration) })}`}
                   </div>
                 </div>
                 <Input
-                  aria-label="Search rekordbox tracks"
+                  aria-label={m.unmatched_search_label()}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search artist, title, album…"
+                  placeholder={m.unmatched_search_placeholder()}
                   value={query}
                 />
                 <div className="min-h-0 flex-1 overflow-y-auto rounded-sm border">
                   {candidates.length === 0 ? (
                     <div className="p-3 text-muted-foreground">
-                      {query.trim()
-                        ? "No rekordbox track matches the search."
-                        : "No similar tracks. Search above."}
+                      {query.trim() ? m.unmatched_no_search_results() : m.unmatched_no_similar()}
                     </div>
                   ) : (
                     <table className="w-full text-[13px]">
@@ -216,7 +209,7 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
                             </td>
                             <td className="w-16 px-2 text-right">
                               <Button disabled={busy} onClick={() => void map(selected, t)}>
-                                Map
+                                {m.unmatched_map()}
                               </Button>
                             </td>
                           </tr>
@@ -235,7 +228,7 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
           </div>
         )}
         <DialogFooter>
-          <DialogClose render={<Button />}>Close</DialogClose>
+          <DialogClose render={<Button />}>{m.common_close()}</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

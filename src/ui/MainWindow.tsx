@@ -26,6 +26,7 @@ import { PairRequestDialog } from "@/ui/settings/PairRequestDialog";
 import { SettingsDialog } from "@/ui/settings/SettingsDialog";
 import { useSyncResponder } from "@/ui/sync/useSyncResponder";
 import { Shell } from "@/ui/shell/Shell";
+import { m } from "@/paraglide/messages.js";
 
 export function MainWindow() {
   const services = useAppServices();
@@ -46,7 +47,7 @@ export function MainWindow() {
   }, [rematch, refreshMixmap]);
   useSyncResponder(mixmap.library, dataChanged);
   const [actionError, setActionError] = useState<string>();
-  const onActionError = useCallback((m: string) => setActionError(m), []);
+  const onActionError = useCallback((message: string) => setActionError(message), []);
   const linkActions = useLinkActions(mixmap.refresh, onActionError);
   const [selectedLinkId, setSelectedLinkId] = useState<{ from: string; to: string }>();
   const selectedLink = selectedLinkId
@@ -83,14 +84,16 @@ export function MainWindow() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedLink, deleteLink]);
-  const missingCount = matches.filter((m) => m.kind === "missing").length;
+  const missingCount = matches.filter((r) => r.kind === "missing").length;
   const unmatchedCount = matches.filter(
-    (m) => m.kind === "unmatched" || m.kind === "ambiguous",
+    (r) => r.kind === "unmatched" || r.kind === "ambiguous",
   ).length;
 
   // Once: prepare mixmap.db and restore persisted settings (e.g. the library source).
   useEffect(() => {
-    services.restoreSettings().catch((e: unknown) => setDbError(`mixmap.db: ${String(e)}`));
+    services
+      .restoreSettings()
+      .catch((e: unknown) => setDbError(m.main_db_error({ error: String(e) })));
   }, [services]);
 
   const selectedNode = useMemo(() => {
@@ -168,20 +171,17 @@ export function MainWindow() {
     <>
       <Button onClick={refresh}>
         <RefreshCw />
-        Refresh
+        {m.main_refresh()}
       </Button>
       <Button onClick={() => setSettingsOpen(true)}>
         <Settings />
-        Settings
+        {m.settings_title()}
       </Button>
       {inTauri() && <OverlayMenu />}
       {missingCount + unmatchedCount > 0 && (
-        <Button
-          onClick={() => setUnmatchedOpen(true)}
-          title="Map mixmap tracks that aren't matched to a rekordbox track"
-        >
+        <Button onClick={() => setUnmatchedOpen(true)} title={m.main_unmatched_hint()}>
           <Unlink />
-          Unmatched tracks ({missingCount + unmatchedCount})
+          {m.main_unmatched({ count: missingCount + unmatchedCount })}
         </Button>
       )}
       <span
@@ -189,9 +189,13 @@ export function MainWindow() {
         data-testid="status"
         title={status?.location?.dbPath}
       >
-        {status && `${status.trackCount} tracks · ${status.playlistCount} playlists`}
-        {missingCount > 0 && ` · ${missingCount} missing`}
-        {unmatchedCount > 0 && ` · ${unmatchedCount} unmatched`}
+        {status &&
+          m.main_status({
+            playlists: m.main_playlists({ count: status.playlistCount }),
+            tracks: m.tracks_count({ count: status.trackCount }),
+          })}
+        {missingCount > 0 && ` · ${m.main_missing({ count: missingCount })}`}
+        {unmatchedCount > 0 && ` · ${m.main_unmatched_count({ count: unmatchedCount })}`}
         {shownError && <span className="text-destructive"> · {shownError}</span>}
       </span>
     </>
@@ -279,7 +283,7 @@ export function MainWindow() {
               trackCount={library.tracks.length}
             />
           ) : (
-            <Placeholder>Loading…</Placeholder>
+            <Placeholder>{m.common_loading()}</Placeholder>
           )
         }
         table={
@@ -299,7 +303,7 @@ export function MainWindow() {
               version={library.version}
             />
           ) : (
-            <Placeholder>Loading…</Placeholder>
+            <Placeholder>{m.common_loading()}</Placeholder>
           )
         }
         toolbar={toolbar}

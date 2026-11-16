@@ -1,3 +1,4 @@
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
@@ -31,6 +32,10 @@ export default defineConfig({
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },
   plugins: [
+    // Compiles messages/*.json into src/paraglide. All compiler options (outdir,
+    // output structure, strategy) live in project.inlang/paraglide.config.js,
+    // shared with `pnpm i18n:compile`.
+    paraglideVitePlugin({ project: "./project.inlang" }),
     tailwindcss(),
     tanstackStart({
       router: {

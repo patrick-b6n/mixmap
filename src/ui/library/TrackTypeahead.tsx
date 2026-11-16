@@ -4,6 +4,7 @@ import { cn } from "@/ui/lib/utils";
 import type { Track } from "@/business/model";
 import { typeahead } from "@/business/nowPlaying";
 import { formatBpm, keyLabel } from "@/business/trackTable";
+import { m } from "@/paraglide/messages.js";
 
 /** Type-ahead: type to search; ↑/↓ + Enter or click to pick. */
 export function TrackTypeahead({
@@ -32,22 +33,26 @@ export function TrackTypeahead({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1 p-1.5">
       <Input
-        aria-label="Set track"
+        aria-label={m.typeahead_label()}
         autoFocus={autoFocus}
         onChange={(e) => {
           setQuery(e.target.value);
           setActive(0);
         }}
         onKeyDown={onKeyDown}
-        placeholder="Type to set the track…"
+        placeholder={m.typeahead_placeholder()}
         value={query}
       />
       {!query.trim() && results.length > 0 && (
         <div className="px-1 text-[10px] text-muted-foreground uppercase">
-          {candidates ? "Candidates" : "Linked from the other decks"}
+          {candidates ? m.typeahead_candidates() : m.typeahead_linked()}
         </div>
       )}
-      <ul aria-label="Matching tracks" className="min-h-0 flex-1 overflow-y-auto" role="listbox">
+      <ul
+        aria-label={m.typeahead_results()}
+        className="min-h-0 flex-1 overflow-y-auto"
+        role="listbox"
+      >
         {results.map((t, i) => (
           <li aria-selected={i === active} key={t.id} role="option">
             <button

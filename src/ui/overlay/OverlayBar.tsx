@@ -1,6 +1,7 @@
 import { AppWindow, MousePointerClick, X } from "lucide-react";
 import { Button } from "@/ui/components/ui/button";
 import { hideOverlay, saveOpacity, setClickThrough, showMain } from "@/app/overlay-window";
+import { m } from "@/paraglide/messages.js";
 
 type Props = { onOpacity: (v: number) => void; opacity: number };
 
@@ -15,11 +16,11 @@ export function OverlayBar({ onOpacity, opacity }: Props) {
       data-tauri-drag-region
     >
       <span className="font-semibold" data-tauri-drag-region>
-        mixmap
+        {m.app_title()}
       </span>
       <span className="flex-1" data-tauri-drag-region />
       <input
-        aria-label="Opacity"
+        aria-label={m.overlay_opacity()}
         className="w-20 accent-primary"
         max={1}
         min={0.3}
@@ -29,33 +30,33 @@ export function OverlayBar({ onOpacity, opacity }: Props) {
           saveOpacity(v);
         }}
         step={0.05}
-        title="Opacity"
+        title={m.overlay_opacity()}
         type="range"
         value={opacity}
       />
       <Button
-        aria-label="Click-through"
+        aria-label={m.overlay_menu_click_through()}
         onClick={() => void setClickThrough(true)}
         size="icon-compact"
-        title="Click-through: clicks go to the window below (turn off in the main window's Overlay menu or with the hotkey)"
+        title={m.overlay_click_through_hint()}
         variant="ghost"
       >
         <MousePointerClick className="size-3.5" />
       </Button>
       <Button
-        aria-label="Open mixmap"
+        aria-label={m.overlay_open_main()}
         onClick={() => void showMain()}
         size="icon-compact"
-        title="Open mixmap"
+        title={m.overlay_open_main()}
         variant="ghost"
       >
         <AppWindow className="size-3.5" />
       </Button>
       <Button
-        aria-label="Hide overlay"
+        aria-label={m.overlay_menu_hide()}
         onClick={() => void hideOverlay()}
         size="icon-compact"
-        title="Hide overlay"
+        title={m.overlay_menu_hide()}
         variant="ghost"
       >
         <X className="size-3.5" />

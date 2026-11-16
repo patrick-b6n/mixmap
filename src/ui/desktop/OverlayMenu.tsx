@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/ui/components/ui/dropdown-menu";
 import { clickThrough, overlayVisible, setClickThrough, toggleOverlay } from "@/app/overlay-window";
+import { m } from "@/paraglide/messages.js";
 
 /** Main-window toolbar menu for the live overlay (desktop app only). */
 export function OverlayMenu() {
@@ -25,11 +26,11 @@ export function OverlayMenu() {
     >
       <DropdownMenuTrigger render={<Button />}>
         <PictureInPicture2 />
-        Overlay
+        {m.overlay_menu()}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onClick={() => void toggleOverlay().then(setVisible)}>
-          {visible ? "Hide overlay" : "Show overlay"}
+          {visible ? m.overlay_menu_hide() : m.overlay_menu_show()}
         </DropdownMenuItem>
         <DropdownMenuCheckboxItem
           checked={through}
@@ -38,7 +39,7 @@ export function OverlayMenu() {
             void setClickThrough(on);
           }}
         >
-          Click-through
+          {m.overlay_menu_click_through()}
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>

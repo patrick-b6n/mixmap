@@ -2,6 +2,7 @@ import { useForm } from "@tanstack/react-form";
 
 import { Button } from "@/ui/components/ui/button";
 import { Input } from "@/ui/components/ui/input";
+import { m } from "@/paraglide/messages.js";
 
 /** The digits of a typed pairing code (spaces and dashes allowed while typing). */
 export const codeDigits = (code: string): string => code.replace(/\D/g, "");
@@ -33,13 +34,13 @@ export function PairCodeForm({
       }}
     >
       <div>
-        Enter the code shown on <span className="font-medium">{deviceName}</span>:
+        {m.pair_code_prompt()} <span className="font-medium">{deviceName}</span>:
       </div>
       <div className="flex gap-2">
         <form.Field name="code">
           {(field) => (
             <Input
-              aria-label="Pairing code"
+              aria-label={m.pair_code_label()}
               autoComplete="off"
               autoFocus
               className="w-28 text-center font-mono tracking-widest"
@@ -59,10 +60,10 @@ export function PairCodeForm({
           {([busy, digits]) => (
             <>
               <Button disabled={busy || digits !== 6} type="submit" variant="default">
-                {busy ? "Pairing…" : "Pair"}
+                {busy ? m.pair_code_pairing() : m.pair_code_submit()}
               </Button>
               <Button disabled={busy} onClick={onCancel} type="button">
-                Cancel
+                {m.common_cancel()}
               </Button>
             </>
           )}

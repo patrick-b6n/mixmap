@@ -9,6 +9,7 @@ import { Button } from "@/ui/components/ui/button";
 import { Input } from "@/ui/components/ui/input";
 
 import { queryKeys } from "../queries";
+import { m } from "@/paraglide/messages.js";
 
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
@@ -33,7 +34,7 @@ export function HotkeySetting() {
         const h = await invoke<string>("set_overlay_hotkey", { accelerator: value.hotkey });
         await settings.set(SETTINGS.overlayHotkey, h);
         queryClient.setQueryData(queryKeys.overlayHotkey, h);
-        setMessage({ text: `${h} now shows and hides the overlay.` });
+        setMessage({ text: m.hotkey_saved({ hotkey: h }) });
       } catch (err) {
         setMessage({ error: true, text: String(err) });
       }
@@ -52,9 +53,9 @@ export function HotkeySetting() {
         {(field) => (
           <label className="flex items-center gap-2">
             <Keyboard className="size-3.5 flex-none text-muted-foreground" />
-            Overlay hotkey
+            {m.hotkey_label()}
             <Input
-              aria-label="Overlay hotkey"
+              aria-label={m.hotkey_label()}
               className="w-40"
               name={field.name}
               onBlur={field.handleBlur}
@@ -71,16 +72,14 @@ export function HotkeySetting() {
                   }
                   type="submit"
                 >
-                  Save
+                  {m.common_save()}
                 </Button>
               )}
             </form.Subscribe>
           </label>
         )}
       </form.Field>
-      <span className="text-xs text-muted-foreground">
-        Works everywhere, also while rekordbox is in front. E.g. Ctrl+Alt+M, Ctrl+Shift+F9.
-      </span>
+      <span className="text-xs text-muted-foreground">{m.hotkey_hint()}</span>
       {message && (
         <span
           className={message.error ? "text-destructive" : undefined}

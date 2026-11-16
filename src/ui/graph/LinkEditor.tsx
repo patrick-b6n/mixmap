@@ -5,6 +5,7 @@ import { Input } from "@/ui/components/ui/input";
 import { cn } from "@/ui/lib/utils";
 import type { Link } from "@/business/links";
 import type { LinkUpdate } from "./useLinkActions";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   /** Display names of the endpoints. */
@@ -51,36 +52,42 @@ export function LinkEditor({ fromLabel, link, onDelete, onUpdate, toLabel }: Pro
   return (
     <div className="flex flex-col gap-3 p-3">
       <div>
-        <div className="text-[11px] tracking-wider text-muted-foreground uppercase">Link</div>
+        <div className="text-[11px] tracking-wider text-muted-foreground uppercase">
+          {m.link_editor_heading()}
+        </div>
         <div className="mt-1 font-semibold [overflow-wrap:anywhere]">{fromLabel}</div>
         <ArrowDown className="my-0.5 size-3.5 text-muted-foreground" />
         <div className="font-semibold [overflow-wrap:anywhere]">{toLabel}</div>
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-muted-foreground">Comment</span>
+        <span className="text-muted-foreground">{m.column_comment()}</span>
         <textarea
           className="min-h-20 resize-y rounded-sm border border-input bg-transparent px-1.5 py-1 outline-none focus-visible:border-ring"
           onBlur={saveComment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="How do you mix these? (e.g. long filter blend over the breakdown)"
+          placeholder={m.link_editor_comment_placeholder()}
           value={comment}
         />
       </label>
 
       <div className="flex flex-col gap-1">
-        <span className="text-muted-foreground">Rating</span>
-        <div aria-label="Rating" className="flex gap-0.5" role="radiogroup">
+        <span className="text-muted-foreground">{m.column_rating()}</span>
+        <div aria-label={m.column_rating()} className="flex gap-0.5" role="radiogroup">
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               aria-checked={link.rating === n}
-              aria-label={`${n} star${n > 1 ? "s" : ""}`}
+              aria-label={m.link_editor_stars({ count: n })}
               className="rounded-sm p-0.5 outline-none focus-visible:outline-1 focus-visible:outline-ring"
               key={n}
               // Clicking the current rating clears it.
               onClick={() => onUpdate({ rating: link.rating === n ? null : n })}
               role="radio"
-              title={link.rating === n ? "Clear rating" : `${n} of 5`}
+              title={
+                link.rating === n
+                  ? m.link_editor_clear_rating()
+                  : m.link_editor_rating_of({ rating: n })
+              }
             >
               <Star
                 className={cn(
@@ -94,7 +101,7 @@ export function LinkEditor({ fromLabel, link, onDelete, onUpdate, toLabel }: Pro
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-muted-foreground">Tags</span>
+        <span className="text-muted-foreground">{m.link_editor_tags()}</span>
         <div className="flex flex-wrap gap-1">
           {link.tags.map((t) => (
             <span
@@ -103,7 +110,7 @@ export function LinkEditor({ fromLabel, link, onDelete, onUpdate, toLabel }: Pro
             >
               {t}
               <button
-                aria-label={`Remove tag ${t}`}
+                aria-label={m.link_editor_remove_tag({ tag: t })}
                 className="rounded-sm text-muted-foreground hover:text-foreground"
                 onClick={() => onUpdate((cur) => ({ tags: cur.tags.filter((x) => x !== t) }))}
               >
@@ -113,18 +120,18 @@ export function LinkEditor({ fromLabel, link, onDelete, onUpdate, toLabel }: Pro
           ))}
         </div>
         <Input
-          aria-label="Add tag"
+          aria-label={m.link_editor_add_tag()}
           onBlur={addTag}
           onChange={(e) => setTagDraft(e.target.value)}
           onKeyDown={onTagKey}
-          placeholder="Add tag, press Enter"
+          placeholder={m.link_editor_add_tag_placeholder()}
           value={tagDraft}
         />
       </div>
 
       <Button className="self-start text-destructive hover:border-destructive" onClick={onDelete}>
         <Trash2 />
-        Delete link
+        {m.link_editor_delete()}
       </Button>
     </div>
   );

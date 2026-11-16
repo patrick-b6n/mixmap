@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/ui/components/ui/alert-dialog";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   confirmLabel: string;
@@ -27,7 +28,7 @@ export function ConfirmDialog({ confirmLabel, description, onCancel, onConfirm, 
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
           <AlertDialogAction
             className="dark:bg-destructive dark:hover:bg-destructive/90"
             onClick={onConfirm}

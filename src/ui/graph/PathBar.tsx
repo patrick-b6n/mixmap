@@ -2,6 +2,7 @@ import { ArrowRight, Route, X } from "lucide-react";
 import { Button } from "@/ui/components/ui/button";
 import { cn } from "@/ui/lib/utils";
 import type { TrackPath } from "@/business/paths";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   from?: string;
@@ -26,28 +27,33 @@ export function PathBar({ from, label, onGraph, onClear, onSelect, paths, select
       <div className="flex items-center gap-1.5">
         <Route className="size-3.5 flex-none text-primary" />
         <span className="truncate">
-          <span className="text-muted-foreground">From</span>{" "}
-          {from ? label(from) : "— right-click a track"}
+          <span className="text-muted-foreground">{m.path_from()}</span>{" "}
+          {from ? label(from) : m.path_pick()}
         </span>
         <ArrowRight className="size-3.5 flex-none text-muted-foreground" />
         <span className="truncate">
-          <span className="text-muted-foreground">to</span>{" "}
-          {to ? label(to) : "— right-click a track"}
+          <span className="text-muted-foreground">{m.path_to()}</span>{" "}
+          {to ? label(to) : m.path_pick()}
         </span>
         <span className="flex-1" />
         {from && to && (
           <span className="flex-none text-muted-foreground" data-testid="path-summary">
             {paths.length === 0
-              ? "no path"
-              : `${steps} step${steps === 1 ? "" : "s"}${paths.length > 1 ? ` · ${paths.length} ways` : ""}`}
+              ? m.path_none()
+              : paths.length > 1
+                ? m.path_summary_ways({
+                    steps: m.path_steps({ count: steps }),
+                    ways: m.path_ways({ count: paths.length }),
+                  })
+                : m.path_steps({ count: steps })}
           </span>
         )}
-        <Button aria-label="Close path" onClick={onClear} size="icon-compact" variant="ghost">
+        <Button aria-label={m.path_close()} onClick={onClear} size="icon-compact" variant="ghost">
           <X />
         </Button>
       </div>
       {paths.length > 0 && (
-        <ol aria-label="Paths" className="flex flex-col gap-0.5">
+        <ol aria-label={m.path_list_label()} className="flex flex-col gap-0.5">
           {paths.map((p, i) => (
             <li key={p.keys.join("\u0001")}>
               <button
@@ -64,7 +70,7 @@ export function PathBar({ from, label, onGraph, onClear, onSelect, paths, select
                     {j > 0 && <ArrowRight className="size-3 text-muted-foreground" />}
                     <span
                       className={cn(!onGraph.has(k) && "text-muted-foreground italic")}
-                      title={onGraph.has(k) ? undefined : "Not on the graph"}
+                      title={onGraph.has(k) ? undefined : m.path_not_on_graph()}
                     >
                       {label(k)}
                     </span>

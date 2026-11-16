@@ -17,23 +17,22 @@ export type ColumnId =
 export type ColumnDef = {
   defaultWidth: number;
   id: ColumnId;
-  label: string;
   /** Sortable columns have a sort value. */
   sortable: boolean;
 };
 
 export const COLUMNS: ColumnDef[] = [
-  { defaultWidth: 36, id: "artwork", label: "", sortable: false },
-  { defaultWidth: 240, id: "title", label: "Title", sortable: true },
-  { defaultWidth: 180, id: "artist", label: "Artist", sortable: true },
-  { defaultWidth: 150, id: "album", label: "Album", sortable: true },
-  { defaultWidth: 110, id: "genre", label: "Genre", sortable: true },
-  { defaultWidth: 64, id: "bpm", label: "BPM", sortable: true },
-  { defaultWidth: 90, id: "key", label: "Key", sortable: true },
-  { defaultWidth: 76, id: "rating", label: "Rating", sortable: true },
-  { defaultWidth: 60, id: "length", label: "Time", sortable: true },
-  { defaultWidth: 56, id: "links", label: "Links", sortable: true },
-  { defaultWidth: 200, id: "comment", label: "Comment", sortable: true },
+  { defaultWidth: 36, id: "artwork", sortable: false },
+  { defaultWidth: 240, id: "title", sortable: true },
+  { defaultWidth: 180, id: "artist", sortable: true },
+  { defaultWidth: 150, id: "album", sortable: true },
+  { defaultWidth: 110, id: "genre", sortable: true },
+  { defaultWidth: 64, id: "bpm", sortable: true },
+  { defaultWidth: 90, id: "key", sortable: true },
+  { defaultWidth: 76, id: "rating", sortable: true },
+  { defaultWidth: 60, id: "length", sortable: true },
+  { defaultWidth: 56, id: "links", sortable: true },
+  { defaultWidth: 200, id: "comment", sortable: true },
 ];
 
 export const MIN_COLUMN_WIDTH = 30;

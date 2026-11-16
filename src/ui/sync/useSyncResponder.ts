@@ -5,6 +5,7 @@ import { subscribe } from "@/app/events";
 import { type Track } from "@/business/model";
 import { summaryText } from "@/ui/settings/DataSection";
 import { changeCount } from "@/business/sync";
+import { m } from "@/paraglide/messages.js";
 
 type SyncRequest = { data: unknown; peerId: string; peerName: string; requestId: string };
 
@@ -35,14 +36,14 @@ export function useSyncResponder(
             const n = changeCount(summary);
             toast(
               n > 0
-                ? `Synced with ${req.peerName}: ${summaryText(summary)}`
-                : `Synced with ${req.peerName}: no changes`,
+                ? m.sync_answered({ name: req.peerName, summary: summaryText(summary) })
+                : m.sync_answered_nothing({ name: req.peerName }),
             );
           },
           async (e: unknown) => {
             const error = e instanceof Error ? e.message : String(e);
             await api.syncReply(req.requestId, { error }).catch(() => undefined);
-            toast(`Sync with ${req.peerName} failed: ${error}`);
+            toast(m.sync_answer_failed({ error, name: req.peerName }));
           },
         );
       }),

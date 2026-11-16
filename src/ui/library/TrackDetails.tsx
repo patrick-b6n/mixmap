@@ -2,6 +2,7 @@ import { Placeholder } from "@/ui/components/Placeholder";
 import type { Track } from "@/business/model";
 import { formatBpm, formatLength, keyLabel, stars } from "@/business/trackTable";
 import { Artwork } from "./Artwork";
+import { m } from "@/paraglide/messages.js";
 
 /** A link as listed in the details panel. */
 export type LinkItem = {
@@ -22,23 +23,23 @@ type Props = {
 
 /** Right panel: large artwork, all metadata of the selected track, and its links. */
 export function TrackDetails({ incoming, onSelectLink, outgoing, track, version }: Props) {
-  if (!track) return <Placeholder>Select a track</Placeholder>;
+  if (!track) return <Placeholder>{m.details_select_track()}</Placeholder>;
   const fields: [string, string][] = [
-    ["Artist", track.artist],
-    ["Album", track.album],
-    ["Genre", track.genre],
-    ["BPM", formatBpm(track.bpm)],
-    ["Key", keyLabel(track.key)],
-    ["Rating", stars(track.rating)],
-    ["Length", track.length > 0 ? formatLength(track.length) : ""],
-    ["Comment", track.comment],
-    ["File", track.filePath],
+    [m.column_artist(), track.artist],
+    [m.column_album(), track.album],
+    [m.column_genre(), track.genre],
+    [m.column_bpm(), formatBpm(track.bpm)],
+    [m.column_key(), keyLabel(track.key)],
+    [m.column_rating(), stars(track.rating)],
+    [m.details_length(), track.length > 0 ? formatLength(track.length) : ""],
+    [m.column_comment(), track.comment],
+    [m.details_file(), track.filePath],
   ];
   return (
     <div className="flex flex-col gap-2.5 p-3">
       <Artwork key={track.id} size="large" trackId={track.id} version={version} />
       <h2 className="m-0 text-base font-semibold [overflow-wrap:anywhere]">
-        {track.title || "Untitled"}
+        {track.title || m.details_untitled()}
       </h2>
       <dl className="m-0 grid gap-1">
         {fields.map(([label, value]) => (
@@ -51,9 +52,9 @@ export function TrackDetails({ incoming, onSelectLink, outgoing, track, version 
         ))}
       </dl>
       <section>
-        <LinksHeading>{`Mixes into (${outgoing.length})`}</LinksHeading>
+        <LinksHeading>{m.details_mixes_into({ count: outgoing.length })}</LinksHeading>
         <LinkList items={outgoing} onSelect={onSelectLink} />
-        <LinksHeading>{`Comes from (${incoming.length})`}</LinksHeading>
+        <LinksHeading>{m.details_comes_from({ count: incoming.length })}</LinksHeading>
         <LinkList items={incoming} onSelect={onSelectLink} />
       </section>
     </div>
@@ -76,7 +77,8 @@ function LinkList({
   items: LinkItem[];
   onSelect: (l: { from: string; to: string }) => void;
 }) {
-  if (items.length === 0) return <Placeholder className="px-0 py-1.5">None yet</Placeholder>;
+  if (items.length === 0)
+    return <Placeholder className="px-0 py-1.5">{m.details_none_yet()}</Placeholder>;
   return (
     <ul className="mt-1 flex flex-col">
       {items.map((l) => (

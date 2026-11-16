@@ -18,6 +18,7 @@ import { LinkEdge, type LinkFlowEdge } from "./LinkEdge";
 import { TrackNode, type TrackFlowNode } from "./TrackNode";
 import { TRACK_MIME, type TrackDrop } from "./dnd";
 import type { MixmapData } from "./useMixmap";
+import { m } from "@/paraglide/messages.js";
 
 const nodeTypes = { track: TrackNode };
 
@@ -275,7 +276,7 @@ export function GraphCanvas({
             items: [
               {
                 destructive: true,
-                label: "Remove link",
+                label: m.canvas_remove_link(),
                 onSelect: () => onDeleteLink(edge.source, edge.target),
               },
             ],
@@ -288,14 +289,14 @@ export function GraphCanvas({
           const count = node.data.card.linkCount;
           setMenu({
             items: [
-              { label: "Path from this track", onSelect: () => onPathFrom(node.id) },
-              { label: "Path to this track", onSelect: () => onPathTo(node.id) },
-              { label: "Remove from graph", onSelect: () => onRemoveFromGraph(node.id) },
+              { label: m.canvas_path_from(), onSelect: () => onPathFrom(node.id) },
+              { label: m.canvas_path_to(), onSelect: () => onPathTo(node.id) },
+              { label: m.canvas_remove_from_graph(), onSelect: () => onRemoveFromGraph(node.id) },
               ...(count > 0
                 ? [
                     {
                       destructive: true,
-                      label: `Delete all links of this track (${count})…`,
+                      label: m.canvas_delete_all_links({ count }),
                       onSelect: () => onDeleteAllLinks(node.id),
                     },
                   ]

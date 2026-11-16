@@ -17,6 +17,7 @@ import { HotkeySetting } from "@/ui/desktop/HotkeySetting";
 import { TrackTypeahead } from "@/ui/library/TrackTypeahead";
 import { useNowPlaying } from "../overlay/useNowPlaying";
 import { errorText } from "./SyncSection";
+import { m } from "@/paraglide/messages.js";
 
 type Props = { library: ReadonlyMap<string, Track> };
 
@@ -27,22 +28,23 @@ export function NowPlayingSection({ library }: Props) {
 
   return (
     <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
-      <legend className="px-1 text-muted-foreground">Now playing</legend>
+      <legend className="px-1 text-muted-foreground">{m.now_playing_legend()}</legend>
       <div className="flex items-center gap-2">
         <Radio className="size-3.5 flex-none text-muted-foreground" />
         <span className="min-w-0 flex-1" data-testid="now-playing-status">
           {!update
-            ? "Waiting for rekordbox…"
+            ? m.now_playing_waiting()
             : update.status === "unavailable"
               ? update.reason
               : update.decks
-                  .map(
-                    (d) =>
-                      `Deck ${d.deck}${update.master === d.deck ? " (master)" : ""}: ${d.title || "—"}`,
+                  .map((d) =>
+                    update.master === d.deck
+                      ? m.now_playing_deck_master({ deck: d.deck, title: d.title || "—" })
+                      : m.now_playing_deck({ deck: d.deck, title: d.title || "—" }),
                   )
                   .join(" · ")}
         </span>
-        <Button onClick={() => setWizard(true)}>Calibrate…</Button>
+        <Button onClick={() => setWizard(true)}>{m.calibration_open()}</Button>
       </div>
       {inTauri() && <HotkeySetting />}
       {wizard && <CalibrationDialog library={library} onClose={() => setWizard(false)} />}
@@ -98,7 +100,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
 
   const scan = async () => {
     setError(undefined);
-    setStep({ kind: "scanning", phase: "Starting", progress: 0 });
+    setStep({ kind: "scanning", phase: m.calibration_starting(), progress: 0 });
     try {
       if (!last) setVersion((await api.calibrationStart()).version);
       const result = await api.calibrationRound(
@@ -142,16 +144,15 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
         showCloseButton={false}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">Calibrate now-playing detection</DialogTitle>
+          <DialogTitle className="text-base">{m.calibration_title()}</DialogTitle>
           <DialogDescription>
-            mixmap learns where rekordbox{version ? ` ${version}` : ""} keeps the loaded tracks
-            (read-only, nothing in rekordbox is changed). Needed once per rekordbox version.
+            {m.calibration_description({ version: version ? ` ${version}` : "" })}
           </DialogDescription>
         </DialogHeader>
 
         {step.kind === "saved" ? (
           <div data-testid="calibration-saved">
-            Saved. The overlay now follows your decks automatically.
+            {m.calibration_saved()}
             <div className="text-xs [overflow-wrap:anywhere] text-muted-foreground">
               {step.path}
             </div>
@@ -165,43 +166,37 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
                 style={{ width: `${Math.round(step.progress * 100)}%` }}
               />
             </div>
-            <div className="text-xs text-muted-foreground">
-              The first round reads rekordbox's memory; this can take a minute.
-            </div>
+            <div className="text-xs text-muted-foreground">{m.calibration_first_round()}</div>
           </div>
         ) : (
           <>
             <ol className="list-decimal pl-5 text-[13px]">
               {!last ? (
                 <>
-                  <li>
-                    Open rekordbox and load a different track on each deck (they may be paused).
-                  </li>
-                  <li>Pick the same tracks here, then press Scan.</li>
+                  <li>{m.calibration_step_load()}</li>
+                  <li>{m.calibration_step_pick_scan()}</li>
                 </>
               ) : lost.length > 0 ? (
-                <li>
-                  Couldn't follow deck {lost.join(", ")}. Check that the picked tracks were really
-                  loaded, then start over.
-                </li>
+                <li>{m.calibration_lost({ decks: lost.join(", ") })}</li>
               ) : (
                 <>
                   <li>
-                    Round {last.rounds} done.{" "}
-                    {last.ready
-                      ? "You can save now; another round makes it more reliable."
-                      : "Now load other tracks on each deck."}
+                    {m.calibration_round_done({ round: last.rounds })}{" "}
+                    {last.ready ? m.calibration_ready() : m.calibration_load_other()}
                   </li>
-                  <li>Pick them here and press Check.</li>
+                  <li>{m.calibration_step_pick_check()}</li>
                 </>
               )}
             </ol>
             {last && (
               <div className="text-xs text-muted-foreground" data-testid="calibration-counts">
                 {last.decks
-                  .map(
-                    (d) =>
-                      `Deck ${d.deck}: ${d.title} title / ${d.artist} artist candidate${d.artist === 1 ? "" : "s"}`,
+                  .map((d) =>
+                    m.calibration_candidates({
+                      artists: m.calibration_artist_candidates({ count: d.artist }),
+                      deck: d.deck,
+                      titles: d.title,
+                    }),
                   )
                   .join(" · ")}
               </div>
@@ -210,7 +205,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
               <>
                 {!last && (
                   <label className="flex items-center gap-2 text-[13px]">
-                    Decks:
+                    {m.calibration_decks()}
                     <select
                       className="h-6 rounded-sm border border-input bg-input/30 px-1"
                       onChange={(e) => setDeckCount(Number(e.target.value))}
@@ -229,12 +224,14 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
                       key={d}
                     >
                       <div className="flex items-center gap-1 border-b px-2 py-0.5 text-xs">
-                        <span className="font-semibold">Deck {d}</span>
+                        <span className="font-semibold">{m.calibration_deck({ deck: d })}</span>
                         <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                          {picked[i] ? `${picked[i]!.artist} – ${picked[i]!.title}` : "not picked"}
+                          {picked[i]
+                            ? `${picked[i]!.artist} – ${picked[i]!.title}`
+                            : m.calibration_not_picked()}
                         </span>
                         {used[d]?.includes(titles[i]) && (
-                          <span className="text-destructive">used before</span>
+                          <span className="text-destructive">{m.calibration_used_before()}</span>
                         )}
                       </div>
                       <div className="h-40">
@@ -260,18 +257,18 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
         <DialogFooter>
           {step.kind === "saved" ? (
             <Button onClick={onClose} variant="default">
-              Done
+              {m.common_done()}
             </Button>
           ) : (
             <>
-              {last && <Button onClick={restart}>Start over</Button>}
+              {last && <Button onClick={restart}>{m.calibration_start_over()}</Button>}
               {last?.ready && lost.length === 0 && (
                 <Button
                   disabled={step.kind === "scanning"}
                   onClick={() => void save()}
                   variant="default"
                 >
-                  Save
+                  {m.common_save()}
                 </Button>
               )}
               {lost.length === 0 && (
@@ -280,11 +277,11 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
                   onClick={() => void scan()}
                   variant={last?.ready ? "subtle" : "default"}
                 >
-                  {last ? "Check" : "Scan"}
+                  {last ? m.calibration_check() : m.calibration_scan()}
                 </Button>
               )}
               <Button disabled={step.kind === "scanning"} onClick={close}>
-                Cancel
+                {m.common_cancel()}
               </Button>
             </>
           )}

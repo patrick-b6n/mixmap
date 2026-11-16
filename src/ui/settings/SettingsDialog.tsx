@@ -23,6 +23,7 @@ import { checkForUpdate } from "@/ui/desktop/UpdateBanner";
 import { DataSection } from "./DataSection";
 import { NowPlayingSection } from "./NowPlayingSection";
 import { SyncSection } from "./SyncSection";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   /** rekordbox tracks by id (to describe manual matches portably in exports). */
@@ -35,10 +36,10 @@ type Props = {
 
 type Kind = LibrarySource["kind"];
 
-const KINDS: { kind: Kind; label: string }[] = [
-  { kind: "auto", label: "Automatic (rekordbox's own master.db)" },
-  { kind: "masterDb", label: "Specific master.db" },
-  { kind: "xml", label: "rekordbox XML export (File → Export Collection in xml format)" },
+const KINDS: { kind: Kind; label: () => string }[] = [
+  { kind: "auto", label: m.settings_source_auto },
+  { kind: "masterDb", label: m.settings_source_master_db },
+  { kind: "xml", label: m.settings_source_xml },
 ];
 
 /** Settings: where the rekordbox library comes from. */
@@ -58,11 +59,11 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
       try {
         const s = await api.setLibrarySource(source);
         if (s.error) {
-          setResult(`Error: ${s.error}`);
+          setResult(m.settings_source_error({ error: s.error }));
         } else {
           // Only a source that loaded is remembered for the next start.
           await settings.set(SETTINGS.librarySource, source);
-          setResult(`Loaded ${s.trackCount} tracks, ${s.playlistCount} playlists.`);
+          setResult(m.settings_source_loaded({ playlists: s.playlistCount, tracks: s.trackCount }));
         }
       } catch (e) {
         setResult(String(e));
@@ -74,13 +75,11 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
     <Dialog defaultOpen onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="gap-3 rounded-md bg-card p-5 sm:max-w-140" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle className="text-base">Settings</DialogTitle>
-          <DialogDescription className="sr-only">
-            Choose where the rekordbox library comes from.
-          </DialogDescription>
+          <DialogTitle className="text-base">{m.settings_title()}</DialogTitle>
+          <DialogDescription className="sr-only">{m.settings_description()}</DialogDescription>
         </DialogHeader>
         <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
-          <legend className="px-1 text-muted-foreground">rekordbox library</legend>
+          <legend className="px-1 text-muted-foreground">{m.settings_source_legend()}</legend>
           <form.Field
             listeners={{
               // A path only makes sense for its kind: switching clears it.
@@ -104,7 +103,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
                   <div className="flex items-center gap-2" key={k.kind}>
                     <RadioGroupItem id={`source-${k.kind}`} value={k.kind} />
                     <Label className="text-[13px] font-normal" htmlFor={`source-${k.kind}`}>
-                      {k.label}
+                      {k.label()}
                     </Label>
                   </div>
                 ))}
@@ -117,14 +116,15 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
                 <form.Field
                   name="path"
                   validators={{
-                    onSubmit: ({ value }) => (value.trim() ? undefined : "Enter a path."),
+                    onSubmit: ({ value }) =>
+                      value.trim() ? undefined : m.settings_path_required(),
                   }}
                 >
                   {(field) => (
                     <>
                       <Input
                         aria-invalid={field.state.meta.errors.length > 0 || undefined}
-                        aria-label="Path"
+                        aria-label={m.settings_path_label()}
                         className="mt-1"
                         name={field.name}
                         onBlur={field.handleBlur}
@@ -147,7 +147,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
           </form.Subscribe>
           {status?.location && (
             <div className="text-xs [overflow-wrap:anywhere] text-muted-foreground">
-              Current: {status.location.dbPath}
+              {m.settings_source_current({ path: status.location.dbPath })}
             </div>
           )}
         </fieldset>
@@ -157,25 +157,25 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         <SyncSection library={library} onDataChanged={onDataChanged} />
         <DialogFooter className="items-center">
           <span className="mr-auto text-xs text-muted-foreground" data-testid="app-version">
-            {version && `mixmap ${version}`}
+            {version && m.settings_version({ version })}
             {inTauri() && (
               <button
                 className="ml-2 underline-offset-2 hover:underline"
                 onClick={() => {
-                  setUpdateInfo("Checking…");
+                  setUpdateInfo(m.settings_update_checking());
                   checkForUpdate().then(
                     (r) =>
                       setUpdateInfo(
                         r.updateAvailable
-                          ? `${r.title} is available: see the banner above.`
-                          : "mixmap is up to date.",
+                          ? m.settings_update_available({ title: r.title ?? "" })
+                          : m.settings_update_none(),
                       ),
-                    (e: unknown) => setUpdateInfo(`Couldn't check: ${String(e)}`),
+                    (e: unknown) => setUpdateInfo(m.settings_update_failed({ error: String(e) })),
                   );
                 }}
                 type="button"
               >
-                Check for updates
+                {m.settings_update_check()}
               </button>
             )}
             {updateInfo && (
@@ -187,11 +187,11 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
           <form.Subscribe selector={(state) => state.isSubmitting}>
             {(busy) => (
               <Button disabled={busy} onClick={() => void form.handleSubmit()}>
-                {busy ? "Loading…" : "Apply"}
+                {busy ? m.common_loading() : m.settings_apply()}
               </Button>
             )}
           </form.Subscribe>
-          <DialogClose render={<Button />}>Close</DialogClose>
+          <DialogClose render={<Button />}>{m.common_close()}</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

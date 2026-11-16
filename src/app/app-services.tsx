@@ -5,6 +5,7 @@ import { StartupErrorScreen, StartupLoadingScreen } from "@/ui/layout/startup-sc
 import { backend, inTauri } from "./backend";
 import { openAppDatabase } from "./database";
 import { type AppServices, createAppServices } from "./services";
+import { m } from "@/paraglide/messages.js";
 
 const AppServicesContext = createContext<AppServices | null>(null);
 
@@ -13,7 +14,7 @@ let started: Promise<AppServices> | undefined;
 /** Opens the database and creates the services, once per window. */
 export function startApp(): Promise<AppServices> {
   started ??= (async () => {
-    if (!inTauri()) throw new Error("mixmap only runs as a desktop app");
+    if (!inTauri()) throw new Error(m.startup_desktop_only());
     const { sql } = await openAppDatabase();
     return createAppServices(sql, backend);
   })().catch((error: unknown) => {

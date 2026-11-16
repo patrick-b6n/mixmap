@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useAppServices } from "@/app/app-services";
 import { type Link, type LinkPatch } from "@/business/links";
 import { isTyping, TaskQueue, UndoStack } from "@/business/undo";
+import { m } from "@/paraglide/messages.js";
 
 /** A patch, or a function computing it from the link as currently stored. */
 export type LinkUpdate = LinkPatch | ((current: Link) => LinkPatch);
@@ -37,9 +38,9 @@ export function useLinkActions(
         (r) => {
           refresh();
           if (r === undefined || r === false) return;
-          toast(typeof r === "string" ? `Undone: ${r}` : "Undone");
+          toast(typeof r === "string" ? m.undo_done_label({ label: r }) : m.undo_done());
         },
-        (err) => onError(`Undo failed: ${String(err)}`),
+        (err) => onError(m.undo_failed({ error: String(err) })),
       ),
     [run, refresh, onError],
   );
@@ -71,21 +72,22 @@ export function useLinkActions(
         if (links.length === 0) return;
         await linksRepository.deleteMany(links);
         refresh();
-        const label = links.length === 1 ? "Link deleted" : `${links.length} links deleted`;
+        const label = m.undo_links_deleted({ count: links.length });
         const entry = {
-          label: label.toLowerCase(),
+          label: m.undo_entry_links_deleted({ count: links.length }),
           undo: async () => {
             const restored = await linksRepository.restore(links);
             if (restored < links.length) {
-              onError(
-                `${links.length - restored} link(s) could not be restored: their tracks are gone`,
-              );
+              onError(m.undo_links_not_restored({ count: links.length - restored }));
             }
           },
         };
         undo.push(entry);
         toast(label, {
-          action: { label: "Undo", onClick: () => void undoAndReport(() => undo.undoEntry(entry)) },
+          action: {
+            label: m.undo_action(),
+            onClick: () => void undoAndReport(() => undo.undoEntry(entry)),
+          },
         });
       }),
     [run, undo, refresh, onError, undoAndReport, linksRepository],

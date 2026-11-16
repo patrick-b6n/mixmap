@@ -18,6 +18,7 @@ import {
 import { PanelLeft, PanelRight } from "lucide-react";
 import { Button } from "@/ui/components/ui/button";
 import { cn } from "@/ui/lib/utils";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   details: ReactNode;
@@ -92,21 +93,21 @@ export function Shell({ banner, details, filterBar, graph, playlists, table, too
     <div className="flex h-full flex-col">
       <header className="flex h-9 items-center gap-2 border-b bg-card px-2">
         <Button
-          aria-label={layout.leftCollapsed ? "Show playlists" : "Hide playlists"}
+          aria-label={layout.leftCollapsed ? m.shell_show_playlists() : m.shell_hide_playlists()}
           onClick={() => update({ leftCollapsed: !layout.leftCollapsed })}
           size="icon-compact"
-          title="Toggle playlists"
+          title={m.shell_toggle_playlists()}
           variant="ghost"
         >
           <PanelLeft />
         </Button>
-        <span className="font-semibold">mixmap</span>
+        <span className="font-semibold">{m.app_title()}</span>
         <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>
         <Button
-          aria-label={layout.rightCollapsed ? "Show details" : "Hide details"}
+          aria-label={layout.rightCollapsed ? m.shell_show_details() : m.shell_hide_details()}
           onClick={() => update({ rightCollapsed: !layout.rightCollapsed })}
           size="icon-compact"
-          title="Toggle details"
+          title={m.shell_toggle_details()}
           variant="ghost"
         >
           <PanelRight />
@@ -127,7 +128,7 @@ export function Shell({ banner, details, filterBar, graph, playlists, table, too
             <div className="relative min-h-0 flex-1">{graph}</div>
           </section>
           <div
-            aria-label="Resize graph and table"
+            aria-label={m.shell_resize_graph_table()}
             aria-orientation="horizontal"
             aria-valuemax={85}
             aria-valuemin={15}

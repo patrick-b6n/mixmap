@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 
 import { AppServicesProvider } from "@/app/app-services";
 import appCss from "@/ui/styles/globals.css?url";
+import { m } from "@/paraglide/messages.js";
 
 export type RouterContext = {
   queryClient: QueryClient;
@@ -17,7 +18,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "color-scheme", content: "dark" },
-      { title: "mixmap" },
+      { title: m.app_title() },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

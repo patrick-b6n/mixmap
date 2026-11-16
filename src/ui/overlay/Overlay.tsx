@@ -22,6 +22,7 @@ import { inTauri } from "@/app/backend";
 import { loadOpacity, OPACITY_KEY } from "@/app/overlay-window";
 import { OverlayBar } from "./OverlayBar";
 import { useNowPlaying } from "./useNowPlaying";
+import { m } from "@/paraglide/messages.js";
 
 /**
  * Live overlay: one column per deck with the loaded track and where you can go from
@@ -49,7 +50,7 @@ export function Overlay() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  if (!library) return <Placeholder className="p-3">{error ?? "Loading…"}</Placeholder>;
+  if (!library) return <Placeholder className="p-3">{error ?? m.common_loading()}</Placeholder>;
   const decks = [...new Set([...shownDecks(state), ...extraDecks])].toSorted((a, b) => a - b);
 
   const setDeck = (deck: number, trackId: string | undefined) =>
@@ -84,16 +85,16 @@ export function Overlay() {
       >
         <span className="min-w-0 flex-1 truncate">
           {auto?.status === "ok"
-            ? `Automatic: ${auto.source}`
+            ? m.overlay_auto({ source: auto.source })
             : auto?.status === "unavailable"
-              ? `Automatic detection off: ${auto.reason}`
-              : "Automatic detection isn't available yet: set tracks manually"}
+              ? m.overlay_auto_off({ reason: auto.reason })
+              : m.overlay_auto_unavailable()}
         </span>
         <Button
-          aria-label="Add deck"
+          aria-label={m.overlay_add_deck()}
           onClick={() => setExtraDecks((d) => [...d, Math.max(...decks) + 1])}
           size="icon-compact"
-          title="Add a deck"
+          title={m.overlay_add_deck_hint()}
           variant="ghost"
         >
           <Plus />
@@ -178,7 +179,7 @@ function DeckColumn({
 
   return (
     <section
-      aria-label={`Deck ${deck.deck}`}
+      aria-label={m.calibration_deck({ deck: deck.deck })}
       className={cn(
         "flex min-w-0 flex-1 flex-col rounded-md border bg-card/90",
         master && "border-primary ring-1 ring-primary",
@@ -186,30 +187,30 @@ function DeckColumn({
       data-deck={deck.deck}
     >
       <header className="flex items-center gap-1 border-b px-2 py-0.5 text-xs text-muted-foreground">
-        <span className="font-semibold">Deck {deck.deck}</span>
+        <span className="font-semibold">{m.calibration_deck({ deck: deck.deck })}</span>
         {master && (
           <span className="rounded-sm bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-            MASTER
+            {m.overlay_master_badge()}
           </span>
         )}
-        {deck.manual && <span title="Set manually">manual</span>}
+        {deck.manual && <span title={m.overlay_manual_hint()}>{m.overlay_manual()}</span>}
         <span className="flex-1" />
         <Button
-          aria-label={master ? "Unset master" : "Make master"}
+          aria-label={master ? m.overlay_unset_master() : m.overlay_make_master()}
           aria-pressed={master}
           onClick={onMaster}
           size="icon-compact"
-          title={master ? "Unset master" : "Make this the master deck"}
+          title={master ? m.overlay_unset_master() : m.overlay_make_master_hint()}
           variant="ghost"
         >
           <Crown className="size-3.5" />
         </Button>
         {track && (
           <Button
-            aria-label="Change track"
+            aria-label={m.overlay_change_track()}
             onClick={() => setPicking((p) => !p)}
             size="icon-compact"
-            title="Set the track manually"
+            title={m.overlay_change_track_hint()}
             variant="ghost"
           >
             <Pencil className="size-3.5" />
@@ -217,10 +218,10 @@ function DeckColumn({
         )}
         {deck.manual && (
           <Button
-            aria-label="Clear deck"
+            aria-label={m.overlay_clear_deck()}
             onClick={onClear}
             size="icon-compact"
-            title="Clear the manual track (back to automatic detection)"
+            title={m.overlay_clear_deck_hint()}
             variant="ghost"
           >
             <X className="size-3.5" />
@@ -242,9 +243,9 @@ function DeckColumn({
       )}
       {!track && r.kind !== "empty" && (
         <div className="border-b px-2 py-1 text-xs text-muted-foreground">
-          {r.kind === "unknown" && `“${r.artist} – ${r.title}” isn't in the library`}
+          {r.kind === "unknown" && m.overlay_unknown({ artist: r.artist, title: r.title })}
           {r.kind === "ambiguous" &&
-            `${r.candidates.length} tracks match “${r.candidates[0].title}”: pick one`}
+            m.overlay_ambiguous({ count: r.candidates.length, title: r.candidates[0].title })}
         </div>
       )}
       {choosing && (
@@ -262,9 +263,9 @@ function DeckColumn({
       {!choosing && (
         <div className="min-h-0 flex-1 overflow-y-auto">
           {links.length === 0 && (
-            <div className="p-2 text-xs text-muted-foreground">No links from this track.</div>
+            <div className="p-2 text-xs text-muted-foreground">{m.overlay_no_links()}</div>
           )}
-          <ul aria-label="Mixes into">
+          <ul aria-label={m.overlay_mixes_into()}>
             {links.map((l) => (
               <LinkRow key={l.targetKey} link={l} />
             ))}
@@ -302,7 +303,7 @@ function LinkRow({ link }: { link: OverlayLink }) {
           <span className="min-w-0 flex-1 truncate">{link.targetArtist}</span>
           {t && t.bpm > 0 && <span className="tabular-nums">{formatBpm(t.bpm)}</span>}
           {t?.key && <span>{keyLabel(t.key)}</span>}
-          {!t && <span>missing</span>}
+          {!t && <span>{m.card_missing()}</span>}
           {link.loadedOn.length > 0 && (
             <span
               className="rounded-sm bg-accent px-1 text-accent-foreground"

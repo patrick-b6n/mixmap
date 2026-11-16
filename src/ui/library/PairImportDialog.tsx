@@ -17,6 +17,7 @@ import type { Playlist, Track } from "@/business/model";
 import { useAppServices } from "@/app/app-services";
 import { type Link } from "@/business/links";
 import { proposePairs } from "@/business/pairImport";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   library: ReadonlyMap<string, Track>;
@@ -57,7 +58,10 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
       await linksRepository.createMany(chosen.map((p) => ({ from: p.from, to: p.to })));
       onCreated();
       toast(
-        `Created ${chosen.length} link${chosen.length === 1 ? "" : "s"} from “${playlist.name}”`,
+        m.pairs_created({
+          links: m.data_count_links({ count: chosen.length }),
+          playlist: playlist.name,
+        }),
       );
       onClose();
     } catch (e) {
@@ -73,27 +77,30 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
         showCloseButton={false}
       >
         <DialogHeader>
-          <DialogTitle className="text-base">Import pairs from “{playlist.name}”</DialogTitle>
+          <DialogTitle className="text-base">
+            {m.pairs_title({ playlist: playlist.name })}
+          </DialogTitle>
           <DialogDescription>
-            Each track followed by the next becomes a link. {pairs.length} pair
-            {pairs.length === 1 ? "" : "s"}
-            {pairs.length - fresh.length > 0 && `, ${pairs.length - fresh.length} already linked`}.
+            {m.pairs_description({ pairs: m.pairs_count({ count: pairs.length }) })}
+            {pairs.length - fresh.length > 0 &&
+              m.pairs_already_linked({ count: pairs.length - fresh.length })}
+            .
           </DialogDescription>
         </DialogHeader>
         {pairs.length === 0 ? (
-          <div className="py-6 text-center text-muted-foreground">
-            No back-to-back pairs in this list.
-          </div>
+          <div className="py-6 text-center text-muted-foreground">{m.pairs_none()}</div>
         ) : (
           <>
             {fresh.length > 0 && (
               <div className="flex gap-2">
-                <Button onClick={() => setChecked(new Set(fresh.map(pairId)))}>Select all</Button>
-                <Button onClick={() => setChecked(new Set())}>Select none</Button>
+                <Button onClick={() => setChecked(new Set(fresh.map(pairId)))}>
+                  {m.pairs_select_all()}
+                </Button>
+                <Button onClick={() => setChecked(new Set())}>{m.pairs_select_none()}</Button>
               </div>
             )}
             <ul
-              aria-label="Proposed links"
+              aria-label={m.pairs_list_label()}
               className="min-h-0 flex-1 overflow-y-auto rounded-sm border"
             >
               {pairs.map((p) => {
@@ -107,7 +114,7 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
                     key={id}
                   >
                     <Checkbox
-                      aria-label={`${label(p.from)} to ${label(p.to)}`}
+                      aria-label={m.pairs_item_label({ from: label(p.from), to: label(p.to) })}
                       checked={p.exists || checked.has(id)}
                       disabled={p.exists}
                       onCheckedChange={(v) => toggle(id, v === true)}
@@ -121,14 +128,14 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
                     </span>
                     <span
                       className="w-6 flex-none text-xs text-muted-foreground"
-                      title="Times this transition occurs"
+                      title={m.pairs_occurrences_hint()}
                     >
                       {p.occurrences > 1 && `×${p.occurrences}`}
                     </span>
                     <span className="w-12 flex-none text-right">
                       {p.exists && (
                         <span className="rounded-sm bg-muted px-1 text-xs text-muted-foreground">
-                          exists
+                          {m.pairs_exists()}
                         </span>
                       )}
                     </span>
@@ -149,9 +156,11 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
             onClick={() => void create()}
             variant="default"
           >
-            {busy ? "Creating…" : `Create ${chosen.length} link${chosen.length === 1 ? "" : "s"}`}
+            {busy
+              ? m.pairs_creating()
+              : m.pairs_create({ links: m.data_count_links({ count: chosen.length }) })}
           </Button>
-          <DialogClose render={<Button />}>Cancel</DialogClose>
+          <DialogClose render={<Button />}>{m.common_cancel()}</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -4,6 +4,7 @@ import { Button } from "@/ui/components/ui/button";
 import { inTauri } from "@/app/backend";
 import { shouldPrompt, type UpdateCheck } from "@/business/updates";
 import { overlayVisible } from "@/app/overlay-window";
+import { m } from "@/paraglide/messages.js";
 
 /** Is a newer release available? (Startup check and "Check for updates" in Settings.) */
 export async function checkForUpdate(): Promise<UpdateCheck> {
@@ -54,7 +55,7 @@ export function UpdateBanner() {
     >
       <Download className="size-4 flex-none text-primary" />
       <span className="min-w-0 flex-1 truncate">
-        A new mixmap is available ({check.title}).{" "}
+        {m.update_available({ title: check.title ?? "" })}{" "}
         {error && <span className="text-destructive">{error}</span>}
       </span>
       <Button
@@ -69,16 +70,16 @@ export function UpdateBanner() {
         }}
         variant="default"
       >
-        {busy ? "Installing…" : "Install & restart"}
+        {busy ? m.update_installing() : m.update_install()}
       </Button>
       <Button
-        aria-label="Later"
+        aria-label={m.update_later()}
         disabled={busy}
         onClick={() => setDismissed(check.latestVersion ?? undefined)}
         variant="ghost"
       >
         <X />
-        Later
+        {m.update_later()}
       </Button>
     </div>
   );

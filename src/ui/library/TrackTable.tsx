@@ -42,6 +42,7 @@ import {
   stars,
   type TableConfig,
 } from "@/business/trackTable";
+import { m } from "@/paraglide/messages.js";
 
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 26;
@@ -66,7 +67,20 @@ function loadConfig(): TableConfig {
   }
 }
 
-const LABELS = new Map(COLUMNS.map((c) => [c.id, c]));
+/** Column names (headers and the column chooser). */
+const COLUMN_LABELS: Record<ColumnId, () => string> = {
+  album: m.column_album,
+  artist: m.column_artist,
+  artwork: m.column_artwork,
+  bpm: m.column_bpm,
+  comment: m.column_comment,
+  genre: m.column_genre,
+  key: m.column_key,
+  length: m.column_length,
+  links: m.column_links,
+  rating: m.column_rating,
+  title: m.column_title,
+};
 const NO_LINKS = () => 0;
 
 /** What cells need beyond their track: link counts and the artwork cache version. */
@@ -105,7 +119,8 @@ const ALL_COLUMNS = new Map(
     def.id,
     column.display({
       id: def.id,
-      header: def.label,
+      // The artwork column has no header text.
+      header: () => (def.id === "artwork" ? "" : COLUMN_LABELS[def.id]()),
       cell: ({ row }) => <TrackCell id={def.id} track={row.original} />,
       meta: { def },
     }),
@@ -261,21 +276,21 @@ export function TrackTable({
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-2 py-1">
         <Input
-          aria-label="Search tracks"
+          aria-label={m.tracks_search_label()}
           className="max-w-105 flex-1"
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search title, artist, album, genre, key, comment…"
+          placeholder={m.tracks_search_placeholder()}
           type="search"
           value={query}
         />
         <span className="flex-1 text-muted-foreground">
           {rows.length === tracks.length
-            ? `${rows.length} tracks`
-            : `${rows.length} of ${tracks.length}`}
+            ? m.tracks_count({ count: rows.length })
+            : m.tracks_count_filtered({ shown: rows.length, total: tracks.length })}
         </span>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button title="Choose columns" />}>
-            Columns
+          <DropdownMenuTrigger render={<Button title={m.tracks_columns_hint()} />}>
+            {m.tracks_columns()}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {chooserColumns.map((c) => (
@@ -284,7 +299,7 @@ export function TrackTable({
                 key={c.id}
                 onCheckedChange={(checked) => setColumn(c.id, { visible: checked === true })}
               >
-                {c.id === "artwork" ? "Artwork" : LABELS.get(c.id)?.label}
+                {COLUMN_LABELS[c.id]()}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -292,7 +307,7 @@ export function TrackTable({
       </div>
       <CellContext.Provider value={cellContext}>
         <div
-          aria-label="Tracks"
+          aria-label={m.tracks_label()}
           aria-rowcount={rows.length + 1}
           className="relative min-h-0 flex-1 scroll-pt-6.5 overflow-auto outline-none focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-ring"
           onKeyDown={onGridKeyDown}
@@ -389,7 +404,7 @@ export function TrackTable({
             })}
           </div>
           {rows.length === 0 && (
-            <Placeholder>{tracks.length ? "No matches" : "No tracks"}</Placeholder>
+            <Placeholder>{tracks.length ? m.tracks_no_matches() : m.tracks_none()}</Placeholder>
           )}
         </div>
       </CellContext.Provider>

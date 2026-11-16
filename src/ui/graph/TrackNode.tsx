@@ -3,6 +3,7 @@ import { memo } from "react";
 import { cn } from "@/ui/lib/utils";
 import type { NodeCard } from "@/business/graph";
 import { TrackCard } from "./TrackCard";
+import { m } from "@/paraglide/messages.js";
 
 export type TrackNodeData = {
   artworkVersion: number;
@@ -60,7 +61,7 @@ function TrackNodeCard({ data, selected }: NodeProps<TrackFlowNode>) {
       <Handle
         className="!size-3 !border-border !bg-muted hover:!border-primary hover:!bg-primary"
         position={Position.Right}
-        title="Drag to another track to link"
+        title={m.node_link_handle()}
         type="source"
       />
     </TrackCard>

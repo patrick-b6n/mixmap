@@ -3,6 +3,7 @@ import { cn } from "@/ui/lib/utils";
 import { formatBpm, keyLabel } from "@/business/trackTable";
 import type { NodeCard } from "@/business/graph";
 import { Artwork } from "@/ui/library/Artwork";
+import { m } from "@/paraglide/messages.js";
 
 /**
  * Look of a track card on the graph: artwork, title, artist, BPM, key, link count.
@@ -33,7 +34,7 @@ export function TrackCard({
       )}
       title={
         card.missing
-          ? `${card.artist} – ${card.title} (missing in rekordbox)`
+          ? m.card_missing_title({ artist: card.artist, title: card.title })
           : `${card.artist} – ${card.title}`
       }
     >
@@ -49,7 +50,7 @@ export function TrackCard({
         <div className="truncate text-muted-foreground">{card.artist}</div>
         <div className="flex gap-2 text-[11px] text-muted-foreground tabular-nums">
           {card.missing ? (
-            <span>missing</span>
+            <span>{m.card_missing()}</span>
           ) : (
             <>
               {t && t.bpm > 0 && <span>{formatBpm(t.bpm)}</span>}
@@ -60,7 +61,7 @@ export function TrackCard({
       </div>
       <span
         className="flex-none self-start rounded-sm bg-muted px-1 text-[10px] text-muted-foreground tabular-nums"
-        title={`${card.linkCount} links`}
+        title={m.data_count_links({ count: card.linkCount })}
       >
         {card.linkCount}
       </span>

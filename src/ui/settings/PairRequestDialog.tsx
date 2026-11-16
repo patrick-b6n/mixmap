@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/ui/components/ui/dialog";
 import { subscribe } from "@/app/events";
+import { m } from "@/paraglide/messages.js";
 
 type Request = { code: string; expiresAt: number; id: string; name: string };
 
@@ -29,8 +30,8 @@ export function PairRequestDialog() {
     const offFinished = subscribe("pair-finished", (p) => {
       const r = p as { id: string; name: string; ok: boolean };
       setRequest((cur) => (cur?.id === r.id ? undefined : cur));
-      if (r.ok) toast(`Paired with ${r.name}`);
-      else toast(`Pairing with ${r.name} failed: wrong code`);
+      if (r.ok) toast(m.pair_request_paired({ name: r.name }));
+      else toast(m.pair_request_wrong_code({ name: r.name }));
     });
     return () => {
       offRequest();
@@ -55,10 +56,11 @@ export function PairRequestDialog() {
     <Dialog onOpenChange={(open) => !open && setRequest(undefined)} open>
       <DialogContent className="gap-3 rounded-md bg-card p-5 sm:max-w-100" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle className="text-base">Pair with {request.name}?</DialogTitle>
+          <DialogTitle className="text-base">
+            {m.pair_request_title({ name: request.name })}
+          </DialogTitle>
           <DialogDescription>
-            {request.name} wants to sync mixmap data with this device. To allow it, enter this code
-            on {request.name}:
+            {m.pair_request_description({ name: request.name })}
           </DialogDescription>
         </DialogHeader>
         <div
@@ -67,9 +69,11 @@ export function PairRequestDialog() {
         >
           {request.code.slice(0, 3)} {request.code.slice(3)}
         </div>
-        <div className="text-center text-xs text-muted-foreground">Expires in {seconds} s</div>
+        <div className="text-center text-xs text-muted-foreground">
+          {m.pair_request_expires({ seconds })}
+        </div>
         <DialogFooter>
-          <Button onClick={() => setRequest(undefined)}>Hide</Button>
+          <Button onClick={() => setRequest(undefined)}>{m.pair_request_hide()}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

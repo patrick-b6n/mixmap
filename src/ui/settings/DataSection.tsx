@@ -14,6 +14,7 @@ import {
   serializeExport,
 } from "@/business/exchange";
 import type { Counts, MergeSummary } from "@/business/merge";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   library: ReadonlyMap<string, Track>;
@@ -21,31 +22,38 @@ type Props = {
   onDataChanged: () => void;
 };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 /** "3 added, 1 updated" (only non-zero parts), or undefined when nothing changed. */
 function describe(c: Counts): string | undefined {
   const parts = [
-    c.added && `${c.added} added`,
-    c.updated && `${c.updated} updated`,
-    c.deleted && `${c.deleted} deleted`,
+    c.added && m.data_count_added({ count: c.added }),
+    c.updated && m.data_count_updated({ count: c.updated }),
+    c.deleted && m.data_count_deleted({ count: c.deleted }),
   ].filter(Boolean);
   return parts.length ? parts.join(", ") : undefined;
+}
+
+/** "3 links, 2 cards, 4 tracks" of an export. */
+function contents(data: MixmapExport): string {
+  return m.data_contents({
+    cards: m.data_count_cards({ count: data.nodes.length }),
+    links: m.data_count_links({ count: data.links.length }),
+    tracks: m.data_count_tracks({ count: data.tracks.length }),
+  });
 }
 
 export function summaryText(s: MergeSummary): string {
   const lines = (
     [
-      ["Links", s.links],
-      ["Graph tracks", s.nodes],
-      ["Tracks", s.tracks],
-      ["Manual matches", s.manualMatches],
+      [m.data_summary_links(), s.links],
+      [m.data_summary_nodes(), s.nodes],
+      [m.data_summary_tracks(), s.tracks],
+      [m.data_summary_manual_matches(), s.manualMatches],
     ] as const
   ).flatMap(([label, c]) => {
     const d = describe(c);
-    return d ? [`${label}: ${d}`] : [];
+    return d ? [m.data_summary_line({ changes: d, label })] : [];
   });
-  return lines.length ? lines.join(" · ") : "Nothing changed: everything was already up to date.";
+  return lines.length ? lines.join(" · ") : m.data_summary_nothing();
 }
 
 /** Settings → mixmap data: export, import (merge / replace), reset. */
@@ -65,9 +73,9 @@ export function DataSection({ library, onDataChanged }: Props) {
       await exchange.reset();
       setResetOpen(false);
       onDataChanged();
-      setMessage({ text: `mixmap data was reset. Backup: ${backup}` });
+      setMessage({ text: m.data_reset_done({ backup }) });
     } catch (e) {
-      setMessage({ error: true, text: `Reset failed, nothing was deleted: ${String(e)}` });
+      setMessage({ error: true, text: m.data_reset_failed({ error: String(e) }) });
     } finally {
       setBusy(false);
     }
@@ -79,13 +87,10 @@ export function DataSection({ library, onDataChanged }: Props) {
       const data = await exchange.export(library);
       saveTextFile(exportFileName(), serializeExport(data));
       setMessage({
-        text: `Exported ${plural(data.links.length, "link")}, ${plural(data.nodes.length, "card")}, ${plural(
-          data.tracks.length,
-          "track",
-        )}.`,
+        text: m.data_exported({ contents: contents(data) }),
       });
     } catch (e) {
-      setMessage({ error: true, text: `Export failed: ${String(e)}` });
+      setMessage({ error: true, text: m.data_export_failed({ error: String(e) }) });
     }
   };
 
@@ -114,10 +119,12 @@ export function DataSection({ library, onDataChanged }: Props) {
       setPending(undefined);
       onDataChanged();
       setMessage({
-        text: `${summaryText(summary)}${backup ? ` Backup of the previous data: ${backup}` : ""}`,
+        text: backup
+          ? m.data_import_done_backup({ backup, summary: summaryText(summary) })
+          : summaryText(summary),
       });
     } catch (e) {
-      setMessage({ error: true, text: `Import failed, nothing was changed: ${String(e)}` });
+      setMessage({ error: true, text: m.data_import_failed({ error: String(e) }) });
     } finally {
       setBusy(false);
     }
@@ -125,13 +132,13 @@ export function DataSection({ library, onDataChanged }: Props) {
 
   return (
     <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
-      <legend className="px-1 text-muted-foreground">mixmap data</legend>
+      <legend className="px-1 text-muted-foreground">{m.data_legend()}</legend>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => void exportFile()} title="Links, graph positions and manual matches">
-          Export .mixmap.json
+        <Button onClick={() => void exportFile()} title={m.data_export_hint()}>
+          {m.data_export()}
         </Button>
         <Button disabled={busy} onClick={() => void chooseFile()}>
-          Import .mixmap.json…
+          {m.data_import()}
         </Button>
         <Button
           className="ml-auto"
@@ -143,7 +150,7 @@ export function DataSection({ library, onDataChanged }: Props) {
           }}
           variant="ghost"
         >
-          Reset database…
+          {m.data_reset()}
         </Button>
       </div>
       {resetOpen && <ResetPanel onCancel={() => setResetOpen(false)} onReset={runReset} />}
@@ -155,11 +162,9 @@ export function DataSection({ library, onDataChanged }: Props) {
           <div>
             <span className="font-medium [overflow-wrap:anywhere]">{pending.name}</span>
             <div className="text-xs text-muted-foreground">
-              {plural(pending.data.links.length, "link")},{" "}
-              {plural(pending.data.nodes.length, "card")},{" "}
-              {plural(pending.data.tracks.length, "track")}
+              {contents(pending.data)}
               {pending.data.exportedAt > 0 &&
-                ` · exported ${new Date(pending.data.exportedAt).toLocaleString()}`}
+                ` · ${m.data_exported_at({ date: new Date(pending.data.exportedAt).toLocaleString() })}`}
             </div>
           </div>
           <RadioGroup
@@ -173,10 +178,8 @@ export function DataSection({ library, onDataChanged }: Props) {
                 className="flex-col items-start gap-0 text-[13px] font-normal"
                 htmlFor="import-merge"
               >
-                Merge
-                <span className="text-xs text-muted-foreground">
-                  Keep what's here; for each link and position the newer version wins.
-                </span>
+                {m.data_import_merge()}
+                <span className="text-xs text-muted-foreground">{m.data_import_merge_hint()}</span>
               </Label>
             </div>
             <div className="flex items-start gap-2">
@@ -185,9 +188,9 @@ export function DataSection({ library, onDataChanged }: Props) {
                 className="flex-col items-start gap-0 text-[13px] font-normal"
                 htmlFor="import-replace"
               >
-                Replace everything
+                {m.data_import_replace()}
                 <span className="text-xs text-muted-foreground">
-                  mixmap data here is replaced by the file. A backup is saved first.
+                  {m.data_import_replace_hint()}
                 </span>
               </Label>
             </div>
@@ -198,10 +201,14 @@ export function DataSection({ library, onDataChanged }: Props) {
               onClick={() => void runImport()}
               variant={mode === "replace" ? "destructive" : "default"}
             >
-              {busy ? "Importing…" : mode === "replace" ? "Back up and replace" : "Merge"}
+              {busy
+                ? m.data_importing()
+                : mode === "replace"
+                  ? m.data_import_replace_submit()
+                  : m.data_import_merge()}
             </Button>
             <Button disabled={busy} onClick={() => setPending(undefined)}>
-              Cancel
+              {m.common_cancel()}
             </Button>
           </div>
         </div>

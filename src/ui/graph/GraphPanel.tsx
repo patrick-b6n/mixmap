@@ -22,6 +22,7 @@ import { GraphCanvas } from "./GraphCanvas";
 import type { LinkActions } from "./useLinkActions";
 import type { MixmapData } from "./useMixmap";
 import { queryKeys } from "../queries";
+import { m } from "@/paraglide/messages.js";
 
 type Props = {
   actions: LinkActions;
@@ -34,8 +35,6 @@ type Props = {
   onSelectLink: (link: { from: string; to: string } | undefined) => void;
   selectedLink?: { from: string; to: string };
 };
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Upper center area: filters and the graph canvas. */
 export function GraphPanel({
@@ -159,7 +158,7 @@ export function GraphPanel({
     actions.undo.push(entry);
     toast(label, {
       action: {
-        label: "Undo",
+        label: m.undo_action(),
         onClick: () =>
           void actions
             .run(() => actions.undo.undoEntry(entry))
@@ -179,11 +178,10 @@ export function GraphPanel({
         if (!node) return;
         await nodesRepository.remove(trackKey);
         data.refresh();
-        offerUndo("Removed from graph", {
-          label: "remove from graph",
+        offerUndo(m.graph_removed(), {
+          label: m.undo_entry_remove_from_graph(),
           undo: async () => {
-            if (!(await nodesRepository.restore(node)))
-              throw new Error("the track no longer exists");
+            if (!(await nodesRepository.restore(node))) throw new Error(m.graph_track_gone());
           },
         });
       })
@@ -226,18 +224,15 @@ export function GraphPanel({
         data.refresh();
         offerUndo(
           links.length === 0
-            ? "Removed from graph"
-            : `Removed from graph, ${plural(links.length, "link")} deleted`,
+            ? m.graph_removed()
+            : m.graph_removed_with_links({ links: m.data_count_links({ count: links.length }) }),
           {
-            label: "remove from graph",
+            label: m.undo_entry_remove_from_graph(),
             undo: async () => {
-              if (!(await nodesRepository.restore(node)))
-                throw new Error("the track no longer exists");
+              if (!(await nodesRepository.restore(node))) throw new Error(m.graph_track_gone());
               const restored = await linksRepository.restore(links);
               if (restored < links.length) {
-                throw new Error(
-                  `${links.length - restored} link(s) could not be restored: their tracks are gone`,
-                );
+                throw new Error(m.undo_links_not_restored({ count: links.length - restored }));
               }
             },
           },
@@ -285,7 +280,7 @@ export function GraphPanel({
         setLayoutRun((r) => r + 1);
         data.refresh();
         actions.undo.push({
-          label: "auto-layout",
+          label: m.undo_entry_auto_layout(),
           undo: async () => {
             await nodesRepository.move(before);
             setNodes(await nodesRepository.list());
@@ -298,7 +293,7 @@ export function GraphPanel({
   };
 
   const onLocateMissing = useCallback(() => {
-    toast("Not on the graph — drag it from the table to add it.");
+    toast(m.graph_locate_missing());
   }, []);
 
   const onMoved = (positions: GraphNodeRow[]) => {
@@ -309,10 +304,13 @@ export function GraphPanel({
     <div className="flex h-full flex-col">
       {confirmDeleteAll && (
         <ConfirmDialog
-          confirmLabel={`Delete ${plural(confirmDeleteAll.links.length, "link")}`}
-          description={`All ${plural(confirmDeleteAll.links.length, "incoming and outgoing link")} of “${
-            confirmDeleteAll.title
-          }” will be deleted.`}
+          confirmLabel={m.graph_delete_links({
+            links: m.data_count_links({ count: confirmDeleteAll.links.length }),
+          })}
+          description={m.graph_delete_all_description({
+            links: m.graph_in_out_links({ count: confirmDeleteAll.links.length }),
+            track: confirmDeleteAll.title,
+          })}
           onCancel={() => setConfirmDeleteAll(undefined)}
           onConfirm={() => {
             const { links } = confirmDeleteAll;
@@ -325,23 +323,25 @@ export function GraphPanel({
             }
             actions.deleteLinks(links).catch((e) => setError(String(e)));
           }}
-          title="Delete all links of this track?"
+          title={m.graph_delete_all_title()}
         />
       )}
       {confirmDeleteNode && (
         <ConfirmDialog
           confirmLabel={
             confirmDeleteNode.links.length === 0
-              ? "Remove"
-              : `Remove and delete ${plural(confirmDeleteNode.links.length, "link")}`
+              ? m.graph_remove()
+              : m.graph_remove_and_delete({
+                  links: m.data_count_links({ count: confirmDeleteNode.links.length }),
+                })
           }
           description={
             confirmDeleteNode.links.length === 0
-              ? `“${confirmDeleteNode.title}” will be taken off the graph. It has no links.`
-              : `“${confirmDeleteNode.title}” will be taken off the graph, and all ${plural(
-                  confirmDeleteNode.links.length,
-                  "incoming and outgoing link",
-                )} will be deleted.`
+              ? m.graph_remove_no_links({ track: confirmDeleteNode.title })
+              : m.graph_remove_with_links({
+                  links: m.graph_in_out_links({ count: confirmDeleteNode.links.length }),
+                  track: confirmDeleteNode.title,
+                })
           }
           onCancel={() => setConfirmDeleteNode(undefined)}
           onConfirm={() => {
@@ -349,7 +349,7 @@ export function GraphPanel({
             setConfirmDeleteNode(undefined);
             deleteNode(trackKey, links);
           }}
-          title="Remove track from graph?"
+          title={m.graph_remove_title()}
         />
       )}
       <FilterBar
@@ -371,13 +371,9 @@ export function GraphPanel({
         total={nodes?.length ?? 0}
       >
         {nodes && nodes.length > 1 && (
-          <Button
-            disabled={layingOut}
-            onClick={onAutoLayout}
-            title="Arrange the graph left to right (Ctrl+Z to undo)"
-          >
+          <Button disabled={layingOut} onClick={onAutoLayout} title={m.graph_auto_layout_hint()}>
             <Network />
-            {layingOut ? "Arranging…" : "Auto-layout"}
+            {layingOut ? m.graph_arranging() : m.graph_auto_layout()}
           </Button>
         )}
       </FilterBar>
@@ -397,7 +393,7 @@ export function GraphPanel({
         <div className="flex items-center gap-2 border-b px-3 py-1 text-destructive" role="alert">
           <span className="flex-1">{error ?? String(nodesQuery.error)}</span>
           <Button
-            aria-label="Dismiss"
+            aria-label={m.common_dismiss()}
             onClick={() => setError(undefined)}
             size="icon-compact"
             variant="ghost"
@@ -435,12 +431,12 @@ export function GraphPanel({
             />
             {nodes.length === 0 && (
               <Placeholder className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                Drag tracks from the table onto the graph to start.
+                {m.graph_empty()}
               </Placeholder>
             )}
           </>
         ) : (
-          <Placeholder>Loading…</Placeholder>
+          <Placeholder>{m.common_loading()}</Placeholder>
         )}
       </div>
     </div>
