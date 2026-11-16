@@ -2591,6 +2591,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "rusqlite",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

@@ -134,7 +134,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
                   checkForUpdate().then(
                     (r) =>
                       setUpdateInfo(
-                        r.latest ? `${r.latest.title} is available: see the banner above.` : "mixmap is up to date.",
+                        r.updateAvailable ? `${r.title} is available: see the banner above.` : "mixmap is up to date.",
                       ),
                     (e: unknown) => setUpdateInfo(`Couldn't check: ${String(e)}`),
                   );

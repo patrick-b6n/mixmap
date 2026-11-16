@@ -229,7 +229,7 @@ pub fn run() {
             overlay_hidden,
             show_main,
             updater::update_install,
-            updater::update_manifest
+            updater::update_check
         ])
         .build(tauri::generate_context!())
         .expect("error while building mixmap")

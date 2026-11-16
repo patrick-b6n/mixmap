@@ -36,3 +36,18 @@ export function isNewer(candidate: string, current: string): boolean {
   const b = parseCalver(current);
   return a !== undefined && b !== undefined && a.getTime() > b.getTime();
 }
+
+/**
+ * The version of a release published at `now`, given the existing release tags
+ * (`v<version>`): the CalVer of `now`, unless that isn't strictly newer than the
+ * highest tag (two pushes within a second, a clock running behind) – then the highest
+ * tag plus one second. So every release gets a new, higher version and never fails.
+ */
+export function nextReleaseVersion(now: Date, tags: readonly string[]): { date: Date; version: string } {
+  const latest = Math.max(
+    -Infinity,
+    ...tags.map((tag) => parseCalver(tag.trim().replace(/^v/, ""))?.getTime() ?? -Infinity),
+  );
+  const date = now.getTime() > latest ? now : new Date(latest + 1000);
+  return { date, version: calver(date) };
+}

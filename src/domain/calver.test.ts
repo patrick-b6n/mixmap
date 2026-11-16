@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calver, isNewer, parseCalver, releaseTitle } from "./calver";
+import { calver, isNewer, nextReleaseVersion, parseCalver, releaseTitle } from "./calver";
 
 describe("CalVer", () => {
   it("drops leading zeros", () => {
@@ -32,5 +32,15 @@ describe("CalVer", () => {
     expect(isNewer("garbage", "2026.1115.9")).toBe(false);
     expect(parseCalver("2026.230.0")).toBeUndefined();
     expect(parseCalver("2026.1115.250000")).toBeUndefined();
+  });
+
+  it("gives every release a higher version than the existing tags", () => {
+    const now = new Date(Date.UTC(2026, 10, 16, 8, 21, 26));
+    expect(nextReleaseVersion(now, []).version).toBe("2026.1116.82126");
+    expect(nextReleaseVersion(now, ["v2026.1116.81227", "nightly", ""]).version).toBe("2026.1116.82126");
+    // Same second as the latest release, or a clock behind it: latest + 1 s.
+    expect(nextReleaseVersion(now, ["v2026.1116.82126"]).version).toBe("2026.1116.82127");
+    expect(nextReleaseVersion(now, ["v2026.1116.235959"]).version).toBe("2026.1117.0");
+    expect(nextReleaseVersion(now, ["v2026.1231.235959"]).date.toISOString()).toBe("2027-01-01T00:00:00.000Z");
   });
 });
