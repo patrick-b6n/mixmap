@@ -3,7 +3,7 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, type Peer, subscribe, SYNC_PROTOCOL, type SyncStatus, type Track } from "../api";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { changeCount, syncNow } from "../sync/sync";
 import { summaryText } from "./DataSection";
 
@@ -108,7 +108,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
     setSyncing(row.id);
     setMessage(undefined);
     try {
-      const result = await syncNow(apiDb, library, (data) => api.syncExchange(row.id, data));
+      const result = await syncNow(appDb, library, (data) => api.syncExchange(row.id, data));
       onDataChanged();
       const got = changeCount(result.received) ? summaryText(result.received) : "nothing new";
       const gave = changeCount(result.sent) ? summaryText(result.sent!) : "nothing new";

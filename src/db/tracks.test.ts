@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Track } from "../api";
 import { portableKey } from "../domain/matching";
-import { migrate } from "./schema";
-import { memoryDb } from "./testing";
+import { testDb } from "./testing";
 import { ensureTrackStatement, listTracks, reconcile, setManualMatch } from "./tracks";
 
 const track = (id: string, artist: string, title: string, length: number): Track => ({
@@ -21,13 +20,12 @@ const track = (id: string, artist: string, title: string, length: number): Track
 });
 
 describe("tracks", () => {
-  let db: ReturnType<typeof memoryDb>;
+  let db: Awaited<ReturnType<typeof testDb>>;
   const a = track("rb1", "ATB", "Ecstasy", 353);
   const b = track("rb2", "Caru", "San Andreas", 197);
 
   beforeEach(async () => {
-    db = memoryDb();
-    await migrate(db);
+    db = await testDb();
     await db.execute([ensureTrackStatement(a).statement, ensureTrackStatement(b).statement]);
   });
 

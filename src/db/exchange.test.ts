@@ -3,21 +3,20 @@ import { portableKey } from "../domain/matching";
 import { addNode, removeNode } from "./nodes";
 import { checkExport, exportData, exportFileName, nodesFromBoards, serializeExport } from "./exchange";
 import { createLink, deleteLink } from "./links";
-import { migrate, tombstoneId } from "./schema";
+import { tombstoneId } from "./schema";
 import { setSetting } from "./settings";
-import { memoryDb, track } from "./testing";
+import { testDb, track } from "./testing";
 import { setManualMatch } from "./tracks";
 
 describe("export", () => {
-  let db: ReturnType<typeof memoryDb>;
+  let db: Awaited<ReturnType<typeof testDb>>;
   const a = track("rb1", "ATB", "Ecstasy");
   const b = track("rb2", "Caru", "San Andreas");
   const c = track("rb3", "Cloonee", "X-Rated");
   const [ka, kb, kc] = [a, b, c].map(portableKey);
 
   beforeEach(async () => {
-    db = memoryDb();
-    await migrate(db);
+    db = await testDb();
   });
 
   it("exports everything that syncs, keyed by portable track key", async () => {

@@ -15,7 +15,6 @@ use crate::network::paired::PairedStore;
 use crate::network::{Discovery, SyncHub};
 use crate::nowplaying::{Poller, Update};
 use crate::service::{LibraryService, Source};
-use crate::store::{Statement, Store};
 
 /// Sends an event to the UI: (name, JSON payload).
 pub type Emit = Arc<dyn Fn(&'static str, Value) + Send + Sync>;
@@ -34,7 +33,6 @@ pub struct App {
     library: Arc<LibraryService>,
     network: Mutex<Option<Network>>,
     now_playing: Arc<Mutex<(Option<Update>, Option<Poller>)>>,
-    store: Arc<Store>,
     ui_present: Mutex<Arc<dyn Fn() -> bool + Send + Sync>>,
     /// Keeps the master.db watcher alive.
     watcher: Mutex<Option<Box<dyn Send>>>,
@@ -78,7 +76,7 @@ struct PeerArg {
 }
 
 impl App {
-    pub fn new(source: Source, store: Store, emit: Emit) -> Arc<Self> {
+    pub fn new(source: Source, emit: Emit) -> Arc<Self> {
         let app = Arc::new(Self {
             artwork: Arc::new(ArtworkCache::new(crate::paths::artwork_dir())),
             calibration: Arc::default(),
@@ -86,7 +84,6 @@ impl App {
             library: LibraryService::new(source),
             network: Mutex::new(None),
             now_playing: Arc::default(),
-            store: Arc::new(store),
             ui_present: Mutex::new(Arc::new(|| true)),
             watcher: Mutex::new(None),
         });
@@ -303,18 +300,6 @@ impl App {
                 self.rewatch();
                 to_value(status)
             }
-            "db_query" => {
-                let stmt: Statement = arg(args)?;
-                to_value(blocking(move || app.store.query(&stmt)).await?)
-            }
-            "db_execute" => {
-                #[derive(Deserialize)]
-                struct A {
-                    statements: Vec<Statement>,
-                }
-                let a: A = arg(args)?;
-                to_value(blocking(move || app.store.execute(&a.statements)).await?)
-            }
             "write_backup" => {
                 #[derive(Deserialize)]
                 struct A {
@@ -461,7 +446,6 @@ mod tests {
             Source::Xml {
                 path: std::path::PathBuf::from("does-not-exist.xml"),
             },
-            Store::open_in_memory().unwrap(),
             Arc::new(move |name, _| lock(&sink).push(name.to_string())),
         )
     }
@@ -470,17 +454,6 @@ mod tests {
     async fn dispatches_commands() {
         let app = app();
         assert!(app.call("hello", Value::Null).await.unwrap()["message"].is_string());
-        app.call(
-            "db_execute",
-            json!({"statements": [{"sql": "CREATE TABLE t (v)"}, {"sql": "INSERT INTO t VALUES (?)", "params": [7]}]}),
-        )
-        .await
-        .unwrap();
-        let rows = app
-            .call("db_query", json!({"sql": "SELECT v FROM t"}))
-            .await
-            .unwrap();
-        assert_eq!(rows, json!([{"v": 7}]));
         let lib = app.call("library", Value::Null).await.unwrap();
         assert!(lib["tracks"].is_array());
         // Without network: a clear status, and pairing refuses.
@@ -498,7 +471,7 @@ mod tests {
             Err(Error::NotFound(_))
         ));
         assert!(matches!(
-            app.call("db_query", json!({"nope": 1})).await,
+            app.call("set_library_source", json!({"nope": 1})).await,
             Err(Error::Invalid(_))
         ));
         assert_eq!(

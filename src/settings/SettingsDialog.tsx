@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api, type LibrarySource, type LibraryStatus, type Track } from "../api";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { setSetting, SETTINGS } from "../db/settings";
 import { inTauri } from "../api";
 import { checkForUpdate } from "../desktop/useUpdater";
@@ -75,7 +75,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
         setResult(`Error: ${s.error}`);
       } else {
         // Only a source that loaded is remembered for the next start.
-        await setSetting(apiDb, SETTINGS.librarySource, source);
+        await setSetting(appDb, SETTINGS.librarySource, source);
         setResult(`Loaded ${s.trackCount} tracks, ${s.playlistCount} playlists.`);
       }
     } catch (e) {

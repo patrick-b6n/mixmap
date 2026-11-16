@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { api, subscribe, type Track } from "../api";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { summaryText } from "../settings/DataSection";
 import { answerSync, changeCount } from "./sync";
 
@@ -23,7 +23,7 @@ export function useSyncResponder(library: ReadonlyMap<string, Track>, onDataChan
       subscribe("sync-request", (payload) => {
         const req = payload as SyncRequest;
         const { library: lib, onDataChanged: changed } = latest.current;
-        answerSync(apiDb, lib, req.data).then(
+        answerSync(appDb, lib, req.data).then(
           async ({ data, summary }) => {
             await api.syncReply(req.requestId, { data, summary });
             changed();

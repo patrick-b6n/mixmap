@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use rusqlite::{Connection, MAIN_DB};
+use rusqlite::{Connection, DatabaseName};
 use serde::Serialize;
 
 use super::playlists::{Playlist, read_histories, read_playlists};
@@ -57,9 +57,23 @@ fn read(conn: &Connection) -> rusqlite::Result<Library> {
     })
 }
 
-fn open_image(img: &[u8]) -> Result<Connection, Error> {
+/// An in-memory, read-only connection to a decrypted database image.
+pub fn open_image(img: &[u8]) -> Result<Connection, Error> {
+    use rusqlite::{ffi, serialize::OwnedData};
+    use std::ptr::NonNull;
+
     let mut conn = Connection::open_in_memory().map_err(sql_err)?;
-    conn.deserialize_read_exact(MAIN_DB, img, img.len(), true)
+    // SQLite frees the image when the connection closes, so it must live in memory
+    // from sqlite3_malloc.
+    // SAFETY: the allocation is `img.len()` bytes, filled completely before use and
+    // handed to SQLite, which owns it from then on.
+    let data = unsafe {
+        let ptr = ffi::sqlite3_malloc64(img.len() as u64).cast::<u8>();
+        let ptr = NonNull::new(ptr).ok_or_else(|| Error::Invalid("out of memory".into()))?;
+        std::ptr::copy_nonoverlapping(img.as_ptr(), ptr.as_ptr(), img.len());
+        OwnedData::from_raw_nonnull(ptr, img.len())
+    };
+    conn.deserialize(DatabaseName::Main, data, true)
         .map_err(sql_err)?;
     Ok(conn)
 }

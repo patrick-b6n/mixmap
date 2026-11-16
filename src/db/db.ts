@@ -1,27 +1,9 @@
-import { call } from "../api";
+import type { SqlDb } from "@/persistence/sql-db";
 
-/** SQL parameter: stored as-is; arrays/objects are stored as JSON text. */
-export type SqlValue = boolean | null | number | string | unknown[] | Record<string, unknown>;
+export type { ExecResult, SqlValue, Statement } from "@/persistence/sql-db";
 
-export type Statement = { params?: SqlValue[]; sql: string };
-
-export type ExecResult = { changes: number; lastInsertRowid: number };
-
-/**
- * mixmap's database (mixmap.db). The backend is a thin SQLite bridge; schema,
- * migrations and queries all live in TypeScript.
- */
-export interface Db {
-  /** Run statements in one transaction: all or nothing. */
-  execute(statements: Statement[]): Promise<ExecResult[]>;
-  query<T>(sql: string, params?: SqlValue[]): Promise<T[]>;
-}
-
-/** The app's database, through the API adapter (devserver HTTP or Tauri). */
-export const apiDb: Db = {
-  execute: (statements) => call<ExecResult[]>("db_execute", { statements }),
-  query: <T>(sql: string, params: SqlValue[] = []) => call<T[]>("db_query", { params, sql }),
-};
+/** mixmap's database (mixmap.db): raw SQL over the app's single connection. */
+export type Db = SqlDb;
 
 /** Milliseconds since the epoch; every row carries created/updated timestamps. */
 export const now = (): number => Date.now();

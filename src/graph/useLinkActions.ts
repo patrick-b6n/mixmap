@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { deleteLinksStatements, getLink, type Link, type LinkPatch, restoreLinks, updateLink } from "../db/links";
 import { isTyping, TaskQueue, UndoStack } from "../domain/undo";
 
@@ -55,17 +55,17 @@ export function useLinkActions(refresh: () => void, onError: (message: string) =
     (keys: Pick<Link, "from" | "to">[]) =>
       run(async () => {
         // Re-read: undo must restore what is stored now, not a stale copy.
-        const links = (await Promise.all(keys.map((k) => getLink(apiDb, k.from, k.to)))).filter(
+        const links = (await Promise.all(keys.map((k) => getLink(appDb, k.from, k.to)))).filter(
           (l): l is Link => l !== undefined,
         );
         if (links.length === 0) return;
-        await apiDb.execute(deleteLinksStatements(links));
+        await appDb.execute(deleteLinksStatements(links));
         refresh();
         const label = links.length === 1 ? "Link deleted" : `${links.length} links deleted`;
         const entry = {
           label: label.toLowerCase(),
           undo: async () => {
-            const restored = await restoreLinks(apiDb, links);
+            const restored = await restoreLinks(appDb, links);
             if (restored < links.length) {
               onError(`${links.length - restored} link(s) could not be restored: their tracks are gone`);
             }
@@ -82,8 +82,8 @@ export function useLinkActions(refresh: () => void, onError: (message: string) =
   const update = useCallback(
     (from: string, to: string, u: LinkUpdate) =>
       run(async () => {
-        const patch = typeof u === "function" ? u((await getLink(apiDb, from, to)) ?? notFound()) : u;
-        const link = await updateLink(apiDb, from, to, patch);
+        const patch = typeof u === "function" ? u((await getLink(appDb, from, to)) ?? notFound()) : u;
+        const link = await updateLink(appDb, from, to, patch);
         refresh();
         return link;
       }),

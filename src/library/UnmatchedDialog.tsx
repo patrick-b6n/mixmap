@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Track } from "../api";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { setManualMatch, type TrackRow } from "../db/tracks";
 import { rankCandidates } from "../domain/candidates";
 import type { MatchResult } from "../domain/matching";
@@ -84,7 +84,7 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
     setBusy(true);
     setError(undefined);
     try {
-      await setManualMatch(apiDb, item.trackKey, track.id);
+      await setManualMatch(appDb, item.trackKey, track.id);
       const next = items.find((i) => i.trackKey !== item.trackKey);
       if (next) select(next.trackKey);
       onMapped();

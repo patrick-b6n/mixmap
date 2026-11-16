@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, type Library, type Track } from "../api";
-import { apiDb } from "../db/db";
+import type { Library, Track } from "../api";
+import { appDb } from "@/app/database";
 import { type Link, listLinks } from "../db/links";
-import { startDatabaseOnce } from "../db/startup";
 import { listTracks, type TrackRow } from "../db/tracks";
 import { linkCounts } from "../domain/graph";
 
@@ -28,17 +27,15 @@ export function useMixmap(library: Library | undefined): MixmapData {
 
   useEffect(() => {
     let live = true;
-    startDatabaseOnce(apiDb, api.setLibrarySource)
-      .then(() => Promise.all([listLinks(apiDb), listTracks(apiDb)]))
-      .then(
-        ([l, t]) => {
-          if (!live) return;
-          setLinks(l);
-          setTracks(t);
-          setVersion((v) => v + 1);
-        },
-        () => undefined, // surfaced by the views that write
-      );
+    Promise.all([listLinks(appDb), listTracks(appDb)]).then(
+      ([l, t]) => {
+        if (!live) return;
+        setLinks(l);
+        setTracks(t);
+        setVersion((v) => v + 1);
+      },
+      () => undefined, // surfaced by the views that write
+    );
     return () => {
       live = false;
     };

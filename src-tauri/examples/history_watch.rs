@@ -4,21 +4,16 @@
 //! every new `djmdSongHistory` row and every `djmdContent.DJPlayCount` change, with
 //! the time it was first seen. Run while loading and playing tracks in rekordbox:
 //!
-//!     cargo run --release -p mixmap-core --example history_watch
+//!     cargo run --release --manifest-path src-tauri/Cargo.toml --example history_watch
 //!
 //! Never writes anything: rekordbox's files are only read and decrypted in memory.
 
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant, SystemTime};
 
+use mixmap_lib::rekordbox::library::open_image as open;
 use mixmap_lib::rekordbox::{location, sqlcipher};
-use rusqlite::{Connection, MAIN_DB};
-
-fn open(img: &[u8]) -> rusqlite::Result<Connection> {
-    let mut conn = Connection::open_in_memory()?;
-    conn.deserialize_read_exact(MAIN_DB, img, img.len(), true)?;
-    Ok(conn)
-}
+use rusqlite::Connection;
 
 fn stamp(start: Instant) -> String {
     let now = SystemTime::now()
@@ -99,9 +94,7 @@ fn main() {
         }
         (last_db, last_wal) = (db_t, wal_t);
         let t0 = Instant::now();
-        match sqlcipher::decrypt_file(&db)
-            .and_then(|img| open(&img).map_err(|e| mixmap_lib::Error::Invalid(e.to_string())))
-        {
+        match sqlcipher::decrypt_file(&db).and_then(|img| open(&img)) {
             Ok(conn) => {
                 let h = history(&conn).unwrap_or_default();
                 let p = plays(&conn).unwrap_or_default();

@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { Track } from "../api";
 import { openTextFile, saveTextFile } from "../api/files";
 import { writeBackup } from "../db/backup";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import {
   exportData,
   exportFileName,
@@ -68,8 +68,8 @@ export function DataSection({ library, onDataChanged }: Props) {
     setBusy(true);
     setMessage(undefined);
     try {
-      const backup = await writeBackup(apiDb, library, "before-reset");
-      await resetData(apiDb);
+      const backup = await writeBackup(appDb, library, "before-reset");
+      await resetData(appDb);
       setResetConfirm(undefined);
       onDataChanged();
       setMessage({ text: `mixmap data was reset. Backup: ${backup}` });
@@ -83,7 +83,7 @@ export function DataSection({ library, onDataChanged }: Props) {
   const exportFile = async () => {
     setMessage(undefined);
     try {
-      const data = await exportData(apiDb, library);
+      const data = await exportData(appDb, library);
       saveTextFile(exportFileName(), serializeExport(data));
       setMessage({
         text: `Exported ${plural(data.links.length, "link")}, ${plural(data.nodes.length, "card")}, ${plural(
@@ -116,8 +116,8 @@ export function DataSection({ library, onDataChanged }: Props) {
     setMessage(undefined);
     try {
       let backup = "";
-      if (mode === "replace") backup = await writeBackup(apiDb, library, "before-import");
-      const summary = await importData(apiDb, pending.data, mode, library);
+      if (mode === "replace") backup = await writeBackup(appDb, library, "before-import");
+      const summary = await importData(appDb, pending.data, mode, library);
       setPending(undefined);
       onDataChanged();
       setMessage({

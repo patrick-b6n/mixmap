@@ -1,7 +1,7 @@
 //! Diagnostics for #41: how big is rekordbox's memory, how fast is a scan, where is a
 //! title? Read-only.
 //!
-//!     cargo run --release -p mixmap-core --example memory_probe -- "Some Title"
+//!     cargo run --release --manifest-path src-tauri/Cargo.toml --example memory_probe -- "Some Title"
 
 use std::time::Instant;
 

@@ -4,8 +4,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
-import { api } from "../api";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import {
   createLink,
   createLinkStatements,
@@ -24,7 +23,6 @@ import {
   removeNodeStatements,
   restoreNode,
 } from "../db/nodes";
-import { startDatabaseOnce } from "../db/startup";
 import { DEFAULT_BPM_TOLERANCE } from "../domain/compatibility";
 import { type GraphFilter, isActive, matchingNodes } from "../domain/filters";
 import { buildGraph } from "../domain/graph";
@@ -120,12 +118,10 @@ export function GraphPanel({
   // Nodes of the graph; reloaded when shared data changes (e.g. new links).
   useEffect(() => {
     let live = true;
-    startDatabaseOnce(apiDb, api.setLibrarySource)
-      .then(() => listNodes(apiDb))
-      .then(
-        (n) => live && setNodes(n),
-        (e) => live && setError(String(e)),
-      );
+    listNodes(appDb).then(
+      (n) => live && setNodes(n),
+      (e) => live && setError(String(e)),
+    );
     return () => {
       live = false;
     };
@@ -163,7 +159,7 @@ export function GraphPanel({
       if (statements.length === 0) return;
       dropping.current = true;
       // Node and link in one transaction: never a node without its link.
-      await apiDb.execute(statements);
+      await appDb.execute(statements);
       data.refresh();
     } catch (e) {
       setError(String(e));
@@ -173,7 +169,7 @@ export function GraphPanel({
   };
 
   const onLink = (source: string, target: string) => {
-    createLink(apiDb, source, target).then(data.refresh, (e) => setError(String(e)));
+    createLink(appDb, source, target).then(data.refresh, (e) => setError(String(e)));
   };
 
   /** Undo entry + toast for a removed node (and the links removed with it). */
@@ -194,14 +190,14 @@ export function GraphPanel({
     actions
       .run(async () => {
         // Re-read: Undo must restore the stored position (drags are saved async).
-        const node = (await listNodes(apiDb)).find((n) => n.trackKey === trackKey);
+        const node = (await listNodes(appDb)).find((n) => n.trackKey === trackKey);
         if (!node) return;
-        await removeNode(apiDb, trackKey);
+        await removeNode(appDb, trackKey);
         data.refresh();
         offerUndo("Removed from graph", {
           label: "remove from graph",
           undo: async () => {
-            if (!(await restoreNode(apiDb, node))) throw new Error("the track no longer exists");
+            if (!(await restoreNode(appDb, node))) throw new Error("the track no longer exists");
           },
         });
       })
@@ -232,20 +228,20 @@ export function GraphPanel({
     actions
       .run(async () => {
         // Re-read: Undo must restore what is stored now (drags are saved async).
-        const node = (await listNodes(apiDb)).find((n) => n.trackKey === trackKey);
+        const node = (await listNodes(appDb)).find((n) => n.trackKey === trackKey);
         if (!node) return;
-        const links = (await Promise.all(keys.map((k) => getLink(apiDb, k.from, k.to)))).filter(
+        const links = (await Promise.all(keys.map((k) => getLink(appDb, k.from, k.to)))).filter(
           (l): l is Link => l !== undefined,
         );
-        await apiDb.execute([...removeNodeStatements(trackKey), ...deleteLinksStatements(links)]);
+        await appDb.execute([...removeNodeStatements(trackKey), ...deleteLinksStatements(links)]);
         data.refresh();
         offerUndo(
           links.length === 0 ? "Removed from graph" : `Removed from graph, ${plural(links.length, "link")} deleted`,
           {
             label: "remove from graph",
             undo: async () => {
-              if (!(await restoreNode(apiDb, node))) throw new Error("the track no longer exists");
-              const restored = await restoreLinks(apiDb, links);
+              if (!(await restoreNode(appDb, node))) throw new Error("the track no longer exists");
+              const restored = await restoreLinks(appDb, links);
               if (restored < links.length) {
                 throw new Error(`${links.length - restored} link(s) could not be restored: their tracks are gone`);
               }
@@ -276,14 +272,14 @@ export function GraphPanel({
       .run(async () => {
         // ELK is large: load it on first use.
         const { autoLayout } = await import("../domain/layout");
-        const before = await listNodes(apiDb);
+        const before = await listNodes(appDb);
         // Current links, not the ones captured at click time (the task may have waited).
         const positions = await autoLayout(
           before.map((n) => n.trackKey),
-          await listLinks(apiDb),
+          await listLinks(appDb),
         );
         await moveNodes(
-          apiDb,
+          appDb,
           positions.map((p) => ({ trackKey: p.key, x: p.x, y: p.y })),
         );
         // Show the new positions right away (the canvas remounts from this list).
@@ -296,8 +292,8 @@ export function GraphPanel({
         actions.undo.push({
           label: "auto-layout",
           undo: async () => {
-            await moveNodes(apiDb, before);
-            setNodes(await listNodes(apiDb));
+            await moveNodes(appDb, before);
+            setNodes(await listNodes(appDb));
             setLayoutRun((r) => r + 1);
           },
         });
@@ -311,7 +307,7 @@ export function GraphPanel({
   }, []);
 
   const onMoved = (positions: GraphNodeRow[]) => {
-    moveNodes(apiDb, positions).catch((e) => setError(String(e)));
+    moveNodes(appDb, positions).catch((e) => setError(String(e)));
   };
 
   return (

@@ -3,9 +3,8 @@ import { portableKey } from "../domain/matching";
 import { addNode, listNodes, removeNode } from "./nodes";
 import { exportData, importData, parseExport, resetData, serializeExport } from "./exchange";
 import { createLink, deleteLink, listLinks, updateLink } from "./links";
-import { migrate } from "./schema";
 import { getSetting, setSetting } from "./settings";
-import { memoryDb, track } from "./testing";
+import { testDb, track } from "./testing";
 import { listTracks, setManualMatch } from "./tracks";
 
 const a = track("rb1", "ATB", "Ecstasy");
@@ -14,8 +13,7 @@ const c = track("rb3", "Cloonee", "X-Rated");
 const [ka, kb, kc] = [a, b, c].map(portableKey);
 
 async function fresh() {
-  const db = memoryDb();
-  await migrate(db);
+  const db = await testDb();
   return db;
 }
 

@@ -4,8 +4,8 @@ import { RefreshCw, Settings, Unlink } from "lucide-react";
 import { Placeholder } from "@/components/Placeholder";
 import { Button } from "@/components/ui/button";
 import { api, type Playlist } from "./api";
-import { apiDb } from "./db/db";
-import { startDatabaseOnce } from "./db/startup";
+import { openAppDatabase } from "@/app/database";
+import { restoreSettings } from "./db/startup";
 import { buildTree, findNode, trackIdsOf } from "./domain/playlistTree";
 import { GraphPanel } from "./graph/GraphPanel";
 import { LinkEditor } from "./graph/LinkEditor";
@@ -89,7 +89,9 @@ export default function App() {
 
   // Once: prepare mixmap.db and restore persisted settings (e.g. the library source).
   useEffect(() => {
-    startDatabaseOnce(apiDb, api.setLibrarySource).catch((e) => setDbError(`mixmap.db: ${String(e)}`));
+    openAppDatabase()
+      .then(({ sql }) => restoreSettings(sql, api.setLibrarySource))
+      .catch((e: unknown) => setDbError(`mixmap.db: ${String(e)}`));
   }, []);
 
   const selectedNode = useMemo(() => {

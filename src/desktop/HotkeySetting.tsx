@@ -2,7 +2,7 @@ import { Keyboard } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { setSetting, SETTINGS } from "../db/settings";
 
 /** "Overlay hotkey" field (desktop app only): registered right away, then remembered. */
@@ -26,7 +26,7 @@ export function HotkeySetting() {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const h = await invoke<string>("set_overlay_hotkey", { accelerator: value });
-      await setSetting(apiDb, SETTINGS.overlayHotkey, h);
+      await setSetting(appDb, SETTINGS.overlayHotkey, h);
       setCurrent(h);
       setMessage({ text: `${h} now shows and hides the overlay.` });
     } catch (err) {

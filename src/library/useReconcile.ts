@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Library } from "../api";
-import { apiDb } from "../db/db";
-import { startDatabaseOnce } from "../db/startup";
+import type { Library } from "../api";
+import { appDb } from "@/app/database";
 import { reconcile } from "../db/tracks";
 import type { MatchResult } from "../domain/matching";
 
@@ -28,10 +27,7 @@ export function useReconcile(library: Library | undefined): {
     // An empty library (failed or not yet loaded) would mark every track missing.
     if (!library || library.tracks.length === 0) return;
     let live = true;
-    const run = queue.then(async () => {
-      await startDatabaseOnce(apiDb, api.setLibrarySource);
-      return reconcile(apiDb, library.tracks);
-    });
+    const run = queue.then(() => reconcile(appDb, library.tracks));
     queue = run.catch(() => undefined);
     run.then(
       (r) => {

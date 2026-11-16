@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { addNode, listNodes, removeNode } from "../db/nodes";
 import { exportData } from "../db/exchange";
 import { createLink, deleteLink, listLinks, updateLink } from "../db/links";
-import { migrate } from "../db/schema";
-import { memoryDb, track } from "../db/testing";
+import { testDb, track } from "../db/testing";
 import { portableKey } from "../domain/matching";
 import { answerSync, changeCount, syncNow } from "./sync";
 
@@ -14,8 +13,7 @@ const [ka, kb, kc] = [a, b, c].map(portableKey);
 const tick = () => new Promise((r) => setTimeout(r, 3));
 
 async function fresh() {
-  const db = memoryDb();
-  await migrate(db);
+  const db = await testDb();
   return db;
 }
 

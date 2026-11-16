@@ -1,19 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { portableKey } from "../domain/matching";
 import { cleanTags, createLink, createLinks, deleteLink, listLinks, restoreLinks, updateLink } from "./links";
-import { migrate, tombstoneId } from "./schema";
-import { memoryDb, track } from "./testing";
+import { tombstoneId } from "./schema";
+import { testDb, track } from "./testing";
 
 describe("links", () => {
-  let db: ReturnType<typeof memoryDb>;
+  let db: Awaited<ReturnType<typeof testDb>>;
   const a = track("rb1", "ATB", "Ecstasy");
   const b = track("rb2", "Caru", "San Andreas");
   const ka = portableKey(a);
   const kb = portableKey(b);
 
   beforeEach(async () => {
-    db = memoryDb();
-    await migrate(db);
+    db = await testDb();
   });
 
   const tombstones = () => db.query<{ id: string; kind: string }>("SELECT kind, id FROM tombstones");

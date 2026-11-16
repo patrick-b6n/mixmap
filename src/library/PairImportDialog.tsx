@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { Playlist, Track } from "../api";
-import { apiDb } from "../db/db";
+import { appDb } from "@/app/database";
 import { createLinks, type Link } from "../db/links";
 import { proposePairs } from "../domain/pairImport";
 
@@ -54,7 +54,7 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
     setError(undefined);
     try {
       await createLinks(
-        apiDb,
+        appDb,
         chosen.map((p) => ({ from: p.from, to: p.to })),
       );
       onCreated();

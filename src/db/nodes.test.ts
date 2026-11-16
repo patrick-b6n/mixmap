@@ -2,19 +2,17 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { portableKey } from "../domain/matching";
 import { addNode, listNodes, moveNodes, removeNode, restoreNode } from "./nodes";
 import { createLink, listLinks } from "./links";
-import { migrate } from "./schema";
-import { memoryDb, track } from "./testing";
+import { testDb, track } from "./testing";
 
 describe("graph nodes", () => {
-  let db: ReturnType<typeof memoryDb>;
+  let db: Awaited<ReturnType<typeof testDb>>;
   const a = track("rb1", "ATB", "Ecstasy");
   const b = track("rb2", "Caru", "San Andreas");
   const c = track("rb3", "Estelle", "American Boy");
   const [ka, kb, kc] = [a, b, c].map(portableKey);
 
   beforeEach(async () => {
-    db = memoryDb();
-    await migrate(db);
+    db = await testDb();
   });
 
   it("places tracks with positions", async () => {
