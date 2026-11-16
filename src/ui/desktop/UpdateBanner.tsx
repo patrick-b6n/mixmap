@@ -56,7 +56,7 @@ export function UpdateBanner() {
     >
       <Download className="size-4 flex-none text-primary" />
       <span className="min-w-0 flex-1 truncate">
-        {m.update_available({ title: check.title ?? "" })}{" "}
+        {m.update_available({ version: check.latestVersion ?? "" })}{" "}
         {error && <span className="text-destructive">{error}</span>}
       </span>
       <Button

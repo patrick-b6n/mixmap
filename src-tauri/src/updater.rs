@@ -1,7 +1,9 @@
 //! Self-update of the portable exe from GitHub Releases (docs/release.md).
 //!
-//! 1. `update_check`: `GET /repos/{REPO}/releases/latest` and a SemVer comparison of
-//!    its tag (`v<CalVer>`) with the running version.
+//! 1. `update_check`: `GET /repos/{REPO}/releases/latest` and a comparison of its tag
+//!    (`vYYYY.MM.DD.HHMM`, docs/release.md) with the running version, both in SemVer
+//!    form (`YYYY.MMDD.HHMM`, what the exe carries). Tags in any other form (e.g. the
+//!    older `YYYY.MMDD.HHMMSS`) are not offered.
 //! 2. `update_install`: asks GitHub again (never trusts URLs from the WebView),
 //!    downloads `mixmap.exe.sha256` and `mixmap.exe` of that release, checks size and
 //!    SHA-256, renames the running exe to `*.old` (Windows allows renaming a running
@@ -42,8 +44,6 @@ fn agent(timeout: Duration) -> ureq::Agent {
 #[derive(Debug, Deserialize)]
 struct GithubRelease {
     tag_name: String,
-    #[serde(default)]
-    name: Option<String>,
     html_url: String,
     #[serde(default)]
     assets: Vec<GithubAsset>,
@@ -60,12 +60,10 @@ struct GithubAsset {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheck {
-    /// Version of the running app (`0.0.0` in development).
+    /// Version of the running app as CalVer (`2026.11.16.1345`; `0.0.0` in development).
     pub current_version: String,
-    /// Version of the latest release (its tag without `v`), `None` without releases.
+    /// Version of the latest release as CalVer, `None` without a usable release.
     pub latest_version: Option<String>,
-    /// The release's title, e.g. "2026-11-16 08:21:26 UTC".
-    pub title: Option<String>,
     /// The release page (release notes).
     pub release_url: Option<String>,
     /// Whether the latest release is newer than the running app. Never for
@@ -75,9 +73,63 @@ pub struct UpdateCheck {
 
 // --- Pure logic (unit-tested) ---
 
-/// `v2026.1116.82126` → `2026.1116.82126`; `None` for anything that is no version.
-fn tag_version(tag: &str) -> Option<semver::Version> {
-    semver::Version::parse(tag.strip_prefix('v')?).ok()
+fn days_in_month(year: u64, month: u64) -> u64 {
+    match month {
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => {
+            29
+        }
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// `2026.11.16.1345` → SemVer `2026.1116.1345`; `None` if it is no valid CalVer.
+/// Same conversion as src/business/calver.ts.
+pub fn calver_to_semver(calver: &str) -> Option<semver::Version> {
+    let parts: Vec<&str> = calver.split('.').collect();
+    let [year, month, day, time] = parts.as_slice() else {
+        return None;
+    };
+    let digits = |s: &str, len: usize| {
+        (s.len() == len && s.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| s.parse::<u64>().ok())
+            .flatten()
+    };
+    let (year, month, day) = (digits(year, 4)?, digits(month, 2)?, digits(day, 2)?);
+    let (hour, minute) = (
+        digits(&time[..2.min(time.len())], 2)?,
+        digits(time.get(2..)?, 2)?,
+    );
+    let valid = (1..=12).contains(&month)
+        && day >= 1
+        && day <= days_in_month(year, month)
+        && hour <= 23
+        && minute <= 59;
+    valid.then(|| semver::Version::new(year, month * 100 + day, hour * 100 + minute))
+}
+
+/// SemVer `2026.1116.1345` → `2026.11.16.1345`; `None` if it is not such a version.
+pub fn semver_to_calver(version: &semver::Version) -> Option<String> {
+    let (month, day) = (version.minor / 100, version.minor % 100);
+    let (hour, minute) = (version.patch / 100, version.patch % 100);
+    let calver = format!("{}.{month:02}.{day:02}.{hour:02}{minute:02}", version.major);
+    (version.pre.is_empty() && calver_to_semver(&calver).as_ref() == Some(version))
+        .then_some(calver)
+}
+
+/// How the running version is shown: its CalVer, or as is (`0.0.0` in development).
+pub fn display_version(version: &str) -> String {
+    semver::Version::parse(version)
+        .ok()
+        .and_then(|v| semver_to_calver(&v))
+        .unwrap_or_else(|| version.to_string())
+}
+
+/// `v2026.11.16.1345` → (`2026.11.16.1345`, `2026.1116.1345`); `None` for anything else.
+fn tag_version(tag: &str) -> Option<(String, semver::Version)> {
+    let calver = tag.strip_prefix('v')?;
+    Some((calver.to_string(), calver_to_semver(calver)?))
 }
 
 /// Whether `latest` is newer than `current`. A development build (`0.0.0`, or any
@@ -92,11 +144,10 @@ fn is_newer(latest: &semver::Version, current: &str) -> bool {
 fn check(release: Option<&GithubRelease>, current: &str) -> UpdateCheck {
     let latest = release.and_then(|r| tag_version(&r.tag_name));
     UpdateCheck {
-        current_version: current.to_string(),
-        latest_version: latest.as_ref().map(ToString::to_string),
-        title: release.map(|r| r.name.clone().unwrap_or_else(|| r.tag_name.clone())),
+        current_version: display_version(current),
+        latest_version: latest.as_ref().map(|(calver, _)| calver.clone()),
         release_url: release.map(|r| r.html_url.clone()),
-        update_available: latest.as_ref().is_some_and(|l| is_newer(l, current)),
+        update_available: latest.as_ref().is_some_and(|(_, l)| is_newer(l, current)),
     }
 }
 
@@ -299,7 +350,7 @@ mod tests {
         GithubAsset {
             name: name.into(),
             browser_download_url: format!(
-                "https://github.com/{REPO}/releases/download/v2026.1116.82126/{name}"
+                "https://github.com/{REPO}/releases/download/v2026.11.16.1345/{name}"
             ),
             size,
         }
@@ -308,7 +359,6 @@ mod tests {
     fn release(tag: &str) -> GithubRelease {
         GithubRelease {
             tag_name: tag.into(),
-            name: Some("2026-11-16 08:21:26 UTC".into()),
             html_url: format!("https://github.com/{REPO}/releases/tag/{tag}"),
             assets: vec![asset(EXE_ASSET, 100), asset(CHECKSUM_ASSET, 77)],
         }
@@ -316,29 +366,51 @@ mod tests {
 
     #[test]
     fn offers_only_newer_releases_and_never_to_dev_builds() {
-        let r = release("v2026.1116.82126");
-        let c = check(Some(&r), "2026.1116.81227");
+        let r = release("v2026.11.16.1345");
+        let c = check(Some(&r), "2026.1116.1344");
         assert!(c.update_available);
-        assert_eq!(c.latest_version.as_deref(), Some("2026.1116.82126"));
-        assert_eq!(c.title.as_deref(), Some("2026-11-16 08:21:26 UTC"));
-        assert!(!check(Some(&r), "2026.1116.82126").update_available);
+        assert_eq!(c.latest_version.as_deref(), Some("2026.11.16.1345"));
+        assert_eq!(c.current_version, "2026.11.16.1344");
+        assert!(!check(Some(&r), "2026.1116.1345").update_available);
         assert!(!check(Some(&r), "2026.1117.0").update_available);
         assert!(!check(Some(&r), "0.0.0").update_available);
-        assert!(!check(Some(&release("nightly")), "2026.1116.0").update_available);
+        assert_eq!(check(Some(&r), "0.0.0").current_version, "0.0.0");
+        // Tags in another form are never offered (also the older YYYY.MMDD.HHMMSS).
+        for tag in [
+            "nightly",
+            "v2026.1116.82126",
+            "v2026.11.16.2460",
+            "v2026.02.30.1200",
+        ] {
+            let c = check(Some(&release(tag)), "2026.1116.0");
+            assert!(!c.update_available && c.latest_version.is_none(), "{tag}");
+        }
         let none = check(None, "2026.1116.0");
         assert!(!none.update_available && none.latest_version.is_none());
     }
 
     #[test]
+    fn converts_between_calver_and_semver() {
+        let v = calver_to_semver("2026.01.05.0030").unwrap();
+        assert_eq!(v.to_string(), "2026.105.30");
+        assert_eq!(semver_to_calver(&v).as_deref(), Some("2026.01.05.0030"));
+        assert_eq!(display_version("2027.101.0"), "2027.01.01.0000");
+        assert_eq!(display_version("2026.1116.82126"), "2026.1116.82126");
+        assert!(calver_to_semver("2026.11.16.134").is_none());
+        assert!(calver_to_semver("2024.02.29.0000").is_some());
+        assert!(calver_to_semver("2025.02.29.0000").is_none());
+    }
+
+    #[test]
     fn takes_assets_from_this_repository_only() {
-        let mut r = release("v2026.1116.82126");
+        let mut r = release("v2026.11.16.1345");
         assert!(assets(&r).is_ok());
         r.assets[0].browser_download_url = "https://evil.example/mixmap.exe".into();
         assert!(assets(&r).is_err());
-        let mut r = release("v2026.1116.82126");
+        let mut r = release("v2026.11.16.1345");
         r.assets.pop();
         assert!(assets(&r).unwrap_err().contains(CHECKSUM_ASSET));
-        let mut r = release("v2026.1116.82126");
+        let mut r = release("v2026.11.16.1345");
         r.assets[1].size = MAX_CHECKSUM_SIZE + 1;
         assert!(assets(&r).is_err());
     }

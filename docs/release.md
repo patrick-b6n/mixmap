@@ -5,13 +5,21 @@ mixmap ships as a **single portable `mixmap.exe`**: no installer, no code signin
 
 ## Versions
 
-CalVer from the build time in UTC, as semver-compatible numbers:
-`YYYY.MMDD.HHMMSS` without leading zeros (`2026.105.3012` = 5 Jan, 00:30:12 UTC). Tags
-are `v<version>`, release titles `2026-01-05 00:30:12 UTC`.
+CalVer from the build time in UTC: **`YYYY.MM.DD.HHMM`** (`2026.11.16.1345` = 16 Nov
+2026, 13:45 UTC). Tags are `v<version>`, release titles `mixmap <version>`, and the app
+shows this form (Settings, update banner).
+
+Tauri and the Windows file version need three-part SemVer without leading zeros, so
+the exe itself carries `YYYY.(MM*100+DD).(HH*100+MM)` (`2026.1116.1345`). The
+conversion is in `src/business/calver.ts` (scripts, UI) and `src-tauri/src/updater.rs`
+(updater, shown version), both tested.
 
 Nobody maintains the version by hand: `package.json` holds the placeholder `0.0.0`
 (development builds never offer updates), `tauri.conf.json` reads the version from
 `package.json`, and the version in `src-tauri/Cargo.toml` is unused.
+
+Releases before this scheme were tagged `vYYYY.MMDD.HHMMSS`. The release workflow
+still counts them when picking the next version; the updater never offers them.
 
 ## Publishing
 
@@ -22,14 +30,14 @@ only):
    otherwise publish older code as "Latest").
 2. `pnpm verify` and the migration check (`pnpm db:generate` must not change
    anything).
-3. Determine the version (`scripts/release-version.ts`): the current UTC time, or —
-   when that is not strictly newer than the highest existing tag (two pushes in the
-   same second, a clock running behind) — the highest tag plus one second. Written
-   into `package.json` in the checkout only.
+3. Determine the version (`scripts/release-version.ts`): the current UTC minute, or —
+   when that is not strictly newer than the latest existing tag (two pushes in the
+   same minute, a clock running behind) — the latest tag plus one minute. Its SemVer
+   form is written into `package.json` in the checkout only.
 4. `pnpm tauri build --no-bundle`, then `mixmap.exe` and `mixmap.exe.sha256`
    (`sha256sum` format).
-5. Check the head of `main` again, then `gh release create v<version> --latest
-   --generate-notes` with both files.
+5. Check the head of `main` again, then `gh release create v<version> --title "mixmap
+   <version>" --latest --generate-notes` with both files.
 
 Only one run per ref at a time: a new push cancels the running one (its commits are
 part of the newer release; a cancelled run never created a tag). The workflow token is

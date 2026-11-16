@@ -100,8 +100,9 @@ jobs:
           git add -N src/persistence/migrations
           git diff --exit-code -- src/persistence/migrations
 
-      # The version is the build time in UTC, strictly newer than every existing tag
-      # (otherwise the highest tag + 1 second; scripts/release-version.ts). Written into
+      # The version is the build time in UTC as YYYY.MM.DD.HHMM, strictly newer than
+      # every existing tag (otherwise the latest tag + 1 minute;
+      # scripts/release-version.ts). Its SemVer form (YYYY.MMDD.HHMM) is written into
       # package.json (not committed), which tauri.conf.json reads. The tags come from
       # the API; the checkout stays shallow.
       - name: Determine version

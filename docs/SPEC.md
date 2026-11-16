@@ -94,7 +94,7 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 - **Single portable `mixmap.exe`**, unsigned, no installer (SmartScreen warning on first run). The frontend is embedded; it needs only the WebView2 runtime (part of Windows 10/11). Data stays in `%APPDATA%\mixmap`, so the exe can live anywhere. Build: `pnpm tauri build --no-bundle` → `src-tauri/target/release/mixmap.exe`.
 - **Auto-update from GitHub Releases**: every push to `main` → GitHub Actions checks, builds the exe and publishes a GitHub Release with `mixmap.exe` and `mixmap.exe.sha256`. The app asks the GitHub API for the latest release on startup and offers "install & restart": it asks GitHub again (never trusting URLs from the UI), downloads the exe, verifies size and SHA-256, swaps it in place of the running exe (the old one is renamed and removed on the next start) and restarts. It **never auto-installs**, and shows **no prompt while the overlay is active**. See [Release](release.md).
-- **Versioning: CalVer** `YYYY.MMDD.HHMMSS` in UTC as semver-compatible numbers (leading zeros drop, e.g. `2026.105.3012` for 5 Jan 00:30:12), always higher than the latest tag. Release title shows `2026-11-14 15:30:12 UTC`. Development builds are `0.0.0` and never offer updates. Settings shows the running version.
+- **Versioning: CalVer** `YYYY.MM.DD.HHMM` in UTC (e.g. `2026.11.16.1345`) for tags, release titles and the UI, always higher than the latest tag; the exe carries the SemVer form `YYYY.MMDD.HHMM` (`2026.1116.1345`) that Tauri needs. Development builds are `0.0.0` and never offer updates. Settings shows the running version.
 
 ## Testing
 

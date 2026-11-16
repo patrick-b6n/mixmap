@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { shouldPrompt, type UpdateCheck } from "./updates";
 
 const check: UpdateCheck = {
-  currentVersion: "2026.1115.140000",
-  latestVersion: "2026.1115.150000",
-  releaseUrl: "https://github.com/x/y/releases/tag/v2026.1115.150000",
-  title: "2026-11-15 15:00:00 UTC",
+  currentVersion: "2026.11.15.1400",
+  latestVersion: "2026.11.15.1500",
+  releaseUrl: "https://github.com/x/y/releases/tag/v2026.11.15.1500",
   updateAvailable: true,
 };
 

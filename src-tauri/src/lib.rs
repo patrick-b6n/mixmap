@@ -46,7 +46,7 @@ pub struct Hello {
 pub fn hello() -> Hello {
     Hello {
         message: "hello from mixmap".into(),
-        version: VERSION.get().cloned().unwrap_or_else(|| "0.0.0".into()),
+        version: updater::display_version(VERSION.get().map_or("0.0.0", String::as_str)),
     }
 }
 

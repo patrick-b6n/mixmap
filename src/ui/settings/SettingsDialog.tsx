@@ -168,7 +168,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
                     (r) =>
                       setUpdateInfo(
                         r.updateAvailable
-                          ? m.settings_update_available({ title: r.title ?? "" })
+                          ? m.settings_update_available({ version: r.latestVersion ?? "" })
                           : m.settings_update_none(),
                       ),
                     (e: unknown) =>
