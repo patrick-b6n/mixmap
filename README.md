@@ -17,16 +17,15 @@ mixmap reads your local rekordbox library, lets you link tracks into a directed 
 
 ## Features
 
-- **Reads rekordbox 7 directly**: opens the encrypted `master.db` strictly read-only (or a rekordbox XML export), reloads automatically when it changes. mixmap never writes to rekordbox.
-- **Transition graph**: drag tracks onto a canvas and link them; each link can have a comment, a 1–5 rating and tags. Auto-layout, minimap, undo.
-- **Boards**: separate canvases ("Peak-time techno", "Warm-up", …) sharing the same global links.
-- **Filters**: by name, artist, genre, BPM range, key, rating, comment, or "compatible with selected" (Camelot ±1 / relative key, BPM tolerance, half/double tempo).
-- **Path-finding**: shortest transition paths between two tracks over your links.
-- **Import pairs** from rekordbox playlists or history: back-to-back tracks become links.
-- **Live overlay**: always-on-top, click-through window showing the links for the tracks on your decks (memory reader with calibration wizard, or manual mode). Global hotkey to toggle.
-- **Portable across machines**: tracks are matched by artist + title + duration, so links survive different paths and rekordbox IDs.
-- **Export / import** as `.mixmap.json` (merge or replace) and **LAN sync** between two mixmap instances (paired with a 6-digit code).
-- **Single portable `mixmap.exe`** for Windows with built-in auto-update from GitHub Releases.
+- **Your library, instantly**: mixmap picks up your rekordbox collection on its own and stays in sync as it changes. Your rekordbox library is never touched.
+- **Map your mixes**: drag tracks onto the canvas and connect the ones that blend well. Add notes, ratings and tags to remember why a transition works.
+- **Boards for every vibe**: keep separate maps for warm-up, peak time or that one special set, all sharing what you've already learned.
+- **Find the perfect next track**: filter by genre, tempo, key or rating, or show only the tracks that harmonically fit your current pick.
+- **Get from A to B**: pick two tracks and mixmap shows you the smoothest route between them.
+- **Learn from your sets**: turn a played set or playlist into transitions with one click.
+- **Live on the decks**: a compact overlay sits on top of rekordbox and shows where you can go next with the tracks you have loaded.
+- **Take it anywhere**: your maps follow you to every computer, with backups and sync between machines on the same network.
+- **Just run it**: a single file, no installer, and it keeps itself up to date.
 
 ## Install
 
