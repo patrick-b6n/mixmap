@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/ui/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,9 @@ import {
 import { Input } from "@/ui/components/ui/input";
 import { Label } from "@/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/ui/components/ui/radio-group";
+import { useQuery } from "@tanstack/react-query";
 import { useAppServices } from "@/app/app-services";
+import { queryKeys } from "../queries";
 import { type LibrarySource, type LibraryStatus, type Track } from "@/business/model";
 import { SETTINGS } from "@/business/settings";
 import { inTauri } from "@/app/backend";
@@ -46,15 +48,9 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
   const [path, setPath] = useState(current.kind === "auto" ? "" : current.path);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
-  const [version, setVersion] = useState<string>();
+  const { data: version } = useQuery({ queryKey: queryKeys.version, queryFn: api.version });
   const [updateInfo, setUpdateInfo] = useState<string>();
 
-  useEffect(() => {
-    api.version().then(
-      (v) => setVersion(v),
-      () => undefined,
-    );
-  }, [api]);
   /** A path only makes sense for its kind: switching clears it. */
   const setKind = (k: Kind) => {
     setKindState(k);

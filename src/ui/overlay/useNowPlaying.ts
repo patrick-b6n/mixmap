@@ -1,5 +1,7 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useAppServices } from "@/app/app-services";
+import { queryKeys } from "../queries";
 import { subscribe } from "@/app/events";
 import type { ManualState, NowPlayingUpdate } from "@/business/nowPlaying";
 
@@ -35,24 +37,21 @@ export function useNowPlaying(): {
   manual: ManualState;
   setManual: (m: ManualState) => void;
 } {
-  const { backend: api } = useAppServices();
-  const [auto, setAuto] = useState<NowPlayingUpdate>();
+  const { backend } = useAppServices();
+  const queryClient = useQueryClient();
+  const { data: auto } = useQuery({
+    queryKey: queryKeys.nowPlaying,
+    queryFn: async () => ((await backend.nowPlaying()) ?? null) as NowPlayingUpdate | null,
+  });
   const [manual, setManualState] = useState<ManualState>(loadManual);
 
-  useEffect(() => {
-    const load = () =>
-      api.nowPlaying().then(
-        (u) => u && setAuto(u as NowPlayingUpdate),
-        () => undefined,
-      );
-    void load();
-    const offUpdate = subscribe("now-playing", (u) => setAuto(u as NowPlayingUpdate));
-    const offReconnect = subscribe("reconnect", () => void load());
-    return () => {
-      offUpdate();
-      offReconnect();
-    };
-  }, [api]);
+  useEffect(
+    () =>
+      subscribe("now-playing", (u) =>
+        queryClient.setQueryData(queryKeys.nowPlaying, u as NowPlayingUpdate),
+      ),
+    [queryClient],
+  );
 
   // Another window changed manual mode.
   useEffect(() => {
@@ -66,5 +65,5 @@ export function useNowPlaying(): {
     saveManual(m);
   }, []);
 
-  return { auto, manual, setManual };
+  return { auto: auto ?? undefined, manual, setManual };
 }

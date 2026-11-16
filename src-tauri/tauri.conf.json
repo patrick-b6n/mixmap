@@ -6,8 +6,8 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
-    "devUrl": "http://localhost:5173",
-    "frontendDist": "../dist"
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist/client"
   },
   "app": {
     "windows": [
@@ -26,7 +26,7 @@
       {
         "label": "overlay",
         "title": "mixmap overlay",
-        "url": "overlay.html",
+        "url": "overlay",
         "width": 760,
         "height": 340,
         "minWidth": 320,

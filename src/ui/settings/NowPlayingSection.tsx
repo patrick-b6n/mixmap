@@ -12,27 +12,18 @@ import {
 import { useAppServices } from "@/app/app-services";
 import { type CalibrationRound, type Track } from "@/business/model";
 import { subscribe } from "@/app/events";
-import type { NowPlayingUpdate } from "@/business/nowPlaying";
 import { inTauri } from "@/app/backend";
 import { HotkeySetting } from "@/ui/desktop/HotkeySetting";
 import { TrackTypeahead } from "@/ui/library/TrackTypeahead";
+import { useNowPlaying } from "../overlay/useNowPlaying";
 import { errorText } from "./SyncSection";
 
 type Props = { library: ReadonlyMap<string, Track> };
 
 /** Settings → Now playing: what the memory reader sees, and its calibration. */
 export function NowPlayingSection({ library }: Props) {
-  const { backend: api } = useAppServices();
-  const [update, setUpdate] = useState<NowPlayingUpdate>();
+  const { auto: update } = useNowPlaying();
   const [wizard, setWizard] = useState(false);
-
-  useEffect(() => {
-    api.nowPlaying().then(
-      (u) => u && setUpdate(u as NowPlayingUpdate),
-      () => undefined,
-    );
-    return subscribe("now-playing", (u) => setUpdate(u as NowPlayingUpdate));
-  }, [api]);
 
   return (
     <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">

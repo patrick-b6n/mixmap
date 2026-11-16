@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Toaster } from "sonner";
 import { RefreshCw, Settings, Unlink } from "lucide-react";
 import { Placeholder } from "@/ui/components/Placeholder";
 import { Button } from "@/ui/components/ui/button";
@@ -28,7 +27,7 @@ import { SettingsDialog } from "@/ui/settings/SettingsDialog";
 import { useSyncResponder } from "@/ui/sync/useSyncResponder";
 import { Shell } from "@/ui/shell/Shell";
 
-export default function App() {
+export function MainWindow() {
   const services = useAppServices();
   const { error, library, refresh, status } = useLibrary();
   const [playlistId, setPlaylistId] = useState<string>();
@@ -200,7 +199,6 @@ export default function App() {
 
   return (
     <>
-      <Toaster position="bottom-center" theme="dark" toastOptions={{ className: "!text-[13px]" }} />
       <PairRequestDialog />
       {settingsOpen && (
         <SettingsDialog

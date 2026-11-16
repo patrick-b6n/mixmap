@@ -2,10 +2,12 @@ import { Laptop, Link2, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/ui/components/ui/button";
 import { Input } from "@/ui/components/ui/input";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppServices } from "@/app/app-services";
 import { type Peer, SYNC_PROTOCOL, type SyncStatus, type Track } from "@/business/model";
 import { subscribe } from "@/app/events";
 import { changeCount } from "@/business/sync";
+import { queryKeys } from "../queries";
 import { summaryText } from "./DataSection";
 
 /** One device in the list: discovered on the network and/or paired. */
@@ -42,27 +44,26 @@ function ago(ms: number, now = Date.now()): string {
 export function SyncSection({ library, onDataChanged }: Props) {
   const { backend: api, sync: syncService } = useAppServices();
   const [syncing, setSyncing] = useState<string>();
-  const [status, setStatus] = useState<SyncStatus>();
-  const [error, setError] = useState<string>();
   /** Pairing in progress: waiting for the code shown on that device. */
   const [pairing, setPairing] = useState<{ code: string; id: string; name: string }>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ error?: boolean; text: string }>();
 
+  const queryClient = useQueryClient();
+  const statusQuery = useQuery({ queryKey: queryKeys.syncStatus, queryFn: api.syncStatus });
+  const status = statusQuery.data;
+  const error = statusQuery.error ? String(statusQuery.error) : undefined;
   const load = useCallback(
-    () =>
-      api.syncStatus().then(
-        (s) => {
-          setStatus(s);
-          setError(undefined);
-        },
-        (e) => setError(String(e)),
-      ),
-    [api],
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus }),
+    [queryClient],
+  );
+  const setStatus = useCallback(
+    (update: (s: SyncStatus | undefined) => SyncStatus | undefined) =>
+      queryClient.setQueryData(queryKeys.syncStatus, update),
+    [queryClient],
   );
 
   useEffect(() => {
-    void load();
     const offPeers = subscribe("peers", (peers) =>
       setStatus((s) => s && { ...s, peers: peers as Peer[] }),
     );
@@ -74,7 +75,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
       offFinished();
       offReconnect();
     };
-  }, [load]);
+  }, [load, setStatus]);
 
   const startPairing = async (row: Row) => {
     setBusy(true);

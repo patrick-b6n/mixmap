@@ -1,9 +1,10 @@
 import { Network, X } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/ui/components/ConfirmDialog";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Placeholder } from "@/ui/components/Placeholder";
 import { Button } from "@/ui/components/ui/button";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppServices } from "@/app/app-services";
 import type { Endpoint } from "@/business/links";
 import { type Link } from "@/business/links";
@@ -20,6 +21,7 @@ import type { TrackDrop } from "./dnd";
 import { GraphCanvas } from "./GraphCanvas";
 import type { LinkActions } from "./useLinkActions";
 import type { MixmapData } from "./useMixmap";
+import { queryKeys } from "../queries";
 
 type Props = {
   actions: LinkActions;
@@ -54,7 +56,11 @@ export function GraphPanel({
     title: string;
   }>();
   const [error, setError] = useState<string>();
-  const [nodes, setNodes] = useState<GraphNodeRow[]>();
+  const queryClient = useQueryClient();
+  // Nodes of the graph; reloaded when shared data changes (mixmap.refresh).
+  const nodesQuery = useQuery({ queryKey: queryKeys.nodes, queryFn: nodesRepository.list });
+  const nodes = nodesQuery.data;
+  const setNodes = (next: GraphNodeRow[]) => queryClient.setQueryData(queryKeys.nodes, next);
 
   // Graph filters, never applied to the table.
   const [filter, setFilter] = useState<GraphFilter>({});
@@ -107,20 +113,6 @@ export function GraphPanel({
     () => (shownPath ? pathEdges(shownPath.keys) : undefined),
     [shownPath],
   );
-
-  // Nodes of the graph; reloaded when shared data changes (e.g. new links).
-  useEffect(() => {
-    let live = true;
-    nodesRepository.list().then(
-      (n) => live && setNodes(n),
-      (e) => live && setError(String(e)),
-    );
-    return () => {
-      live = false;
-    };
-    // data.version is a trigger: reload when shared data changed.
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies
-  }, [data.version, nodesRepository]);
 
   /**
    * Table track dropped on the canvas. Onto a node: link node → track (Alt: track →
@@ -401,9 +393,9 @@ export function GraphPanel({
           to={path.to}
         />
       )}
-      {error && (
+      {(error ?? nodesQuery.error) && (
         <div className="flex items-center gap-2 border-b px-3 py-1 text-destructive" role="alert">
-          <span className="flex-1">{error}</span>
+          <span className="flex-1">{error ?? String(nodesQuery.error)}</span>
           <Button
             aria-label="Dismiss"
             onClick={() => setError(undefined)}
