@@ -2381,7 +2381,7 @@ dependencies = [
  "aes",
  "axum",
  "cbc",
- "getrandom 0.2.17",
+ "getrandom 0.4.3",
  "hmac 0.12.1",
  "image",
  "lofty",
