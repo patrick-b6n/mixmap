@@ -19,6 +19,7 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ## Data
 
 ### rekordbox (source, read-only)
+
 - rekordbox 7.x `master.db` (SQLCipher-encrypted SQLite), opened **strictly read-only**. mixmap never writes to rekordbox data.
 - Location auto-detected via `%APPDATA%\Pioneer\rekordboxAgent\storage\options.json` (`db-path`), overridable in settings.
 - Fallback: import a rekordbox **XML export**.
@@ -26,9 +27,11 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - Data shown: artwork, title, artist, album, genre, BPM, key (Camelot first + musical), rating, comment, length, playlists.
 
 ### Artwork
+
 - rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise. On start (after a clean library load) thumbnails no current track uses any more are removed once they are a week old; unfinished temp files after an hour.
 
 ### mixmap's own data
+
 - `%APPDATA%\mixmap\mixmap.db` (SQLite): links, graph node positions, manual track matches, tombstones, settings.
   - Rust exposes it only as a generic bridge (`db_query`, `db_execute` = statements in one transaction). Schema, migrations (`PRAGMA user_version`) and all queries live in TypeScript (`ui/src/db`), tested against `node:sqlite`.
   - Rows have natural cross-machine identities: tracks by portable key, links by (from, to), graph nodes by track. Timestamps are milliseconds since the epoch (`created_at`/`updated_at` on every row); deleting a synced row records a tombstone (`kind`, `id`, `deleted_at`). Settings with a `local.` prefix are machine-specific and never synced.
@@ -36,6 +39,7 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - `%APPDATA%\mixmap\artwork\` — thumbnail cache. `%APPDATA%\mixmap\backups\` — automatic backups.
 
 ### Track identity
+
 - rekordbox IDs and file paths differ between machines, so every linked track is stored with a **portable key**: normalized artist + title + duration (rounded to seconds). The local rekordbox ID is only a cache.
 - On import / sync / library rebuild, tracks are matched by key. Unmatched or ambiguous ones land in an **"Unmatched tracks"** list for one-time manual mapping (remembered).
 - Tracks removed from rekordbox stay in the graph, marked **missing**.
@@ -85,7 +89,7 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
   - Global hotkey (default Ctrl+Alt+M) toggles the overlay, also while rekordbox is in front; configurable under Settings → Now playing (needs Ctrl, Alt or Win; stored as `local.overlay.hotkey`). Hiding it by hotkey keeps the app running even without the main window.
 - One column per active deck, master highlighted; outgoing links with comment, rating, BPM, key; marks a linked track already loaded on another deck.
 - **Now-playing detection**, in order:
-  1. Spike (done, rekordbox 7.2.19): history *is* written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
+  1. Spike (done, rekordbox 7.2.19): history _is_ written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
   2. Own **memory reader** with a **calibration wizard** (load known tracks on deck 1/2, scan memory for the title, derive pointer chains, save per rekordbox version).
      - Implemented in `crates/core/src/memory/`: the process is opened with query + read rights only. Calibration rounds (Settings → Now playing → Calibrate) find every UTF-8/UTF-16 copy of the loaded titles/artists, collect pointer chains from the executable's image (depth ≤ 5, offset ≤ 0x800) and keep those that follow the next tracks. Saved as `%APPDATA%\mixmap\calibration\rekordbox-<version>.json`; read once per second and emitted as `now-playing`. A missing or non-matching calibration shows "recalibrate or set tracks manually" in the overlay. rekordbox 7.2.19: one static object holds both decks' title/artist. The master deck is not read from memory; it is set by hand in the overlay (crown).
   3. **Manual mode** (type-ahead to set the current track) always available as fallback.

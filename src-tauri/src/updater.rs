@@ -194,9 +194,11 @@ mod tests {
         assert!(verify(b"MZ other!!!", &manifest(good)).is_err());
         assert!(verify(b"MZ short", &manifest(good)).is_err());
         let not_exe = b"PK zip file";
-        assert!(verify(not_exe, &manifest(not_exe))
-            .unwrap_err()
-            .contains("not a Windows program"));
+        assert!(
+            verify(not_exe, &manifest(not_exe))
+                .unwrap_err()
+                .contains("not a Windows program")
+        );
     }
 
     #[test]

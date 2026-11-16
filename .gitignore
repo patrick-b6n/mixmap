@@ -1,24 +1,28 @@
-# Rust
-/target/
-**/target/
-
-# Node / Vite
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-ui/dist/
+.tanstack/
 
-# Tauri
-src-tauri/gen/
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/schemas/
 
-# Devserver data (MIXMAP_APP_DIR default), kept apart from %APPDATA%\mixmap
+# Debug builds keep their data here (src-tauri/src/paths.rs), apart from %APPDATA%\mixmap
 .dev-data/
 
 # Local rekordbox snapshot (contains personal library data)
 fixtures/
 
+# Logs
+*.log
+
+# TypeScript build info (tsc -b)
+*.tsbuildinfo
+
 # Editors / OS
 .vscode/
 .idea/
-*.log
 Thumbs.db
 .DS_Store

@@ -1,23 +1,52 @@
-//! mixmap desktop app: a thin Tauri shell over `mixmap_core::app::App`.
+//! mixmap desktop app: the Tauri host and the backend behind the UI.
 //!
-//! The UI talks to the backend through one command, `call(command, args)` (the same
-//! commands the devserver serves as `POST /api/<command>`). Backend events are Tauri
-//! events of the same name. Artwork is served by the `artwork` URI scheme
-//! (`http://artwork.localhost/<track id>?size=small|large`).
+//! The UI talks to the backend through one command, `call(command, args)`, dispatched by
+//! [`app::App`]. Backend events are Tauri events of the same name. Artwork is served by
+//! the `artwork` URI scheme (`http://artwork.localhost/<track id>?size=small|large`).
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+pub mod app;
+pub mod artwork;
+pub mod backups;
+mod error;
 mod hotkey;
+pub mod memory;
+pub mod network;
+pub mod nowplaying;
+pub mod paths;
+pub mod rekordbox;
+pub mod service;
+pub mod store;
 mod updater;
 
-use mixmap_core::app::App;
-use mixmap_core::artwork::Size;
-use mixmap_core::service::Source;
-use mixmap_core::store::Store;
+pub use error::Error;
+
+use app::App;
+use artwork::Size;
+use serde::Serialize;
 use serde_json::Value;
-use tauri::http::{header, Response, StatusCode};
+use service::Source;
+use store::Store;
+use tauri::http::{Response, StatusCode, header};
 use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
+
+/// The app version (from package.json via tauri.conf.json), set once at startup.
+static VERSION: OnceLock<String> = OnceLock::new();
+
+#[derive(Debug, Serialize)]
+pub struct Hello {
+    pub message: String,
+    pub version: String,
+}
+
+pub fn hello() -> Hello {
+    Hello {
+        message: "hello from mixmap".into(),
+        version: VERSION.get().cloned().unwrap_or_else(|| "0.0.0".into()),
+    }
+}
 
 /// The single backend command. Errors are returned as their message.
 #[tauri::command]
@@ -103,16 +132,16 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = std::str::from_utf8(&bytes[i + 1..i + 3])
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(b) = std::str::from_utf8(&bytes[i + 1..i + 3])
                 .ok()
                 .and_then(|h| u8::from_str_radix(h, 16).ok())
                 .ok_or(())
-            {
-                out.push(b);
-                i += 3;
-                continue;
-            }
+        {
+            out.push(b);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;
@@ -121,7 +150,7 @@ fn percent_decode(s: &str) -> String {
 }
 
 pub fn run() {
-    let db = mixmap_core::paths::database_path();
+    let db = crate::paths::database_path();
     let store = Store::open(&db).unwrap_or_else(|e| panic!("cannot open {}: {e}", db.display()));
 
     tauri::Builder::default()
@@ -140,13 +169,14 @@ pub fn run() {
         .manage(hotkey::Current::default())
         .on_window_event(|window, event| {
             // Closing the main window while the overlay is shown keeps the app running.
-            if let (WindowEvent::CloseRequested { .. }, "main") = (event, window.label()) {
-                if !overlay_visible(window.app_handle()) {
-                    window.app_handle().exit(0);
-                }
+            if let (WindowEvent::CloseRequested { .. }, "main") = (event, window.label())
+                && !overlay_visible(window.app_handle())
+            {
+                window.app_handle().exit(0);
             }
         })
         .setup(move |tauri_app| {
+            let _ = VERSION.set(tauri_app.package_info().version.to_string());
             // Left over by a self-update.
             updater::cleanup_old();
             let handle = tauri_app.handle().clone();
@@ -193,6 +223,11 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::percent_decode;
+
+    #[test]
+    fn hello_has_message() {
+        assert!(super::hello().message.contains("hello"));
+    }
 
     #[test]
     fn decodes_ids() {

@@ -4,7 +4,7 @@
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use mixmap_core::app::App;
+use crate::app::App;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
