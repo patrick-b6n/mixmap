@@ -11,7 +11,9 @@ import { listTracks, setManualMatch } from "./tracks";
 const a = track("rb1", "ATB", "Ecstasy");
 const b = track("rb2", "Caru", "San Andreas");
 const c = track("rb3", "Cloonee", "X-Rated");
-const [ka, kb, kc] = [a, b, c].map(portableKey);
+const ka = portableKey(a);
+const kb = portableKey(b);
+const kc = portableKey(c);
 
 async function fresh() {
   const db = await testDb();
@@ -65,7 +67,7 @@ describe("import", () => {
       [
         [kb, kc, "from other"],
         [kc, ka, ""],
-      ].toSorted((p, q) => p[0].localeCompare(q[0])),
+      ].toSorted((p, q) => p[0]!.localeCompare(q[0]!)),
     );
   });
 

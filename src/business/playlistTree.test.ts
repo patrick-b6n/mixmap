@@ -29,7 +29,7 @@ describe("playlistTree", () => {
   it("nests and sorts by seq; orphans become roots", () => {
     const tree = buildTree(lists);
     expect(tree.map((n) => n.playlist.id)).toEqual(["orphan", "a", "b"]);
-    expect(tree[2].children.map((n) => n.playlist.id)).toEqual(["b1", "b2"]);
+    expect(tree[2]?.children.map((n) => n.playlist.id)).toEqual(["b1", "b2"]);
   });
 
   it("collects folder contents in order without duplicates", () => {
@@ -43,6 +43,6 @@ describe("playlistTree", () => {
     expect(buildTree([pl("x", "x", 0)]).map((n) => n.playlist.id)).toEqual(["x"]);
     const tree = buildTree([pl("a", "b", 1), pl("b", "a", 2), pl("c", "a", 0)]);
     expect(tree.map((n) => n.playlist.id)).toEqual(["a", "b"]);
-    expect(tree[0].children.map((n) => n.playlist.id)).toEqual(["c"]);
+    expect(tree[0]?.children.map((n) => n.playlist.id)).toEqual(["c"]);
   });
 });

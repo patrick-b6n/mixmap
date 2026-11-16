@@ -72,6 +72,7 @@ export async function reconcile(db: Db, library: LibraryTrack[]): Promise<MatchR
   const statements: Statement[] = [];
   results.forEach((r, i) => {
     const before = stored[i];
+    if (!before) return;
     if (r.kind === "matched" && (before.rekordboxId !== r.rekordboxId || before.missing)) {
       statements.push({
         params: [r.rekordboxId, r.trackKey],

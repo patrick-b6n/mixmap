@@ -10,7 +10,9 @@ import { answerSync, changeCount, syncNow } from "@/business/sync";
 const a = track("rb1", "ATB", "Ecstasy");
 const b = track("rb2", "Caru", "San Andreas");
 const c = track("rb3", "Cloonee", "X-Rated");
-const [ka, kb, kc] = [a, b, c].map(portableKey);
+const ka = portableKey(a);
+const kb = portableKey(b);
+const kc = portableKey(c);
 const tick = () => new Promise((r) => setTimeout(r, 3));
 
 async function fresh() {

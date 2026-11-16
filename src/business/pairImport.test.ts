@@ -24,7 +24,7 @@ describe("pair import", () => {
   it("de-duplicates by direction and counts occurrences", () => {
     const pairs = proposePairs(["1", "2", "1", "2", "3"], lib, []);
     expect(ids(pairs)).toEqual(["1>2", "2>1", "2>3"]);
-    expect(pairs[0].occurrences).toBe(2);
+    expect(pairs[0]?.occurrences).toBe(2);
   });
 
   it("marks links that already exist", () => {

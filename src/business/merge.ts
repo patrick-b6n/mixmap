@@ -107,7 +107,8 @@ export function resolveManualMatch(
   if (m.targetKey === null) return m.rekordboxId;
   if (byId && portableKey(byId) === m.targetKey) return m.rekordboxId;
   const hits = [...library].filter(([, t]) => portableKey(t) === m.targetKey);
-  return hits.length === 1 ? hits[0][0] : null;
+  const [hit] = hits;
+  return hits.length === 1 && hit ? hit[0] : null;
 }
 
 /** Keep the upserts that pass `keep` (dropping the rest from `live`) and count them. */

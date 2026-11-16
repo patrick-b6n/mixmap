@@ -3,9 +3,10 @@ import { type Db, now } from "./db";
 /** Read a setting (stored as JSON); `undefined` if unset or unreadable. */
 export async function getSetting<T>(db: Db, key: string): Promise<T | undefined> {
   const rows = await db.query<{ value: string }>("SELECT value FROM settings WHERE key = ?", [key]);
-  if (rows.length === 0) return undefined;
+  const [row] = rows;
+  if (!row) return undefined;
   try {
-    return JSON.parse(rows[0].value) as T;
+    return JSON.parse(row.value) as T;
   } catch {
     return undefined;
   }

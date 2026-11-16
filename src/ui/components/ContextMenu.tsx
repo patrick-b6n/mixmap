@@ -46,7 +46,7 @@ export function ContextMenu({ items, onClose, x, y }: Props) {
     };
     if (e.key in go) {
       e.preventDefault();
-      buttons[(go[e.key] + buttons.length) % buttons.length]?.focus();
+      buttons[((go[e.key] ?? 0) + buttons.length) % buttons.length]?.focus();
     }
   };
 

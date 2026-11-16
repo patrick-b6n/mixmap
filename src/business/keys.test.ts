@@ -44,7 +44,7 @@ describe("keys", () => {
       ["11B", "A"],
       ["12B", "E"],
     ];
-    for (const [c, m] of cases) {
+    for (const [c, m] of cases as [string, string][]) {
       const k = parseKey(c)!;
       expect(camelot(k)).toBe(c);
       expect(musical(k)).toBe(m);

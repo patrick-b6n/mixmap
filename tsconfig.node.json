@@ -9,6 +9,7 @@
     "moduleResolution": "Bundler",
     "types": ["node"],
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

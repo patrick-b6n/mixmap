@@ -11,8 +11,8 @@ const target = { artist: "ATB", duration: 352, title: "Ecstasy" };
 
 describe("candidate search", () => {
   it("scores shared words and penalizes duration differences", () => {
-    expect(similarity(target, lib[0])).toBeGreaterThan(similarity(target, lib[1]));
-    expect(similarity(target, lib[2])).toBeLessThanOrEqual(0);
+    expect(similarity(target, lib[0]!)).toBeGreaterThan(similarity(target, lib[1]!));
+    expect(similarity(target, lib[2]!)).toBeLessThanOrEqual(0);
   });
 
   it("without a query offers tracks sharing a word, best first", () => {

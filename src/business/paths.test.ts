@@ -24,7 +24,7 @@ describe("shortest paths", () => {
   it("finds all shortest paths, best rated first", () => {
     const p = shortestPaths(links, "a", "e");
     expect(p.map((x) => x.keys.join(""))).toEqual(["acde", "abde"]);
-    expect(p[0].rating).toBe(9);
+    expect(p[0]?.rating).toBe(9);
   });
 
   it("follows link direction", () => {
@@ -52,7 +52,7 @@ describe("shortest paths", () => {
     const t = performance.now();
     const p = shortestPaths(big, k(0, 0), k(59, 59), 3);
     expect(p).toHaveLength(3);
-    expect(p[0].keys).toHaveLength(119);
+    expect(p[0]?.keys).toHaveLength(119);
     expect(performance.now() - t).toBeLessThan(500);
   });
 

@@ -312,6 +312,7 @@ export function GraphCanvas({
         onConnectEnd={(event, state) => {
           if (state.isValid || !state.fromNode || state.fromHandle?.type !== "source") return;
           const point = "changedTouches" in event ? event.changedTouches[0] : event;
+          if (!point) return;
           const target = document
             .elementFromPoint(point.clientX, point.clientY)
             ?.closest(".react-flow__node")

@@ -8,7 +8,9 @@ import { outgoingLinks } from "./overlay";
 const a = track("1", "ATB", "Ecstasy");
 const b = track("2", "Caru", "San Andreas");
 const c = track("3", "Cloonee", "X-Rated");
-const [ka, kb, kc] = [a, b, c].map(portableKey);
+const ka = portableKey(a);
+const kb = portableKey(b);
+const kc = portableKey(c);
 const link = (from: string, to: string, rating: number | null, comment = ""): Link => ({
   comment,
   createdAt: 1,
@@ -53,8 +55,8 @@ describe("overlay links", () => {
       ],
       master: 1,
     };
-    expect(outgoingLinks(a, 1, links, tracks, library, state)[0].loadedOn).toEqual([2]);
+    expect(outgoingLinks(a, 1, links, tracks, library, state)[0]?.loadedOn).toEqual([2]);
     // Its own deck doesn't count.
-    expect(outgoingLinks(b, 2, links, tracks, library, state)[0].loadedOn).toEqual([1]);
+    expect(outgoingLinks(b, 2, links, tracks, library, state)[0]?.loadedOn).toEqual([1]);
   });
 });

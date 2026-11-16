@@ -67,10 +67,12 @@ export function resolveTrack(
     });
   }
   if (hits.length === 0 && !a) hits = sameTitle;
-  if (hits.length === 1) return { kind: "matched", track: hits[0] };
+  const [hit] = hits;
+  if (hits.length === 1 && hit) return { kind: "matched", track: hit };
   if (hits.length > 1) {
     const pref = hits.filter(preferred);
-    if (pref.length === 1) return { kind: "matched", track: pref[0] };
+    const [preferredHit] = pref;
+    if (pref.length === 1 && preferredHit) return { kind: "matched", track: preferredHit };
     return { candidates: hits, kind: "ambiguous" };
   }
   return { artist, kind: "unknown", title };

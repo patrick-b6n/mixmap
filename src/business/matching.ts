@@ -70,7 +70,8 @@ export function matchTracks(
     const manual = manualMatches.get(s.key);
     if (manual !== undefined && byId.has(manual)) claimed.add(manual);
     const exact = byKey.get(s.key);
-    if (exact?.length === 1) claimed.add(exact[0].id);
+    const [only] = exact ?? [];
+    if (exact?.length === 1 && only) claimed.add(only.id);
   }
   return stored.map((s): MatchResult => {
     const manual = manualMatches.get(s.key);
@@ -84,8 +85,9 @@ export function matchTracks(
         (t) => Math.abs(Math.round(t.length) - seconds) <= 1 && !claimed.has(t.id),
       );
     }
-    if (candidates.length === 1)
-      return { kind: "matched", rekordboxId: candidates[0].id, trackKey: s.key };
+    const [first] = candidates;
+    if (candidates.length === 1 && first)
+      return { kind: "matched", rekordboxId: first.id, trackKey: s.key };
     if (candidates.length > 1) {
       // The previously cached match wins if it is among the candidates.
       const cached = candidates.find((c) => c.id === s.rekordboxId);

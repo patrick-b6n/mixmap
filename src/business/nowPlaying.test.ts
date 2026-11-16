@@ -92,7 +92,7 @@ describe("manual mode type-ahead", () => {
   });
 
   it("suggests without a query and respects the limit", () => {
-    expect(typeahead(lib, " ", [lib[2], lib[0]]).map((t) => t.id)).toEqual(["3", "1"]);
+    expect(typeahead(lib, " ", [lib[2]!, lib[0]!]).map((t) => t.id)).toEqual(["3", "1"]);
     expect(typeahead(lib, "", lib, 2)).toHaveLength(2);
   });
 

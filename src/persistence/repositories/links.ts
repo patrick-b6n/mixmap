@@ -139,7 +139,7 @@ export async function updateLink(
   const [r] = await db.execute([
     { params, sql: `UPDATE links SET ${sets.join(", ")} WHERE from_track = ? AND to_track = ?` },
   ]);
-  if (r.changes === 0) throw new Error("link not found");
+  if (!r || r.changes === 0) throw new Error("link not found");
   return (await getLink(db, from, to))!;
 }
 

@@ -15,7 +15,8 @@ export function camelot(k: Key): string {
 }
 
 export function musical(k: Key): string {
-  return (k.minor ? MINOR : MAJOR)[k.num - 1];
+  // num is 1–12 for every parsed key.
+  return (k.minor ? MINOR : MAJOR)[k.num - 1] ?? camelot(k);
 }
 
 /**
@@ -33,7 +34,7 @@ function parseWheel(s: string): Key | undefined {
   if (!m) return undefined;
   const n = Number(m[1]);
   if (n < 1 || n > 12) return undefined;
-  switch (m[2].toLowerCase()) {
+  switch (m[2]?.toLowerCase()) {
     case "a":
       return { minor: true, num: n };
     case "b":

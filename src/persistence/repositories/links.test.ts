@@ -34,7 +34,9 @@ describe("links", () => {
       [ka, kb, "nice"],
       [kb, ka, ""],
     ]);
-    const [{ n }] = await db.query<{ n: number }>("SELECT count(*) AS n FROM tracks");
+    const [{ n }] = (await db.query<{ n: number }>("SELECT count(*) AS n FROM tracks")) as [
+      { n: number },
+    ];
     expect(n).toBe(2);
   });
 
@@ -92,7 +94,7 @@ describe("links", () => {
     await createLink(db, a, b);
     expect(await tombstones()).toHaveLength(1);
 
-    const gone = { ...(await listLinks(db))[0], from: "gone|track|1" };
+    const gone = { ...(await listLinks(db))[0]!, from: "gone|track|1" };
     expect(await restoreLinks(db, [gone])).toBe(0);
     expect(await listLinks(db)).toHaveLength(1);
   });
@@ -113,7 +115,7 @@ describe("links", () => {
       [
         [ka, kb, "keep"],
         [kb, portableKey(c), ""],
-      ].toSorted((x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1])),
+      ].toSorted((x, y) => x[0]!.localeCompare(y[0]!) || x[1]!.localeCompare(y[1]!)),
     );
   });
 });

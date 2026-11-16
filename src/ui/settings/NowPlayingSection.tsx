@@ -90,7 +90,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
   const decks = Array.from({ length: deckCount }, (_, i) => i + 1);
   const picked = decks.map((d) => library.get(chosen[d] ?? ""));
   const titles = picked.map((t) => t?.title.trim() ?? "");
-  const repeated = decks.some((d, i) => used[d]?.includes(titles[i]));
+  const repeated = decks.some((d, i) => used[d]?.includes(titles[i] ?? ""));
   const complete = picked.every(Boolean) && new Set(titles).size === titles.length && !repeated;
 
   const close = () => {
@@ -106,7 +106,9 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
       const result = await api.calibrationRound(
         decks.map((d, i) => ({ artist: picked[i]!.artist, deck: d, title: picked[i]!.title })),
       );
-      setUsed((u) => Object.fromEntries(decks.map((d, i) => [d, [...(u[d] ?? []), titles[i]]])));
+      setUsed((u) =>
+        Object.fromEntries(decks.map((d, i) => [d, [...(u[d] ?? []), titles[i] ?? ""]])),
+      );
       setLast(result);
       setChosen({});
       setStep({ kind: "result", result });
@@ -230,7 +232,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
                             ? `${picked[i]!.artist} – ${picked[i]!.title}`
                             : m.calibration_not_picked()}
                         </span>
-                        {used[d]?.includes(titles[i]) && (
+                        {used[d]?.includes(titles[i] ?? "") && (
                           <span className="text-destructive">{m.calibration_used_before()}</span>
                         )}
                       </div>

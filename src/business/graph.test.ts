@@ -90,7 +90,7 @@ describe("graph", () => {
         ["b", "b title", true, 2, 3],
       ],
     );
-    expect(g.nodes[0].card.track?.bpm).toBe(128);
+    expect(g.nodes[0]?.card.track?.bpm).toBe(128);
     // Only links with both endpoints on the graph.
     expect(g.edges).toEqual([
       { comment: "nice", from: "a", id: edgeId("a", "b"), rating: 4, to: "b", width: 4.5 },

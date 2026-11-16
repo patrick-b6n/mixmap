@@ -26,8 +26,8 @@ export function proposePairs<T extends TrackIdentity>(
   const existing = new Set(links.map((l) => `${l.from}\u0001${l.to}`));
   const byPair = new Map<string, ProposedPair<T>>();
   for (let i = 0; i + 1 < trackIds.length; i++) {
-    const from = library.get(trackIds[i]);
-    const to = library.get(trackIds[i + 1]);
+    const from = library.get(trackIds[i] ?? "");
+    const to = library.get(trackIds[i + 1] ?? "");
     if (!from || !to) continue;
     const fromKey = portableKey(from);
     const toKey = portableKey(to);

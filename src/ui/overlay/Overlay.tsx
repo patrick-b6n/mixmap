@@ -245,7 +245,10 @@ function DeckColumn({
         <div className="border-b px-2 py-1 text-xs text-muted-foreground">
           {r.kind === "unknown" && m.overlay_unknown({ artist: r.artist, title: r.title })}
           {r.kind === "ambiguous" &&
-            m.overlay_ambiguous({ count: r.candidates.length, title: r.candidates[0].title })}
+            m.overlay_ambiguous({
+              count: r.candidates.length,
+              title: r.candidates[0]?.title ?? "",
+            })}
         </div>
       )}
       {choosing && (

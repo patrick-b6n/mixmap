@@ -96,5 +96,5 @@ export async function restoreNode(db: Db, node: GraphNodeRow): Promise<boolean> 
             SELECT ?, ?, ?, ?, ? WHERE ${exists} ON CONFLICT (track_key) DO NOTHING`,
     },
   ]);
-  return inserted.changes > 0;
+  return (inserted?.changes ?? 0) > 0;
 }
