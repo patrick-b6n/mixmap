@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Music } from "lucide-react";
+import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,8 +19,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Placeholder } from "@/components/Placeholder";
 import { cn } from "@/lib/utils";
-import { artworkUrl, type Track } from "../api";
+import type { Track } from "../api";
 import { TRACK_MIME } from "../graph/dnd";
+import { TrackCard } from "../graph/TrackCard";
+import { Artwork } from "./Artwork";
 import {
   COLUMNS,
   type ColumnId,
@@ -70,6 +72,9 @@ export function TrackTable({ linkCount = NO_LINKS, onLocate, onSelect, selectedI
   const [scrollTop, setScrollTop] = useState(0);
   const [viewHeight, setViewHeight] = useState(400);
   const bodyRef = useRef<HTMLDivElement>(null);
+  /** Row being dragged: drawn off-screen as a graph card for the drag image. */
+  const [dragged, setDragged] = useState<Track>();
+  const ghostRef = useRef<HTMLDivElement>(null);
 
   // Save a moment after the last change (column resizing changes config per move).
   useEffect(() => {
@@ -287,9 +292,13 @@ export function TrackTable({ linkCount = NO_LINKS, onLocate, onSelect, selectedI
                 key={first + i}
                 onClick={() => onSelect(t.id)}
                 onDoubleClick={() => onLocate?.(t.id)}
+                onDragEnd={() => setDragged(undefined)}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(TRACK_MIME, t.id);
                   e.dataTransfer.effectAllowed = "copyLink";
+                  // Show the track as it will look on the graph, not as a table row.
+                  flushSync(() => setDragged(t));
+                  if (ghostRef.current) e.dataTransfer.setDragImage(ghostRef.current, 16, 16);
                 }}
                 role="row"
                 style={{ height: ROW_HEIGHT, top: (first + i) * ROW_HEIGHT }}
@@ -315,43 +324,22 @@ export function TrackTable({ linkCount = NO_LINKS, onLocate, onSelect, selectedI
         </div>
         {rows.length === 0 && <Placeholder>{tracks.length ? "No matches" : "No tracks"}</Placeholder>}
       </div>
-    </div>
-  );
-}
-
-/** Artwork URLs known to have no image, so remounted rows don't ask again. */
-const missingArtwork = new Set<string>();
-
-/** Thumbnail with a placeholder when the track has no artwork. */
-export function Artwork({
-  size = "small",
-  trackId,
-  version,
-}: {
-  size?: "large" | "small";
-  trackId: string;
-  version: number;
-}) {
-  const url = artworkUrl(trackId, size, version);
-  const [failedUrl, setFailedUrl] = useState<string>();
-  const missing = failedUrl === url || missingArtwork.has(url);
-  const box = size === "small" ? "size-6" : "aspect-square w-full";
-  if (missing)
-    return (
-      <div className={cn("flex items-center justify-center rounded-[3px] bg-muted text-muted-foreground", box)}>
-        <Music className={size === "small" ? "size-3" : "size-16"} />
+      {/* Drag image source: rendered off-screen while a row is dragged. */}
+      <div aria-hidden className="pointer-events-none fixed top-0 -left-[1000px]" ref={ghostRef}>
+        {dragged && (
+          <TrackCard
+            artworkVersion={version}
+            card={{
+              artist: dragged.artist,
+              linkCount: linkCount(dragged.id),
+              missing: false,
+              title: dragged.title,
+              track: dragged,
+            }}
+            eager
+          />
+        )}
       </div>
-    );
-  return (
-    <img
-      alt=""
-      className={cn("block rounded-[3px] object-cover", box)}
-      loading="lazy"
-      onError={() => {
-        missingArtwork.add(url);
-        setFailedUrl(url);
-      }}
-      src={url}
-    />
+    </div>
   );
 }

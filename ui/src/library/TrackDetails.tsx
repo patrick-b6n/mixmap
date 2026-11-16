@@ -1,7 +1,7 @@
 import { Placeholder } from "@/components/Placeholder";
 import type { Track } from "../api";
 import { formatBpm, formatLength, keyLabel, stars } from "../domain/trackTable";
-import { Artwork } from "./TrackTable";
+import { Artwork } from "./Artwork";
 
 /** A link as listed in the details panel. */
 export type LinkItem = { comment: string; from: string; label: string; rating: number | null; to: string };

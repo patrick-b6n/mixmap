@@ -15,7 +15,7 @@ import {
 import { type OverlayLink, outgoingLinks } from "../domain/overlay";
 import { formatBpm, keyLabel, stars } from "../domain/trackTable";
 import { useMixmap, type MixmapData } from "../graph/useMixmap";
-import { Artwork } from "../library/TrackTable";
+import { Artwork } from "../library/Artwork";
 import { TrackTypeahead } from "../library/TrackTypeahead";
 import { useLibrary } from "../library/useLibrary";
 import { inTauri } from "../api";
