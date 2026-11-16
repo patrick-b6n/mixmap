@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createTestDb } from "./__tests__/test-db";
+import { createTestDb } from "@/persistence/__tests__/test-db";
 
 describe("schema", () => {
   it("enforces link rules", async () => {
@@ -30,7 +30,9 @@ describe("schema", () => {
       params: ["a", "1", 1],
       sql: "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
     };
-    await expect(db.execute([insert, { sql: "INSERT INTO nope VALUES (1)" }])).rejects.toThrow("no such table");
+    await expect(db.execute([insert, { sql: "INSERT INTO nope VALUES (1)" }])).rejects.toThrow(
+      "no such table",
+    );
     expect(await db.query("SELECT * FROM settings")).toEqual([]);
   });
 });

@@ -23,7 +23,13 @@ axum = "0.8"
 cbc = "0.1"
 getrandom = "0.2"
 hmac = "0.12"
-image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+image = { version = "0.25.10", default-features = false, features = [
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "bmp",
+] }
 lofty = "0.25.5"
 log = "0.4"
 mdns-sd = "0.21.7"

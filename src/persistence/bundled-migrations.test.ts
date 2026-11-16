@@ -7,7 +7,9 @@ import journal from "./migrations/meta/_journal.json";
 describe("loadMigrations", () => {
   it("bundles every journal entry in order", async () => {
     const migrations = await loadMigrations();
-    expect(migrations.map((migration) => migration.tag)).toEqual(journal.entries.map((entry) => entry.tag));
+    expect(migrations.map((migration) => migration.tag)).toEqual(
+      journal.entries.map((entry) => entry.tag),
+    );
   });
 
   it("splits the SQL at the statement breakpoints", async () => {
@@ -47,14 +49,14 @@ describe("parseMigrations", () => {
   });
 
   it("fails if a file is missing", async () => {
-    await expect(parseMigrations(twoEntries, (tag) => (tag === "0000_a" ? "SELECT 1;" : undefined))).rejects.toThrow(
-      /0001_b\.sql is missing/,
-    );
+    await expect(
+      parseMigrations(twoEntries, (tag) => (tag === "0000_a" ? "SELECT 1;" : undefined)),
+    ).rejects.toThrow(/0001_b\.sql is missing/);
   });
 
   it("fails if the journal is not numbered consecutively", async () => {
-    await expect(parseMigrations({ entries: [{ idx: 1, tag: "0001_b" }] }, () => "SELECT 1;")).rejects.toThrow(
-      /expected 0/,
-    );
+    await expect(
+      parseMigrations({ entries: [{ idx: 1, tag: "0001_b" }] }, () => "SELECT 1;"),
+    ).rejects.toThrow(/expected 0/);
   });
 });

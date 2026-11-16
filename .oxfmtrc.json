@@ -1,9 +1,12 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "printWidth": 120,
+  "printWidth": 100,
   "ignorePatterns": [
     "pnpm-lock.yaml",
+    "src/routeTree.gen.ts",
+    "src/paraglide/**",
     "src/persistence/migrations/**",
+    "project.inlang/cache/**",
     "dist/**",
     ".tanstack/**",
     "src-tauri/target/**",

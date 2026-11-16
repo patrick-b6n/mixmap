@@ -63,7 +63,9 @@ export class SqlConnection implements SqlClient {
   exclusive<T>(fn: (client: SqlClient) => Promise<T>): Promise<T> {
     // Watchdog: only if the call has to queue behind another one.
     const watchdog =
-      this.#pending > 0 ? setTimeout(() => this.#onSlowWait(this.#slowWaitMs), this.#slowWaitMs) : undefined;
+      this.#pending > 0
+        ? setTimeout(() => this.#onSlowWait(this.#slowWaitMs), this.#slowWaitMs)
+        : undefined;
     this.#pending += 1;
     const run = this.#queue.then(() =>
       this.#withWindowLock(async () => {

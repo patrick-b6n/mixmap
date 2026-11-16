@@ -1,4 +1,4 @@
-import { openDatabase, type OpenDatabaseOptions } from "../open-database";
+import { openDatabase, type OpenDatabaseOptions } from "@/persistence/open-database";
 import { createNodeSqliteClient, memorySqlite } from "./node-sqlite-client";
 
 /**

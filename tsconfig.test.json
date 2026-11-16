@@ -1,0 +1,17 @@
+{
+  // Test code under src/: test files (*.test.ts[x]) and test-only helpers in
+  // __tests__/ folders. Runs in Node (Vitest), so it gets Node types –
+  // persistence tests can use node:* (node:sqlite). Everything else is
+  // inherited from tsconfig.app.json (same strictness, same `@/*` paths).
+  // Source files imported by tests are checked here too, but stay in the
+  // app program as well, so WebView code is still checked without Node types.
+  "extends": "./tsconfig.app.json",
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/__tests__"],
+  "exclude": [],
+  "compilerOptions": {
+    // Test code runs in Node (>= 26): ES2023 for Array#toSorted in fakes.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo"
+  }
+}

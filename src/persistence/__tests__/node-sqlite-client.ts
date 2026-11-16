@@ -1,6 +1,6 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
-import { type SqlClient, SqlError, type SqlRow } from "../sql-client";
+import { type SqlClient, SqlError, type SqlRow } from "@/persistence/sql-client";
 
 /**
  * {@link SqlClient} on top of Node's built-in `node:sqlite`, behaving like

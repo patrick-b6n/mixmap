@@ -55,7 +55,9 @@ const TRANSACTION_CONTROL = /^\s*(begin|commit|end|rollback|savepoint|release)\b
 
 function assertNoTransactionControl(sql: string) {
   if (TRANSACTION_CONTROL.test(sql)) {
-    throw new Error(`Transaction statements are not allowed via Drizzle ("${sql.trim()}"); use Database.transaction()`);
+    throw new Error(
+      `Transaction statements are not allowed via Drizzle ("${sql.trim()}"); use Database.transaction()`,
+    );
   }
 }
 
@@ -89,7 +91,9 @@ export function rowToArray(row: SqlRow): unknown[] {
   const keys = Object.keys(row);
   // JS orders integer-like keys first, so the column order would be lost.
   if (keys.length > 1 && keys.some((key) => INTEGER_LIKE.test(key))) {
-    throw new Error(`Result column names must not be integers (got ${keys.join(", ")}); alias the column`);
+    throw new Error(
+      `Result column names must not be integers (got ${keys.join(", ")}); alias the column`,
+    );
   }
   return keys.map((key) => row[key]);
 }

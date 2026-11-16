@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createNodeSqliteClient, memorySqlite } from "./__tests__/node-sqlite-client";
+import { createNodeSqliteClient, memorySqlite } from "@/persistence/__tests__/node-sqlite-client";
 import { loadMigrations, parseMigrations } from "./bundled-migrations";
 import { SqlConnection } from "./connection";
 import { MIGRATIONS_TABLE, migrate } from "./migrator";
@@ -14,17 +14,22 @@ function setup() {
   const tracking = () => sqlite.prepare(`SELECT * FROM ${MIGRATIONS_TABLE} ORDER BY idx`).all();
   const tables = () =>
     sqlite
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
       .all()
       .map((row) => row.name);
-  const foreignKeys = () => (sqlite.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys;
+  const foreignKeys = () =>
+    (sqlite.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys;
   return { connection, foreignKeys, sqlite, tables, tracking };
 }
 
 /** Migrations from `[tag, sql]` pairs, statements separated like drizzle-kit does. */
 function migrations(...files: [tag: string, sql: string][]) {
   const byTag = new Map(files);
-  return parseMigrations({ entries: files.map(([tag], idx) => ({ idx, tag })) }, (tag) => byTag.get(tag));
+  return parseMigrations({ entries: files.map(([tag], idx) => ({ idx, tag })) }, (tag) =>
+    byTag.get(tag),
+  );
 }
 
 /** Connection whose `PRAGMA foreign_keys = ON` fails. */
@@ -52,7 +57,9 @@ describe("migrate", () => {
     await expect(migrate(connection, bundled, { now })).resolves.toEqual({
       applied: bundled.map((migration) => migration.tag),
     });
-    expect(tables()).toEqual(expect.arrayContaining([MIGRATIONS_TABLE, "links", "nodes", "settings", "tracks"]));
+    expect(tables()).toEqual(
+      expect.arrayContaining([MIGRATIONS_TABLE, "links", "nodes", "settings", "tracks"]),
+    );
     expect(tracking()).toEqual(
       bundled.map((migration, idx) => ({
         idx,
@@ -69,7 +76,9 @@ describe("migrate", () => {
     await migrate(connection, bundled, { now });
     const before = tracking();
 
-    await expect(migrate(connection, bundled, { now: () => new Date("2026-01-01T00:00:00.000Z") })).resolves.toEqual({
+    await expect(
+      migrate(connection, bundled, { now: () => new Date("2026-01-01T00:00:00.000Z") }),
+    ).resolves.toEqual({
       applied: [],
     });
     expect(tracking()).toEqual(before);
@@ -88,7 +97,8 @@ describe("migrate", () => {
 
   it("runs all statements of a migration", async () => {
     const { connection, tables } = setup();
-    const sql = "CREATE TABLE a (id INTEGER);\n--> statement-breakpoint\nCREATE TABLE b (id INTEGER);";
+    const sql =
+      "CREATE TABLE a (id INTEGER);\n--> statement-breakpoint\nCREATE TABLE b (id INTEGER);";
     await migrate(connection, await migrations(["0000_ab", sql]), { now });
     expect(tables()).toEqual([MIGRATIONS_TABLE, "a", "b"]);
   });
@@ -125,9 +135,14 @@ describe("migrate", () => {
 
   it("rolls back all pending migrations if one fails", async () => {
     const { connection, foreignKeys, tables, tracking } = setup();
-    const broken: [string, string] = ["0001_broken", "CREATE TABLE c (id INTEGER);\n--> statement-breakpoint\nNOT SQL"];
+    const broken: [string, string] = [
+      "0001_broken",
+      "CREATE TABLE c (id INTEGER);\n--> statement-breakpoint\nNOT SQL",
+    ];
 
-    await expect(migrate(connection, await migrations(A, broken), { now })).rejects.toThrow(/syntax error/);
+    await expect(migrate(connection, await migrations(A, broken), { now })).rejects.toThrow(
+      /syntax error/,
+    );
     // The tracking table is created inside the transaction, too.
     expect(tables()).toEqual([]);
     expect(foreignKeys()).toBe(1);
@@ -141,13 +156,17 @@ describe("migrate", () => {
       const { connection, sqlite } = failingPragma();
       const broken: [string, string] = ["0000_broken", "NOT SQL"];
 
-      await expect(migrate(connection, await migrations(broken), { now })).rejects.toThrow(/syntax error/);
+      await expect(migrate(connection, await migrations(broken), { now })).rejects.toThrow(
+        /syntax error/,
+      );
       expect(sqlite.prepare("SELECT name FROM sqlite_master").all()).toEqual([]);
     });
 
     it("reports that error after a successful migration", async () => {
       const { connection } = failingPragma();
-      await expect(migrate(connection, await migrations(A), { now })).rejects.toThrow("pragma failed");
+      await expect(migrate(connection, await migrations(A), { now })).rejects.toThrow(
+        "pragma failed",
+      );
     });
   });
 

@@ -26,7 +26,10 @@ export interface OpenDatabaseResult {
  * pending migrations and returns the Drizzle-based {@link Database}. The app
  * passes the Tauri client, tests a `node:sqlite` one – both take the same path.
  */
-export async function openDatabase(client: SqlClient, options: OpenDatabaseOptions = {}): Promise<OpenDatabaseResult> {
+export async function openDatabase(
+  client: SqlClient,
+  options: OpenDatabaseOptions = {},
+): Promise<OpenDatabaseResult> {
   const connection = new SqlConnection(client, { lockName: options.lockName });
   await resetConnection(connection);
   const migrations = await loadMigrations();

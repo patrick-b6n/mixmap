@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { checkExport } from "@/db/exchange";
+import { checkExport } from "@/business/exchange";
 
-import { createNodeSqliteClient, memorySqlite } from "./__tests__/node-sqlite-client";
-import { VERSION_1_SCHEMA } from "./__tests__/legacy-schema";
+import { createNodeSqliteClient, memorySqlite } from "@/persistence/__tests__/node-sqlite-client";
+import { VERSION_1_SCHEMA } from "@/persistence/__tests__/legacy-schema";
 import { loadMigrations } from "./bundled-migrations";
 import { INIT_MIGRATION, LEGACY_SCHEMA_VERSION, type LegacyBackup } from "./legacy";
 import { MIGRATIONS_TABLE } from "./migrator";
@@ -122,7 +122,9 @@ describe("legacy databases", () => {
   it("refuses a database from a newer app", async () => {
     const sqlite = memorySqlite();
     sqlite.exec(`PRAGMA user_version = ${LEGACY_SCHEMA_VERSION + 1}`);
-    await expect(openDatabase(createNodeSqliteClient(sqlite))).rejects.toThrow("newer than this app");
+    await expect(openDatabase(createNodeSqliteClient(sqlite))).rejects.toThrow(
+      "newer than this app",
+    );
   });
 
   it("tolerates two windows opening the same database at once", async () => {

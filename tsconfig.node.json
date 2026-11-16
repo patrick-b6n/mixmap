@@ -1,0 +1,22 @@
+{
+  // Config files and scripts that run in Node (Vite, Vitest, drizzle-kit, scripts/).
+  "include": ["vite.config.ts", "vitest.config.ts", "drizzle.config.ts", "scripts/**/*.ts"],
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    // scripts/ import src/business/calver.ts; Node needs the extension.
+    "allowImportingTsExtensions": true
+  }
+}

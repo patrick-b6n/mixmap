@@ -96,20 +96,19 @@ export async function adoptLegacyDatabase(
   return connection.transaction(async (client): Promise<LegacyResult> => {
     if (await isTracked(client)) return "tracked";
     await createMigrationsTable(client);
-    await client.execute(`INSERT INTO ${MIGRATIONS_TABLE} (idx, tag, hash, applied_at) VALUES (?, ?, ?, ?)`, [
-      0,
-      init.tag,
-      init.hash,
-      new Date().toISOString(),
-    ]);
+    await client.execute(
+      `INSERT INTO ${MIGRATIONS_TABLE} (idx, tag, hash, applied_at) VALUES (?, ?, ?, ?)`,
+      [0, init.tag, init.hash, new Date().toISOString()],
+    );
     return "adopted";
   });
 }
 
 async function isTracked(client: SqlClient): Promise<boolean> {
-  const rows = await client.select("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = ?", [
-    MIGRATIONS_TABLE,
-  ]);
+  const rows = await client.select(
+    "SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = ?",
+    [MIGRATIONS_TABLE],
+  );
   return rows.length > 0;
 }
 
@@ -132,15 +131,22 @@ const parseJson = (s: string): unknown => {
  * an older mixmap restores the boards. Manual matches keep their rekordbox id only.
  */
 export async function exportVersion1(db: SqlDb, exportedAt = Date.now()): Promise<unknown> {
-  const [tracks, links, boards, boardNodes, manualMatches, tombstones, settings] = await Promise.all([
-    db.query<Record<string, number | string>>("SELECT * FROM tracks ORDER BY key"),
-    db.query<Record<string, number | string | null>>("SELECT * FROM links ORDER BY from_track, to_track"),
-    db.query<Record<string, number | string>>("SELECT * FROM boards ORDER BY position, id"),
-    db.query<Record<string, number | string>>("SELECT * FROM board_nodes ORDER BY board_id, track_key"),
-    db.query<Record<string, number | string>>("SELECT * FROM manual_matches ORDER BY track_key"),
-    db.query<Record<string, number | string>>("SELECT * FROM tombstones ORDER BY kind, id"),
-    db.query<{ key: string; updated_at: number; value: string }>("SELECT * FROM settings ORDER BY key"),
-  ]);
+  const [tracks, links, boards, boardNodes, manualMatches, tombstones, settings] =
+    await Promise.all([
+      db.query<Record<string, number | string>>("SELECT * FROM tracks ORDER BY key"),
+      db.query<Record<string, number | string | null>>(
+        "SELECT * FROM links ORDER BY from_track, to_track",
+      ),
+      db.query<Record<string, number | string>>("SELECT * FROM boards ORDER BY position, id"),
+      db.query<Record<string, number | string>>(
+        "SELECT * FROM board_nodes ORDER BY board_id, track_key",
+      ),
+      db.query<Record<string, number | string>>("SELECT * FROM manual_matches ORDER BY track_key"),
+      db.query<Record<string, number | string>>("SELECT * FROM tombstones ORDER BY kind, id"),
+      db.query<{ key: string; updated_at: number; value: string }>(
+        "SELECT * FROM settings ORDER BY key",
+      ),
+    ]);
   return {
     boardNodes: boardNodes.map((n) => ({
       boardId: n.board_id,

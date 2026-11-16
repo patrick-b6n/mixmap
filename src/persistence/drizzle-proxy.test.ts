@@ -3,7 +3,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import { describe, expect, it } from "vitest";
 
-import { dbError } from "./__tests__/test-db";
+import { dbError } from "@/persistence/__tests__/test-db";
 import { createBatchCallback, createProxyCallback, rowToArray, toSqlValues } from "./drizzle-proxy";
 import type { ExecuteResult, SqlClient, SqlRow, SqlValue } from "./sql-client";
 
@@ -35,7 +35,9 @@ describe("createProxyCallback", () => {
   it("maps run to execute and passes its result through", async () => {
     const { calls, client } = fakeClient([], { rowsAffected: 2, lastInsertId: 7 });
     const result = await createProxyCallback(client)("DELETE FROM items WHERE id = ?", [1], "run");
-    expect(calls).toEqual([{ kind: "execute", sql: "DELETE FROM items WHERE id = ?", params: [1] }]);
+    expect(calls).toEqual([
+      { kind: "execute", sql: "DELETE FROM items WHERE id = ?", params: [1] },
+    ]);
     expect(result).toEqual({ rows: [], rowsAffected: 2, lastInsertId: 7 });
   });
 
@@ -68,14 +70,21 @@ describe("createProxyCallback", () => {
     });
   });
 
-  it.each(["BEGIN", "begin deferred", " commit", "ROLLBACK", "savepoint sp0", "release sp0", "END"])(
-    "rejects the transaction statement %j",
-    async (statement) => {
-      const { calls, client } = fakeClient();
-      await expect(createProxyCallback(client)(statement, [], "run")).rejects.toThrow(/Database\.transaction/);
-      expect(calls).toEqual([]);
-    },
-  );
+  it.each([
+    "BEGIN",
+    "begin deferred",
+    " commit",
+    "ROLLBACK",
+    "savepoint sp0",
+    "release sp0",
+    "END",
+  ])("rejects the transaction statement %j", async (statement) => {
+    const { calls, client } = fakeClient();
+    await expect(createProxyCallback(client)(statement, [], "run")).rejects.toThrow(
+      /Database\.transaction/,
+    );
+    expect(calls).toEqual([]);
+  });
 
   it("does not mistake other statements for transaction statements", async () => {
     const { calls, client } = fakeClient();
@@ -93,7 +102,9 @@ describe("with Drizzle", () => {
       .from(items)
       .where(sql`${items.active} = ${true}`);
     expect(rows).toEqual([{ name: "Miete", id: 3, active: true }]);
-    expect(calls[0]?.sql).toBe('select "name", "id", "active" from "items" where "items"."active" = ?');
+    expect(calls[0]?.sql).toBe(
+      'select "name", "id", "active" from "items" where "items"."active" = ?',
+    );
     expect(calls[0]?.params).toEqual([1]);
   });
 

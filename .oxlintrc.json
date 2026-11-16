@@ -1,24 +1,159 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "react", "unicorn", "oxc", "import", "vitest"],
+  "plugins": ["typescript", "unicorn", "oxc", "react", "import", "vitest"],
   "categories": {
     "correctness": "error",
-    "suspicious": "warn"
+    "suspicious": "error"
   },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "ignorePatterns": [
+    "dist/**",
+    ".tanstack/**",
+    "src-tauri/target/**",
+    "src-tauri/gen/**",
+    "src/paraglide/**",
+    "src/routeTree.gen.ts",
+    "project.inlang/cache/**"
+  ],
   "rules": {
-    "eslint/no-underscore-dangle": [
-      "warn",
-      {
-        "allow": ["__TAURI_INTERNALS__"]
-      }
-    ],
-    "import/no-unassigned-import": [
-      "warn",
-      {
-        "allow": ["**/*.css"]
-      }
-    ],
-    "react/react-in-jsx-scope": "off"
+    // New JSX transform (react-jsx): no React import needed.
+    "react/react-in-jsx-scope": "off",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    // Side-effect imports of stylesheets are intended.
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
+    "eslint/no-underscore-dangle": ["error", { "allow": ["__TAURI_INTERNALS__"] }]
   },
-  "ignorePatterns": ["dist"]
+  // Layer boundaries (docs/architecture.md). Each layer has exactly one override:
+  // when several overrides set `no-restricted-imports` for the same file, the last one
+  // wins instead of merging.
+  //
+  // Regexes catch both the `@/` alias and relative imports
+  // (`@/persistence/x`, `../persistence/x`, `../../persistence`).
+  "overrides": [
+    {
+      "files": ["src/ui/**", "src/routes/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(@/|(\\.\\./)+)persistence(/|$)",
+                "message": "UI and routes must not import from src/persistence: use the services from the composition root (src/app)."
+              },
+              {
+                "regex": "^(drizzle-orm|drizzle-kit|@tauri-apps/plugin-sql)(/|$)",
+                "message": "Database access only in src/persistence: UI and routes use the services from src/app."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/business/**"],
+      "rules": {
+        // No JSX in business: no extension may contain JSX.
+        "react/jsx-filename-extension": ["error", { "extensions": [] }],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(@/|(\\.\\./)+)persistence(/|$)",
+                "message": "Business must not import from src/persistence. The repository interfaces (ports) live in src/business; persistence implements them."
+              },
+              {
+                "regex": "^(@/|(\\.\\./)+)(ui|routes|app)(/|$)",
+                "message": "Business must not import from src/ui, src/routes or src/app."
+              },
+              {
+                "regex": "^(@/|(\\.\\./)+)(router|routeTree\\.gen)(\\.[cm]?[jt]sx?)?$",
+                "message": "Business must not import src/router.tsx or src/routeTree.gen.ts."
+              },
+              {
+                "regex": "^(@/|(\\.\\./)+)paraglide(/|$)",
+                "message": "Business returns codes and data, not UI text; text is translated in src/ui or src/routes (docs/i18n.md)."
+              },
+              {
+                "regex": "^(drizzle-orm|drizzle-kit)(/|$)",
+                "message": "Drizzle/SQLite only in src/persistence."
+              },
+              {
+                "regex": "^(@[^/]+/)?([^/]*-)?react(-[^/]*)?(/|$)",
+                "message": "Business must be free of React (also react-dom, @tanstack/react-*, @base-ui/react, @xyflow/react, …)."
+              },
+              {
+                "regex": "^@tauri-apps/",
+                "message": "Business must be free of Tauri. Platform access goes behind an interface (business/ports.ts), implemented in src/app."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/persistence/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(@/|(\\.\\./)+)(ui|routes|app)(/|$)",
+                "message": "Persistence must not import from src/ui, src/routes or src/app."
+              },
+              {
+                "regex": "^(@/|(\\.\\./)+)(router|routeTree\\.gen)(\\.[cm]?[jt]sx?)?$",
+                "message": "Persistence must not import src/router.tsx or src/routeTree.gen.ts."
+              },
+              {
+                "regex": "^(@[^/]+/)?([^/]*-)?react(-[^/]*)?(/|$)",
+                "message": "Persistence must be free of React."
+              },
+              {
+                "regex": "^(drizzle-kit|node:)",
+                "message": "Persistence runs in the WebView: no drizzle-kit or node:* (only in tests: src/persistence/**/__tests__ and *.test.ts)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    // Persistence tests run in Node against node:sqlite (docs/testing.md). Must come
+    // after the persistence override (last one wins) and repeats its other
+    // restrictions.
+    {
+      "files": [
+        "src/persistence/**/__tests__/**",
+        "src/persistence/**/*.test.ts",
+        "src/persistence/**/*.test.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(@/|(\\.\\./)+)(ui|routes|app)(/|$)",
+                "message": "Persistence must not import from src/ui, src/routes or src/app."
+              },
+              {
+                "regex": "^(@/|(\\.\\./)+)(router|routeTree\\.gen)(\\.[cm]?[jt]sx?)?$",
+                "message": "Persistence must not import src/router.tsx or src/routeTree.gen.ts."
+              },
+              {
+                "regex": "^(@[^/]+/)?([^/]*-)?react(-[^/]*)?(/|$)",
+                "message": "Persistence must be free of React."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

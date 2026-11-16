@@ -110,7 +110,11 @@ async function migrateInTransaction(
   }
 }
 
-async function applyPending(client: SqlClient, migrations: readonly Migration[], now: () => Date): Promise<string[]> {
+async function applyPending(
+  client: SqlClient,
+  migrations: readonly Migration[],
+  now: () => Date,
+): Promise<string[]> {
   await createMigrationsTable(client);
   const rows = await client.select(`SELECT idx, tag, hash FROM ${MIGRATIONS_TABLE} ORDER BY idx`);
   const applied = rows.map((row) => ({
@@ -125,12 +129,10 @@ async function applyPending(client: SqlClient, migrations: readonly Migration[],
     for (const statement of migration.statements) {
       await client.execute(statement);
     }
-    await client.execute(`INSERT INTO ${MIGRATIONS_TABLE} (idx, tag, hash, applied_at) VALUES (?, ?, ?, ?)`, [
-      applied.length + offset,
-      migration.tag,
-      migration.hash,
-      now().toISOString(),
-    ]);
+    await client.execute(
+      `INSERT INTO ${MIGRATIONS_TABLE} (idx, tag, hash, applied_at) VALUES (?, ?, ?, ?)`,
+      [applied.length + offset, migration.tag, migration.hash, now().toISOString()],
+    );
   }
   return pending.map((migration) => migration.tag);
 }
@@ -156,7 +158,10 @@ function checkApplied(
       );
     }
     if (row.hash !== migration.hash) {
-      throw new MigrationError("hash_mismatch", `Migration ${row.tag} was changed after it had been applied`);
+      throw new MigrationError(
+        "hash_mismatch",
+        `Migration ${row.tag} was changed after it had been applied`,
+      );
     }
   }
 }
