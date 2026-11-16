@@ -124,7 +124,7 @@ pub(crate) mod tests {
 
     /// Local snapshot of a real master.db (git-ignored). Tests skip without it.
     pub fn fixture() -> Option<PathBuf> {
-        let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/master.db");
+        let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/master.db");
         if p.is_file() {
             Some(p)
         } else {

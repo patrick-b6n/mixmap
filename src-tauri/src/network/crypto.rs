@@ -8,7 +8,7 @@
 //! Requests between paired peers are signed with HMAC-SHA256 over method, path,
 //! timestamp and body hash (see `signature`); the secret itself never travels.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -16,7 +16,7 @@ type HmacSha256 = Hmac<Sha256>;
 /// Fresh random 32 bytes.
 pub fn random_bytes() -> [u8; 32] {
     let mut b = [0u8; 32];
-    getrandom::getrandom(&mut b).expect("OS random number generator");
+    getrandom::fill(&mut b).expect("OS random number generator");
     b
 }
 

@@ -12,8 +12,8 @@
 use std::path::Path;
 use std::sync::Mutex;
 
-use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding};
-use hmac::{Hmac, Mac};
+use aes::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::NoPadding};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha512;
 
 use crate::Error;
@@ -61,15 +61,16 @@ fn decrypt_page(keys: &Keys, page: &[u8], page_no: u32) -> Option<Vec<u8>> {
     let ct = &page[start..PAGE_SIZE - RESERVE];
     let iv = &page[PAGE_SIZE - RESERVE..PAGE_SIZE - RESERVE + 16];
     let tag = &page[PAGE_SIZE - 64..PAGE_SIZE];
-    let mut mac = <Hmac<Sha512> as Mac>::new_from_slice(&keys.mac).ok()?;
+    let mut mac = <Hmac<Sha512> as KeyInit>::new_from_slice(&keys.mac).ok()?;
     mac.update(ct);
     mac.update(iv);
     mac.update(&page_no.to_le_bytes());
     mac.verify_slice(tag).ok()?;
 
     let mut buf = ct.to_vec();
-    Aes256CbcDec::new(keys.enc.as_slice().into(), iv.into())
-        .decrypt_padded_mut::<NoPadding>(&mut buf)
+    Aes256CbcDec::new_from_slices(&keys.enc, iv)
+        .ok()?
+        .decrypt_padded::<NoPadding>(&mut buf)
         .ok()?;
     let mut out = Vec::with_capacity(PAGE_SIZE);
     if page_no == 1 {
@@ -211,7 +212,7 @@ fn apply_wal(keys: &Keys, wal: &[u8], pages: &mut Vec<Vec<u8>>) -> Result<(), Er
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes::cipher::BlockEncryptMut;
+    use aes::cipher::BlockModeEncrypt;
 
     type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 
@@ -227,10 +228,11 @@ mod tests {
         let iv = [page_no as u8; 16];
         let mut ct = plain[start..PAGE_SIZE - RESERVE].to_vec();
         let len = ct.len();
-        Aes256CbcEnc::new(keys.enc.as_slice().into(), (&iv).into())
-            .encrypt_padded_mut::<NoPadding>(&mut ct, len)
+        Aes256CbcEnc::new_from_slices(&keys.enc, &iv)
+            .unwrap()
+            .encrypt_padded::<NoPadding>(&mut ct, len)
             .unwrap();
-        let mut mac = <Hmac<Sha512> as Mac>::new_from_slice(&keys.mac).unwrap();
+        let mut mac = <Hmac<Sha512> as KeyInit>::new_from_slice(&keys.mac).unwrap();
         mac.update(&ct);
         mac.update(&iv);
         mac.update(&page_no.to_le_bytes());
