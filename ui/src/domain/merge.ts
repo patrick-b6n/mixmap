@@ -2,10 +2,9 @@
 // with tombstones so deletions propagate. Pure: works on two exports and returns
 // what to change locally.
 import type {
-  ExportBoard,
-  ExportBoardNode,
   ExportLink,
   ExportManualMatch,
+  ExportNode,
   ExportSetting,
   ExportTombstone,
   ExportTrack,
@@ -18,12 +17,11 @@ const SEP = "\u0001";
 
 /** Changes to apply locally. Deletions also record their tombstone. */
 export type MergePlan = {
-  boardNodes: ExportBoardNode[];
-  boards: ExportBoard[];
   /** Rows to delete (and tombstone), children before parents. */
   deletes: ExportTombstone[];
   links: ExportLink[];
   manualMatches: ExportManualMatch[];
+  nodes: ExportNode[];
   settings: ExportSetting[];
   summary: MergeSummary;
   /** Tombstones to record or raise without deleting anything (nothing to delete here). */
@@ -32,9 +30,9 @@ export type MergePlan = {
 };
 
 export type Counts = { added: number; deleted: number; updated: number };
-export type MergeSummary = Record<"boardNodes" | "boards" | "links" | "manualMatches" | "tracks", Counts>;
+export type MergeSummary = Record<"links" | "manualMatches" | "nodes" | "tracks", Counts>;
 
-type Kind = "board" | "board_node" | "link" | "manual_match" | "setting" | "track";
+type Kind = "link" | "manual_match" | "node" | "setting" | "track";
 
 /** One side's state of an item: a row (with its updatedAt) or a deletion. */
 type State<R> = { row: R; ts: number } | { deletedAt: number; ts: number };
@@ -65,10 +63,9 @@ function canonical(v: unknown): string {
 
 /** Item ids per kind (tombstone ids, see db/schema `tombstoneId`). */
 const ids = {
-  board: (b: ExportBoard) => b.id,
-  board_node: (n: ExportBoardNode) => `${n.boardId}${SEP}${n.trackKey}`,
   link: (l: ExportLink) => `${l.from}${SEP}${l.to}`,
   manual_match: (m: ExportManualMatch) => m.trackKey,
+  node: (n: ExportNode) => n.trackKey,
   setting: (s: ExportSetting) => s.key,
   track: (t: ExportTrack) => t.key,
 };
@@ -131,21 +128,15 @@ const updated = <R extends { updatedAt: number }>(r: R) => r.updatedAt;
 
 /**
  * Merge `incoming` into `local`. For every item the later of row/deletion wins; links
- * and board nodes whose track or board doesn't survive are dropped, a deleted board
- * takes its nodes with it, and tracks still referenced are never deleted.
+ * and nodes whose track doesn't survive are dropped, and tracks still referenced are
+ * never deleted.
  */
 export function mergeData(
   local: MixmapExport,
   incoming: MixmapExport,
   library: ReadonlyMap<string, TrackIdentity> = new Map(),
 ): MergePlan {
-  const summary: MergeSummary = {
-    boardNodes: zero(),
-    boards: zero(),
-    links: zero(),
-    manualMatches: zero(),
-    tracks: zero(),
-  };
+  const summary: MergeSummary = { links: zero(), manualMatches: zero(), nodes: zero(), tracks: zero() };
   const deletes: ExportTombstone[] = [];
   const tombstones: ExportTombstone[] = [];
 
@@ -190,34 +181,15 @@ export function mergeData(
   }
 
   const tracks = mergeKind("track", local.tracks, incoming.tracks, updated, summary.tracks);
-  const boards = mergeKind("board", local.boards, incoming.boards, updated, summary.boards);
   const links = mergeKind("link", local.links, incoming.links, updated, summary.links);
-  const nodes = mergeKind("board_node", local.boardNodes, incoming.boardNodes, updated, summary.boardNodes);
+  const nodes = mergeKind("node", local.nodes, incoming.nodes, updated, summary.nodes);
   const manual = mergeKind("manual_match", local.manualMatches, incoming.manualMatches, updated, summary.manualMatches);
   const settings = mergeKind("setting", local.settings, incoming.settings, updated);
 
-  // A deleted board takes its local nodes with it (tombstoned at the board's time).
-  const boardDeletes = new Map(deletes.filter((d) => d.kind === "board").map((d) => [d.id, d.deletedAt]));
-  for (const n of local.boardNodes) {
-    const at = boardDeletes.get(n.boardId);
-    const nid = ids.board_node(n);
-    if (at !== undefined && nodes.live.has(nid)) {
-      deletes.push({ deletedAt: Math.max(at, n.updatedAt), id: nid, kind: "board_node" });
-      nodes.live.delete(nid);
-      summary.boardNodes.deleted++;
-    }
-  }
-
-  // Rows whose track or board doesn't survive the merge are dropped.
+  // Rows whose track doesn't survive the merge are dropped.
   const trackRows = finish(tracks, ids.track, summary.tracks);
-  const boardRows = finish(boards, ids.board, summary.boards);
   const linkRows = finish(links, ids.link, summary.links, (l) => tracks.live.has(l.from) && tracks.live.has(l.to));
-  const nodeRows = finish(
-    nodes,
-    ids.board_node,
-    summary.boardNodes,
-    (n) => tracks.live.has(n.trackKey) && boards.live.has(n.boardId),
-  );
+  const nodeRows = finish(nodes, ids.node, summary.nodes, (n) => tracks.live.has(n.trackKey));
   const manualRows = finish(
     {
       live: manual.live,
@@ -232,12 +204,8 @@ export function mergeData(
   const settingRows = finish(settings, ids.setting, undefined);
 
   // Tracks still referenced by a surviving link or node are never deleted.
-  const referenced = new Set<string>();
-  for (const i of [...links.live, ...nodes.live]) {
-    const [a, b] = i.split(SEP);
-    referenced.add(b);
-    if (links.live.has(i)) referenced.add(a);
-  }
+  const referenced = new Set<string>(nodes.live);
+  for (const i of links.live) for (const k of i.split(SEP)) referenced.add(k);
   const keptDeletes = deletes.filter((d) => {
     if (d.kind !== "track" || !referenced.has(d.id)) return true;
     summary.tracks.deleted--;
@@ -245,15 +213,14 @@ export function mergeData(
   });
 
   // Children before parents.
-  const order: TombstoneKind[] = ["board_node", "link", "manual_match", "board", "track"];
+  const order: TombstoneKind[] = ["node", "link", "manual_match", "track"];
   keptDeletes.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
 
   return {
-    boardNodes: nodeRows,
-    boards: boardRows,
     deletes: keptDeletes,
     links: linkRows,
     manualMatches: manualRows,
+    nodes: nodeRows,
     settings: settingRows,
     summary,
     tombstones,
@@ -264,15 +231,14 @@ export function mergeData(
 /** Nothing (for "replace": merging into an empty database). */
 export function emptyExport(exportedAt = 0): MixmapExport {
   return {
-    boardNodes: [],
-    boards: [],
     exportedAt,
     format: "mixmap",
     links: [],
     manualMatches: [],
+    nodes: [],
     settings: [],
     tombstones: [],
     tracks: [],
-    version: 1,
+    version: 2,
   };
 }

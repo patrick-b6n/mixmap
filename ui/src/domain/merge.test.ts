@@ -26,6 +26,7 @@ const data = (patch: Partial<MixmapExport>): MixmapExport => ({
   ...patch,
 });
 const L = (from: string, to: string) => `${from}\u0001${to}`;
+const node = (trackKey: string, ts: number, x: number) => ({ createdAt: 1, trackKey, updatedAt: ts, x, y: 0 });
 
 describe("merge", () => {
   it("adds everything into an empty database", () => {
@@ -89,33 +90,33 @@ describe("merge", () => {
     expect(mergeData(del, x).links).toEqual([]);
   });
 
-  it("deletes a board's nodes with the board", () => {
-    const board = { createdAt: 1, id: "B", name: "Peak", position: 0, updatedAt: 1 };
-    const node = { boardId: "B", createdAt: 1, trackKey: "a", updatedAt: 1, x: 0, y: 0 };
-    const local = data({ boardNodes: [node], boards: [board] });
-    const plan = mergeData(local, data({ tombstones: [{ deletedAt: 9, id: "B", kind: "board" }] }));
-    expect(plan.deletes).toEqual([
-      { deletedAt: 9, id: L("B", "a"), kind: "board_node" },
-      { deletedAt: 9, id: "B", kind: "board" },
-    ]);
-    expect(plan.summary.boardNodes.deleted).toBe(1);
-  });
-
-  it("drops rows whose board or track doesn't survive, and never deletes a referenced track", () => {
-    const local = data({
-      links: [ln("a", "b", 5)],
-      tombstones: [{ deletedAt: 9, id: "B", kind: "board" }],
-    });
+  it("merges node positions last-write-wins and propagates removals", () => {
+    const local = data({ nodes: [node("a", 5, 0), node("b", 5, 0)] });
     const incoming = data({
-      boardNodes: [{ boardId: "B", createdAt: 1, trackKey: "c", updatedAt: 2, x: 0, y: 0 }],
-      boards: [{ createdAt: 1, id: "B", name: "old", position: 0, updatedAt: 2 }],
-      tombstones: [{ deletedAt: 9, id: "a", kind: "track" }],
-      tracks: [tr("b"), tr("c")],
+      nodes: [node("a", 6, 100)],
+      tombstones: [{ deletedAt: 7, id: "b", kind: "node" }],
     });
     const plan = mergeData(local, incoming);
-    expect(plan.boards).toEqual([]);
-    expect(plan.boardNodes).toEqual([]);
-    expect(plan.summary.boardNodes.added).toBe(0);
+    expect(plan.nodes).toEqual([node("a", 6, 100)]);
+    expect(plan.deletes).toEqual([{ deletedAt: 7, id: "b", kind: "node" }]);
+    expect(plan.summary.nodes).toEqual({ added: 0, deleted: 1, updated: 1 });
+  });
+
+  it("drops rows whose track doesn't survive, and never deletes a referenced track", () => {
+    const local = data({
+      links: [ln("a", "b", 5)],
+      tombstones: [{ deletedAt: 9, id: "c", kind: "track" }],
+      tracks: [tr("a"), tr("b")],
+    });
+    const incoming = data({
+      nodes: [{ createdAt: 1, trackKey: "c", updatedAt: 2, x: 0, y: 0 }],
+      tombstones: [{ deletedAt: 9, id: "a", kind: "track" }],
+      tracks: [tr("b"), tr("c", 2)],
+    });
+    const plan = mergeData(local, incoming);
+    // Track c stays deleted here, so its node is dropped.
+    expect(plan.nodes).toEqual([]);
+    expect(plan.summary.nodes.added).toBe(0);
     // Track a still has link a → b here.
     expect(plan.deletes.filter((d) => d.kind === "track")).toEqual([]);
   });

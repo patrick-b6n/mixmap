@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { addNode, createBoard, deleteBoard, listBoards } from "../db/boards";
+import { addNode, listNodes, removeNode } from "../db/nodes";
 import { exportData } from "../db/exchange";
 import { createLink, deleteLink, listLinks, updateLink } from "../db/links";
 import { migrate } from "../db/schema";
@@ -33,31 +33,30 @@ describe("sync now", () => {
 
   it("brings both sides to the same data", async () => {
     await createLink(here, a, b, { comment: "here" });
-    const board = await createBoard(there, "Booth");
-    await addNode(there, board.id, c, 1, 1);
+    await addNode(there, c, 1, 1);
     await createLink(there, b, c);
 
     const result = await syncNow(here, new Map(), exchange);
     expect(await snapshot(here)).toEqual(await snapshot(there));
     expect(result.received.links.added).toBe(1);
-    expect(result.received.boards.added).toBe(1);
+    expect(result.received.nodes.added).toBe(1);
     expect(result.sent?.links.added).toBe(1);
   });
 
   it("propagates edits and deletions both ways, newest wins", async () => {
     await createLink(here, a, b);
     await createLink(here, b, c);
-    const board = await createBoard(here, "Warm-up");
+    await addNode(here, a, 0, 0);
     await syncNow(here, new Map(), exchange);
     await tick();
     await updateLink(there, ka, kb, { comment: "edited there" });
     await deleteLink(here, kb, kc);
-    await deleteBoard(there, board.id);
+    await removeNode(there, ka);
 
     const result = await syncNow(here, new Map(), exchange);
     expect(await snapshot(here)).toEqual(await snapshot(there));
     expect((await listLinks(here)).map((l) => [l.from, l.to, l.comment])).toEqual([[ka, kb, "edited there"]]);
-    expect(await listBoards(here)).toEqual([]);
+    expect(await listNodes(here)).toEqual([]);
     expect(changeCount(result.received)).toBe(2);
     expect(result.sent?.links.deleted).toBe(1);
   });

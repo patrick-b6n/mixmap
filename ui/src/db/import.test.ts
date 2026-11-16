@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { portableKey } from "../domain/matching";
-import { addNode, createBoard, deleteBoard, listBoards, listNodes } from "./boards";
+import { addNode, listNodes, removeNode } from "./nodes";
 import { exportData, importData, parseExport, resetData, serializeExport } from "./exchange";
 import { createLink, deleteLink, listLinks, updateLink } from "./links";
 import { migrate } from "./schema";
@@ -33,14 +33,13 @@ describe("import", () => {
 
   it("merges a file into an empty database (export → import round trip)", async () => {
     await createLink(db, a, b, { comment: "blend", rating: 5, tags: ["peak"] });
-    const board = await createBoard(db, "Peak");
-    await addNode(db, board.id, a, 1, 2);
+    await addNode(db, a, 1, 2);
     const file = parseExport(serializeExport(await exportData(db)));
 
     const other = await fresh();
     const summary = await importData(other, file, "merge");
     expect(summary.links.added).toBe(1);
-    expect(summary.boards.added).toBe(1);
+    expect(summary.nodes.added).toBe(1);
     expect(await snapshot(other)).toEqual(await snapshot(db));
     // Imported tracks still need matching on this machine.
     expect((await listTracks(other)).every((t) => t.rekordboxId === null)).toBe(true);
@@ -68,16 +67,14 @@ describe("import", () => {
     );
   });
 
-  it("a deleted board disappears with its nodes on the other side", async () => {
-    const board = await createBoard(db, "Warm-up");
-    await addNode(db, board.id, a, 0, 0);
+  it("a node removed from the graph disappears on the other side", async () => {
+    await addNode(db, a, 0, 0);
     const other = await fresh();
     await importData(other, await exportData(db), "merge");
     await tick();
-    await deleteBoard(db, board.id);
+    await removeNode(db, ka);
     await importData(other, await exportData(db), "merge");
-    expect(await listBoards(other)).toEqual([]);
-    expect(await listNodes(other, board.id)).toEqual([]);
+    expect(await listNodes(other)).toEqual([]);
   });
 
   it("replace wipes synced data but keeps machine-local settings", async () => {
@@ -110,7 +107,7 @@ describe("import", () => {
 const t = (key: string) => ({ artist: "", createdAt: 1, duration: 1, key, title: "", updatedAt: 1 });
 
 describe("parseExport", () => {
-  const ok = { format: "mixmap", version: 1 };
+  const ok = { format: "mixmap", version: 2 };
 
   it("accepts a minimal file", () => {
     expect(parseExport(JSON.stringify(ok)).links).toEqual([]);
@@ -119,7 +116,7 @@ describe("parseExport", () => {
   it("rejects other files with a readable reason", () => {
     expect(() => parseExport("not json")).toThrow(/not JSON/);
     expect(() => parseExport("{}")).toThrow(/format "mixmap"/);
-    expect(() => parseExport(JSON.stringify({ ...ok, version: 2 }))).toThrow(/version 2/);
+    expect(() => parseExport(JSON.stringify({ ...ok, version: 3 }))).toThrow(/version 3/);
     expect(() => parseExport(JSON.stringify({ ...ok, links: {} }))).toThrow(/links must be a list/);
     const link = { createdAt: 1, from: "a", to: "b", updatedAt: 1 };
     expect(() => parseExport(JSON.stringify({ ...ok, links: [link] }))).toThrow(/has no track/);
@@ -141,15 +138,14 @@ describe("reset", () => {
   it("deletes all mixmap data but keeps machine-local settings", async () => {
     const db = await fresh();
     await createLink(db, a, b);
-    const board = await createBoard(db, "Peak");
-    await addNode(db, board.id, c, 0, 0);
+    await addNode(db, c, 0, 0);
     await deleteLink(db, ka, kb);
     await setManualMatch(db, kc, "rb3");
     await setSetting(db, "local.library.source", { kind: "auto" });
     await setSetting(db, "shared.thing", 1);
     await resetData(db);
     const after = await exportData(db);
-    for (const k of ["boardNodes", "boards", "links", "manualMatches", "settings", "tombstones", "tracks"] as const) {
+    for (const k of ["links", "manualMatches", "nodes", "settings", "tombstones", "tracks"] as const) {
       expect(after[k]).toEqual([]);
     }
     expect(await getSetting(db, "local.library.source")).toEqual({ kind: "auto" });

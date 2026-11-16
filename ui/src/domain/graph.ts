@@ -1,6 +1,6 @@
-// Turning board data into what the graph canvas draws. Pure functions, no React.
+// Turning graph data into what the canvas draws. Pure functions, no React.
 import type { Track } from "../api";
-import type { BoardNode } from "../db/boards";
+import type { GraphNodeRow } from "../db/nodes";
 import type { Link } from "../db/links";
 import type { TrackRow } from "../db/tracks";
 
@@ -65,18 +65,18 @@ export function linkCounts(links: Pick<Link, "from" | "to">[]): Map<string, numb
 }
 
 /**
- * Nodes and edges of a board. Each node shows the current rekordbox track (via the
+ * Nodes and edges of the graph. Each node shows the current rekordbox track (via the
  * cached rekordbox id) or, when it is missing, what mixmap.db remembers about it.
- * Edges are the links whose two endpoints are on the board.
+ * Edges are the links whose two endpoints are on the graph.
  */
 export function buildGraph(
-  nodes: BoardNode[],
+  nodes: GraphNodeRow[],
   links: Link[],
   tracks: Map<string, TrackRow>,
   library: Map<string, Track>,
 ): { edges: GraphEdge[]; nodes: GraphNode[] } {
   const counts = linkCounts(links);
-  const onBoard = new Set(nodes.map((n) => n.trackKey));
+  const onGraph = new Set(nodes.map((n) => n.trackKey));
   const graphNodes = nodes.map((n): GraphNode => {
     const row = tracks.get(n.trackKey);
     const track = row?.rekordboxId && !row.missing ? library.get(row.rekordboxId) : undefined;
@@ -95,7 +95,7 @@ export function buildGraph(
     };
   });
   const edges = links
-    .filter((l) => onBoard.has(l.from) && onBoard.has(l.to))
+    .filter((l) => onGraph.has(l.from) && onGraph.has(l.to))
     .map((l) => ({
       comment: l.comment,
       from: l.from,

@@ -5,8 +5,8 @@ import type { TrackPath } from "../domain/paths";
 
 type Props = {
   from?: string;
-  /** Track keys on the active board (others are marked "not on this board"). */
-  onBoard: Set<string>;
+  /** Track keys on the graph (others are marked "not on the graph"). */
+  onGraph: Set<string>;
   label: (key: string) => string;
   onClear: () => void;
   onSelect: (index: number) => void;
@@ -15,8 +15,8 @@ type Props = {
   to?: string;
 };
 
-/** Path-finding results: from → to, the shortest paths, the selected one highlighted on the board. */
-export function PathBar({ from, label, onBoard, onClear, onSelect, paths, selected, to }: Props) {
+/** Path-finding results: from → to, the shortest paths, the selected one highlighted on the graph. */
+export function PathBar({ from, label, onGraph, onClear, onSelect, paths, selected, to }: Props) {
   const steps = paths[0] ? paths[0].keys.length - 1 : 0;
   return (
     <div className="flex flex-col gap-1 border-b bg-card px-2 py-1 text-[12px]" data-testid="path-bar">
@@ -58,8 +58,8 @@ export function PathBar({ from, label, onBoard, onClear, onSelect, paths, select
                   <span className="flex items-center gap-1" key={k}>
                     {j > 0 && <ArrowRight className="size-3 text-muted-foreground" />}
                     <span
-                      className={cn(!onBoard.has(k) && "text-muted-foreground italic")}
-                      title={onBoard.has(k) ? undefined : "Not on this board"}
+                      className={cn(!onGraph.has(k) && "text-muted-foreground italic")}
+                      title={onGraph.has(k) ? undefined : "Not on the graph"}
                     >
                       {label(k)}
                     </span>

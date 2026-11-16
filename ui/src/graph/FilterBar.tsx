@@ -1,4 +1,5 @@
 import { Eye, EyeOff, Filter, Music2, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +13,13 @@ export type CompatSettings = { bpmTolerance: number; halfDouble: boolean; on: bo
 type Props = {
   /** Whether any filter applies (including "compatible with selected"). */
   active: boolean;
+  /** Graph actions shown at the right end (e.g. Auto-layout). */
+  children?: ReactNode;
   compat: CompatSettings;
   /** Text fields and ranges; "compatible" is driven by `compat`. */
   filter: GraphFilter;
   hide: boolean;
-  /** Matching / total nodes on the board, shown while a filter is active. */
+  /** Matching / total nodes on the graph, shown while a filter is active. */
   matched: number;
   onChange: (f: GraphFilter) => void;
   onClear: () => void;
@@ -35,6 +38,7 @@ const num = (s: string): number | undefined => {
 /** Filter bar above the graph: non-matching nodes are dimmed, or hidden. Never filters the table. */
 export function FilterBar({
   active,
+  children,
   compat,
   filter,
   hide,
@@ -163,6 +167,7 @@ export function FilterBar({
           </Button>
         </>
       )}
+      {children && <div className="ml-auto flex items-center gap-1">{children}</div>}
     </div>
   );
 }

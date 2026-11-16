@@ -2,9 +2,10 @@ import "@xyflow/react/dist/style.css";
 import { applyNodeChanges, Background, Controls, MarkerType, MiniMap, type NodeChange, ReactFlow } from "@xyflow/react";
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
-import type { BoardNode } from "../db/boards";
+import type { GraphNodeRow } from "../db/nodes";
 import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
 import { buildGraph, canLink, edgeId } from "../domain/graph";
+import { isTyping } from "../domain/undo";
 import { LinkEdge, type LinkFlowEdge } from "./LinkEdge";
 import { TrackNode, type TrackFlowNode } from "./TrackNode";
 import { TRACK_MIME, type TrackDrop } from "./dnd";
@@ -35,16 +36,18 @@ type Props = {
   /** Context menu: start / end a path at this track. */
   onPathFrom: (trackKey: string) => void;
   onPathTo: (trackKey: string) => void;
-  nodes: BoardNode[];
+  nodes: GraphNodeRow[];
   /** A table track was dropped on the canvas. */
   onDropTrack: (drop: TrackDrop) => void;
   /** Persist positions of nodes the user dragged. */
   onMoved: (positions: { trackKey: string; x: number; y: number }[]) => void;
   /** Delete every link of a track (card context menu; asks for confirmation). */
   onDeleteAllLinks: (trackKey: string) => void;
+  /** Delete key on a selected card: take it off the graph with its links (asks first). */
+  onDeleteNode: (trackKey: string) => void;
   /** Request to center a track (double-click / Ctrl+L); `n` changes per request. */
   locate?: { n: number; trackId: string };
-  /** The located track isn't on this board. */
+  /** The located track isn't on the graph. */
   onLocateMissing: () => void;
   /** Card click: select its rekordbox track (undefined for missing tracks). */
   onSelectTrack: (trackId: string | undefined) => void;
@@ -52,8 +55,8 @@ type Props = {
   onDeleteLink: (from: string, to: string) => void;
   /** A connection was dragged from `source`'s right handle onto `target`. */
   onLink: (source: string, target: string) => void;
-  /** Take a track off this board (card context menu; links stay). */
-  onRemoveFromBoard: (trackKey: string) => void;
+  /** Take a track off the graph (card context menu; links stay). */
+  onRemoveFromGraph: (trackKey: string) => void;
   /** Click on a link selects it; click on empty canvas clears the selection. */
   onSelectLink: (link: { from: string; to: string } | undefined) => void;
   selectedLink?: { from: string; to: string };
@@ -61,7 +64,7 @@ type Props = {
   selectedTrackId?: string;
 };
 
-/** The active board's graph: track cards and directed links. Key it by board id. */
+/** The graph: track cards and directed links. Re-key it to show new stored positions. */
 export function GraphCanvas({
   artworkVersion,
   data,
@@ -71,14 +74,15 @@ export function GraphCanvas({
   onPathFrom,
   onPathTo,
   pathEdges,
-  nodes: boardNodes,
+  nodes: storedNodes,
   onDeleteAllLinks,
   onDeleteLink,
+  onDeleteNode,
   onDropTrack,
   onLocateMissing,
   onLink,
   onMoved,
-  onRemoveFromBoard,
+  onRemoveFromGraph,
   onSelectLink,
   onSelectTrack,
   selectedLink,
@@ -88,9 +92,24 @@ export function GraphCanvas({
   const closeMenu = useCallback(() => setMenu(undefined), []);
   const flow = useRef<ReactFlowInstance<TrackFlowNode, LinkFlowEdge>>(null);
   const graph = useMemo(
-    () => buildGraph(boardNodes, data.links, data.tracks, data.library),
-    [boardNodes, data.links, data.tracks, data.library],
+    () => buildGraph(storedNodes, data.links, data.tracks, data.library),
+    [storedNodes, data.links, data.tracks, data.library],
   );
+
+  // One selection for table and graph: the selected track's card is the selected node.
+  // A card whose track is missing in rekordbox has no track id, so selecting it on the
+  // graph is remembered here (until a track is selected).
+  const [missingKey, setMissingKey] = useState<string>();
+  if (selectedTrackId !== undefined && missingKey !== undefined) setMissingKey(undefined);
+  const selectedKey =
+    selectedTrackId !== undefined ? graph.nodes.find((n) => n.card.track?.id === selectedTrackId)?.id : missingKey;
+  /** Click on (or start dragging) a card: it becomes the selected track. */
+  const selectNode = (node: TrackFlowNode) => {
+    onSelectLink(undefined);
+    const trackId = node.data.card.track?.id;
+    setMissingKey(trackId === undefined ? node.id : undefined);
+    onSelectTrack(trackId);
+  };
 
   const fromGraph = useMemo<TrackFlowNode[]>(
     () =>
@@ -99,20 +118,21 @@ export function GraphCanvas({
           artworkVersion,
           card: n.card,
           dimmed: matched !== undefined && !matched.has(n.id),
-          highlighted: selectedTrackId !== undefined && n.card.track?.id === selectedTrackId,
+          highlighted: n.id === selectedKey,
         },
         // React Flow also hides the links of hidden nodes.
         hidden: hideUnmatched && matched !== undefined && !matched.has(n.id),
         id: n.id,
         position: { x: n.x, y: n.y },
+        selected: n.id === selectedKey,
         type: "track",
       })),
-    [graph.nodes, artworkVersion, selectedTrackId, matched, hideUnmatched],
+    [graph.nodes, artworkVersion, selectedKey, matched, hideUnmatched],
   );
 
   // The canvas owns positions once a node is shown (drags are saved from here, so a
-  // reload racing a save must not snap nodes back). Reloads add/remove nodes, update
-  // card data and keep selection; only new nodes take their stored position.
+  // reload racing a save must not snap nodes back). Reloads add/remove nodes and update
+  // card data and selection; only new nodes take their stored position.
   const [nodes, setNodes] = useState<TrackFlowNode[]>(fromGraph);
   const [source, setSource] = useState(fromGraph);
   if (source !== fromGraph) {
@@ -122,9 +142,7 @@ export function GraphCanvas({
       fromGraph.map((n) => {
         const cur = shown.get(n.id);
         // Keep React Flow's measurements too: without them edges vanish until re-measured.
-        return cur
-          ? { ...n, dragging: cur.dragging, measured: cur.measured, position: cur.position, selected: cur.selected }
-          : n;
+        return cur ? { ...n, dragging: cur.dragging, measured: cur.measured, position: cur.position } : n;
       }),
     );
   }
@@ -177,6 +195,22 @@ export function GraphCanvas({
     });
   }, [locate, nodes, onLocateMissing]);
 
+  // Delete key with one card selected (and no link): remove it from the graph with its
+  // links. Only when focus is on the page or the canvas, never in a field or dialog.
+  const selectedNode = nodes.some((n) => n.id === selectedKey && !n.hidden) ? selectedKey : undefined;
+  useEffect(() => {
+    if (!selectedNode || selectedLink) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const onCanvas = target === document.body || target.closest?.(".react-flow") !== null;
+      if (e.key !== "Delete" || !onCanvas || isTyping(target)) return;
+      e.preventDefault();
+      onDeleteNode(selectedNode);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedNode, selectedLink, onDeleteNode]);
+
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (!isTrackDrag(e) || !flow.current) return;
     e.preventDefault();
@@ -199,7 +233,7 @@ export function GraphCanvas({
         colorMode="dark"
         edgeTypes={edgeTypes}
         edges={edges}
-        // Fit once when a board opens (the canvas is keyed by board).
+        // Fit once when the canvas mounts.
         fitView
         fitViewOptions={{ maxZoom: 1.2, padding: 0.2 }}
         // Links are drawn from a node's right handle; dragging the card only moves it.
@@ -209,6 +243,10 @@ export function GraphCanvas({
         isValidConnection={(c) => canLink(data.links, c.source, c.target)}
         nodeTypes={nodeTypes}
         nodes={nodes}
+        // A click that moves a few pixels is still a click, not a drag.
+        nodeDragThreshold={5}
+        // Moving a card selects it too (a drag never fires a click).
+        onNodeDragStart={(_e, node) => selectNode(node)}
         onNodeDragStop={(_e, _node, dragged) =>
           onMoved(dragged.map((n) => ({ trackKey: n.id, x: n.position.x, y: n.position.y })))
         }
@@ -232,7 +270,7 @@ export function GraphCanvas({
             items: [
               { label: "Path from this track", onSelect: () => onPathFrom(node.id) },
               { label: "Path to this track", onSelect: () => onPathTo(node.id) },
-              { label: "Remove from board", onSelect: () => onRemoveFromBoard(node.id) },
+              { label: "Remove from graph", onSelect: () => onRemoveFromGraph(node.id) },
               ...(count > 0
                 ? [
                     {
@@ -247,10 +285,7 @@ export function GraphCanvas({
             y: e.clientY,
           });
         }}
-        onNodeClick={(_e, node) => {
-          onSelectLink(undefined);
-          onSelectTrack(node.data.card.track?.id);
-        }}
+        onNodeClick={(_e, node) => selectNode(node)}
         onPaneClick={() => onSelectLink(undefined)}
         // Dropped on a card but not near its handle: link to that card anyway.
         onConnectEnd={(event, state) => {
@@ -265,12 +300,17 @@ export function GraphCanvas({
         onInit={(instance) => {
           flow.current = instance;
         }}
-        onNodesChange={(changes: NodeChange<TrackFlowNode>[]) => setNodes((ns) => applyNodeChanges(changes, ns))}
+        // Selection comes from the selected track, not from React Flow.
+        onNodesChange={(changes: NodeChange<TrackFlowNode>[]) => {
+          const rest = changes.filter((c) => c.type !== "select");
+          if (rest.length > 0) setNodes((ns) => applyNodeChanges(rest, ns));
+        }}
         proOptions={{ hideAttribution: true }}
       >
         <Background color="var(--border)" gap={24} />
         <Controls showInteractive={false} />
         <MiniMap
+          className="overflow-hidden rounded-md border border-border"
           maskColor="rgb(18 20 23 / 70%)"
           nodeColor={(n: TrackFlowNode) => (n.data.card.missing ? "var(--muted)" : "var(--primary)")}
           pannable

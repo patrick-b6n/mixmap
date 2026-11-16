@@ -15,7 +15,7 @@ export type MixmapData = {
   /** Reload links and tracks after a change. */
   refresh: () => void;
   tracks: Map<string, TrackRow>;
-  /** Increases on every reload, for dependent loads (e.g. board nodes). */
+  /** Increases on every reload, for dependent loads (e.g. graph nodes). */
   version: number;
 };
 

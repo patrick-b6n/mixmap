@@ -109,7 +109,7 @@ pub fn router(hub: Arc<SyncHub>) -> Router {
         .route("/sync/pair/start", post(pair_start))
         .route("/sync/pair/confirm", post(pair_confirm))
         .layer(DefaultBodyLimit::max(64 * 1024))
-        // A whole library's links and boards.
+        // A whole library's links and graph positions.
         .route(
             exchange::PATH,
             post(exchange).layer(DefaultBodyLimit::max(256 * 1024 * 1024)),

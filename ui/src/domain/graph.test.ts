@@ -59,7 +59,7 @@ describe("graph", () => {
     expect(edgeWidth(5)).toBe(5.5);
   });
 
-  it("counts links in both directions over all boards", () => {
+  it("counts links in both directions over all links", () => {
     const counts = linkCounts([link("a", "b"), link("b", "a"), link("b", "c")]);
     expect(Object.fromEntries(counts)).toEqual({ a: 2, b: 3, c: 1 });
   });
@@ -77,8 +77,8 @@ describe("graph", () => {
     const links = [link("a", "b", 4, "nice"), link("b", "c"), link("c", "x")];
     const g = buildGraph(
       [
-        { boardId: "B", trackKey: "a", x: 1, y: 2 },
-        { boardId: "B", trackKey: "b", x: 3, y: 4 },
+        { trackKey: "a", x: 1, y: 2 },
+        { trackKey: "b", x: 3, y: 4 },
       ],
       links,
       tracks,
@@ -89,7 +89,7 @@ describe("graph", () => {
       ["b", "b title", true, 2, 3],
     ]);
     expect(g.nodes[0].card.track?.bpm).toBe(128);
-    // Only links with both endpoints on the board.
+    // Only links with both endpoints on the graph.
     expect(g.edges).toEqual([{ comment: "nice", from: "a", id: edgeId("a", "b"), rating: 4, to: "b", width: 4.5 }]);
   });
 });

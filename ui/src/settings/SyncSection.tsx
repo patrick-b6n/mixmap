@@ -186,7 +186,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
                           <Button
                             disabled={syncing !== undefined}
                             onClick={() => void sync(row)}
-                            title="Exchange links, boards and positions both ways (newer changes win)"
+                            title="Exchange links and positions both ways (newer changes win)"
                             variant="default"
                           >
                             <RefreshCw className={syncing === row.id ? "animate-spin" : undefined} />

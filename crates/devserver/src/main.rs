@@ -177,7 +177,7 @@ fn app(state: AppState) -> Router {
         .route("/api/artwork/{track_id}", get(artwork))
         .route("/api/events", get(events))
         .route("/api/{command}", post(command))
-        // Imports and sync carry a whole library's links and boards.
+        // Imports and sync carry a whole library's links and graph positions.
         .layer(DefaultBodyLimit::max(256 * 1024 * 1024))
         .layer(middleware::from_fn(local_hosts_only))
         .with_state(state)

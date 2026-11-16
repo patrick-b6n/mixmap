@@ -12,7 +12,11 @@ export async function writeBackup(
   library: ReadonlyMap<string, TrackIdentity>,
   reason: "before-import" | "before-reset",
 ): Promise<string> {
-  const content = serializeExport(await exportData(db, library));
+  return writeBackupFile(serializeExport(await exportData(db, library)), reason);
+}
+
+/** Write an already serialized backup (e.g. a snapshot of an older schema). */
+export async function writeBackupFile(content: string, reason: string): Promise<string> {
   const name = exportFileName(new Date(), `backup-${reason}`);
   const { path } = await call<{ path: string }>("write_backup", { content, name });
   return path;

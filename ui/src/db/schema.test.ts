@@ -12,17 +12,33 @@ describe("schema", () => {
     const tables = await db.query<{ name: string }>(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     );
-    expect(tables.map((t) => t.name)).toEqual([
-      "board_nodes",
-      "boards",
-      "links",
-      "manual_matches",
-      "settings",
-      "tombstones",
-      "tracks",
-    ]);
+    expect(tables.map((t) => t.name)).toEqual(["links", "manual_matches", "nodes", "settings", "tombstones", "tracks"]);
     const [{ user_version }] = await db.query<{ user_version: number }>("PRAGMA user_version");
     expect(user_version).toBe(MIGRATIONS.length);
+  });
+
+  it("merges boards into one graph (migration 2)", async () => {
+    const db = memoryDb();
+    // A version 1 database with two boards; track a is on both.
+    for (const sql of MIGRATIONS[0]) db.raw.exec(sql);
+    db.raw.exec("PRAGMA user_version = 1");
+    db.raw.exec(`
+      INSERT INTO tracks (key, artist, title, duration, created_at, updated_at) VALUES
+        ('a', '', '', 1, 1, 1), ('b', '', '', 1, 1, 1), ('c', '', '', 1, 1, 1);
+      INSERT INTO boards (id, name, position, created_at, updated_at) VALUES
+        ('warm', 'Warm-up', 1, 1, 1), ('peak', 'Peak', 0, 1, 1);
+      INSERT INTO board_nodes (board_id, track_key, x, y, created_at, updated_at) VALUES
+        ('peak', 'a', 100, 50, 1, 2), ('peak', 'b', 300, 80, 1, 2),
+        ('warm', 'a', -20, 10, 1, 2), ('warm', 'c', 80, 30, 2, 2);
+      INSERT INTO tombstones (kind, id, deleted_at) VALUES ('board', 'x', 1), ('board_node', 'x', 1), ('link', 'l', 1);
+    `);
+    expect(await migrate(db)).toBe(MIGRATIONS.length);
+    expect(await db.query("SELECT track_key, x, y FROM nodes ORDER BY track_key")).toEqual([
+      { track_key: "a", x: 0, y: 0 },
+      { track_key: "b", x: 200, y: 30 },
+      { track_key: "c", x: 700, y: 20 },
+    ]);
+    expect(await db.query("SELECT kind FROM tombstones")).toEqual([{ kind: "link" }]);
   });
 
   it("tolerates concurrent migrations", async () => {

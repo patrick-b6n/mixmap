@@ -46,7 +46,7 @@ export async function answerSync(
 }
 
 function isSummary(v: unknown): v is MergeSummary {
-  return typeof v === "object" && v !== null && "links" in v && "boards" in v;
+  return typeof v === "object" && v !== null && "links" in v && "nodes" in v;
 }
 
 /** Total of added + updated + deleted across a summary. */

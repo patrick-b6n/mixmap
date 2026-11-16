@@ -41,8 +41,7 @@ export function summaryText(s: MergeSummary): string {
   const lines = (
     [
       ["Links", s.links],
-      ["Boards", s.boards],
-      ["Board tracks", s.boardNodes],
+      ["Graph tracks", s.nodes],
       ["Tracks", s.tracks],
       ["Manual matches", s.manualMatches],
     ] as const
@@ -87,7 +86,7 @@ export function DataSection({ library, onDataChanged }: Props) {
       const data = await exportData(apiDb, library);
       saveTextFile(exportFileName(), serializeExport(data));
       setMessage({
-        text: `Exported ${plural(data.links.length, "link")}, ${plural(data.boards.length, "board")}, ${plural(
+        text: `Exported ${plural(data.links.length, "link")}, ${plural(data.nodes.length, "card")}, ${plural(
           data.tracks.length,
           "track",
         )}.`,
@@ -135,7 +134,7 @@ export function DataSection({ library, onDataChanged }: Props) {
     <fieldset className="flex flex-col gap-1.5 rounded-sm border px-3 py-2.5">
       <legend className="px-1 text-muted-foreground">mixmap data</legend>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => void exportFile()} title="Links, boards, positions and manual matches">
+        <Button onClick={() => void exportFile()} title="Links, graph positions and manual matches">
           Export .mixmap.json
         </Button>
         <Button disabled={busy} onClick={() => void chooseFile()}>
@@ -157,7 +156,7 @@ export function DataSection({ library, onDataChanged }: Props) {
       {resetConfirm !== undefined && (
         <div className="flex flex-col gap-2 rounded-sm border border-destructive/60 p-2" data-testid="reset-panel">
           <div>
-            Deletes all links, boards, positions and manual matches. Your rekordbox library is not touched. A backup is
+            Deletes all links, graph positions and manual matches. Your rekordbox library is not touched. A backup is
             saved first to <code>{"%APPDATA%\\mixmap\\backups"}</code>.
           </div>
           <label className="flex items-center gap-2">
@@ -189,7 +188,7 @@ export function DataSection({ library, onDataChanged }: Props) {
           <div>
             <span className="font-medium [overflow-wrap:anywhere]">{pending.name}</span>
             <div className="text-xs text-muted-foreground">
-              {plural(pending.data.links.length, "link")}, {plural(pending.data.boards.length, "board")},{" "}
+              {plural(pending.data.links.length, "link")}, {plural(pending.data.nodes.length, "card")},{" "}
               {plural(pending.data.tracks.length, "track")}
               {pending.data.exportedAt > 0 && ` · exported ${new Date(pending.data.exportedAt).toLocaleString()}`}
             </div>
@@ -200,7 +199,7 @@ export function DataSection({ library, onDataChanged }: Props) {
               <Label className="flex-col items-start gap-0 text-[13px] font-normal" htmlFor="import-merge">
                 Merge
                 <span className="text-xs text-muted-foreground">
-                  Keep what's here; for each link, board and position the newer version wins.
+                  Keep what's here; for each link and position the newer version wins.
                 </span>
               </Label>
             </div>

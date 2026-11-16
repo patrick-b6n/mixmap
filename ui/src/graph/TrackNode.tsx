@@ -20,7 +20,7 @@ function sameCard(a: NodeCard, b: NodeCard): boolean {
   );
 }
 
-/** Node card, re-rendered only when what it shows changes (large boards). */
+/** Node card, re-rendered only when what it shows changes (large graphs). */
 export const TrackNode = memo(
   TrackNodeCard,
   (a, b) =>

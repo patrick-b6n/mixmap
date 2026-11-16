@@ -5,11 +5,11 @@
 import { portableKey, type TrackIdentity } from "../domain/matching";
 import { emptyExport, mergeData, type MergePlan, type MergeSummary } from "../domain/merge";
 import type { Db, Statement } from "./db";
-import type { TombstoneKind } from "./schema";
+import { BOARD_GAP, type TombstoneKind } from "./schema";
 import { isLocalSetting } from "./settings";
 
 export const FORMAT = "mixmap";
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export type ExportTrack = {
   artist: string;
@@ -28,15 +28,8 @@ export type ExportLink = {
   to: string;
   updatedAt: number;
 };
-export type ExportBoard = { createdAt: number; id: string; name: string; position: number; updatedAt: number };
-export type ExportBoardNode = {
-  boardId: string;
-  createdAt: number;
-  trackKey: string;
-  updatedAt: number;
-  x: number;
-  y: number;
-};
+/** A track placed on the graph (a card) and its position. */
+export type ExportNode = { createdAt: number; trackKey: string; updatedAt: number; x: number; y: number };
 /**
  * A remembered manual match. `rekordboxId` only means something on the machine that
  * made it; `targetKey` (portable key of that rekordbox track at export time) lets
@@ -53,12 +46,11 @@ export type ExportTombstone = { deletedAt: number; id: string; kind: TombstoneKi
 export type ExportSetting = { key: string; updatedAt: number; value: unknown };
 
 export type MixmapExport = {
-  boardNodes: ExportBoardNode[];
-  boards: ExportBoard[];
   exportedAt: number;
   format: typeof FORMAT;
   links: ExportLink[];
   manualMatches: ExportManualMatch[];
+  nodes: ExportNode[];
   settings: ExportSetting[];
   tombstones: ExportTombstone[];
   tracks: ExportTrack[];
@@ -82,7 +74,7 @@ export async function exportData(
   library: ReadonlyMap<string, TrackIdentity> = new Map(),
   exportedAt = Date.now(),
 ): Promise<MixmapExport> {
-  const [tracks, links, boards, boardNodes, manualMatches, tombstones, settings] = await Promise.all([
+  const [tracks, links, nodes, manualMatches, tombstones, settings] = await Promise.all([
     db.query<{ artist: string; created_at: number; duration: number; key: string; title: string; updated_at: number }>(
       "SELECT key, artist, title, duration, created_at, updated_at FROM tracks ORDER BY key",
     ),
@@ -95,11 +87,8 @@ export async function exportData(
       to_track: string;
       updated_at: number;
     }>("SELECT * FROM links ORDER BY from_track, to_track"),
-    db.query<{ created_at: number; id: string; name: string; position: number; updated_at: number }>(
-      "SELECT * FROM boards ORDER BY position, id",
-    ),
-    db.query<{ board_id: string; created_at: number; track_key: string; updated_at: number; x: number; y: number }>(
-      "SELECT * FROM board_nodes ORDER BY board_id, track_key",
+    db.query<{ created_at: number; track_key: string; updated_at: number; x: number; y: number }>(
+      "SELECT * FROM nodes ORDER BY track_key",
     ),
     db.query<{ created_at: number; rekordbox_id: string; track_key: string; updated_at: number }>(
       "SELECT * FROM manual_matches ORDER BY track_key",
@@ -108,21 +97,6 @@ export async function exportData(
     db.query<{ key: string; updated_at: number; value: string }>("SELECT * FROM settings ORDER BY key"),
   ]);
   return {
-    boardNodes: boardNodes.map((n) => ({
-      boardId: n.board_id,
-      createdAt: n.created_at,
-      trackKey: n.track_key,
-      updatedAt: n.updated_at,
-      x: n.x,
-      y: n.y,
-    })),
-    boards: boards.map((b) => ({
-      createdAt: b.created_at,
-      id: b.id,
-      name: b.name,
-      position: b.position,
-      updatedAt: b.updated_at,
-    })),
     exportedAt,
     format: FORMAT,
     links: links.map((l) => {
@@ -147,6 +121,13 @@ export async function exportData(
         updatedAt: m.updated_at,
       };
     }),
+    nodes: nodes.map((n) => ({
+      createdAt: n.created_at,
+      trackKey: n.track_key,
+      updatedAt: n.updated_at,
+      x: n.x,
+      y: n.y,
+    })),
     settings: settings
       .filter((s) => !isLocalSetting(s.key))
       .map((s) => ({ key: s.key, updatedAt: s.updated_at, value: parseJson(s.value) })),
@@ -177,7 +158,9 @@ export const serializeExport = (data: MixmapExport): string => `${JSON.stringify
 
 // ---- Import ------------------------------------------------------------------
 
-const KINDS: readonly TombstoneKind[] = ["board", "board_node", "link", "manual_match", "track"];
+const KINDS: readonly TombstoneKind[] = ["link", "manual_match", "node", "track"];
+/** Tombstone kinds of version 1 files, dropped on import (boards no longer exist). */
+const V1_BOARD_KINDS = ["board", "board_node"];
 
 function fail(what: string): never {
   throw new Error(`Not a valid .mixmap.json file: ${what}`);
@@ -200,6 +183,13 @@ const stamps = (o: Record<string, unknown>, w: string) => ({
   updatedAt: num(o, "updatedAt", w),
 });
 
+const node = (o: Record<string, unknown>, w: string): ExportNode => ({
+  trackKey: str(o, "trackKey", w),
+  x: num(o, "x", w),
+  y: num(o, "y", w),
+  ...stamps(o, w),
+});
+
 /** Parse and check a .mixmap.json file. Throws a readable error for anything else. */
 export function parseExport(text: string): MixmapExport {
   let raw: unknown;
@@ -214,23 +204,12 @@ export function parseExport(text: string): MixmapExport {
 /** Check already-parsed data (a file, or what a sync peer sent). Throws a readable error. */
 export function checkExport(raw: unknown): MixmapExport {
   if (!isObj(raw) || raw.format !== FORMAT) fail(`missing format "${FORMAT}"`);
-  if (raw.version !== FORMAT_VERSION) {
-    fail(`version ${String(raw.version)} is not supported (this app reads version ${FORMAT_VERSION})`);
+  if (raw.version !== FORMAT_VERSION && raw.version !== 1) {
+    fail(`version ${String(raw.version)} is not supported (this app reads versions 1 and ${FORMAT_VERSION})`);
   }
+  // Version 1 had boards: their nodes become the one graph.
+  const v1 = raw.version === 1;
   const data: MixmapExport = {
-    boardNodes: list(raw, "boardNodes", (o, w) => ({
-      boardId: str(o, "boardId", w),
-      trackKey: str(o, "trackKey", w),
-      x: num(o, "x", w),
-      y: num(o, "y", w),
-      ...stamps(o, w),
-    })),
-    boards: list(raw, "boards", (o, w) => ({
-      id: str(o, "id", w),
-      name: str(o, "name", w),
-      position: num(o, "position", w),
-      ...stamps(o, w),
-    })),
     exportedAt: typeof raw.exportedAt === "number" ? raw.exportedAt : 0,
     format: FORMAT,
     links: list(raw, "links", (o, w) => {
@@ -258,6 +237,12 @@ export function checkExport(raw: unknown): MixmapExport {
       trackKey: str(o, "trackKey", w),
       ...stamps(o, w),
     })),
+    nodes: v1
+      ? nodesFromBoards(
+          list(raw, "boards", (o, w) => ({ id: str(o, "id", w), position: num(o, "position", w), ...stamps(o, w) })),
+          list(raw, "boardNodes", (o, w) => ({ boardId: str(o, "boardId", w), ...node(o, w) })),
+        )
+      : list(raw, "nodes", node),
     settings: list(raw, "settings", (o, w) => ({
       key: str(o, "key", w),
       updatedAt: num(o, "updatedAt", w),
@@ -265,9 +250,11 @@ export function checkExport(raw: unknown): MixmapExport {
     })),
     tombstones: list(raw, "tombstones", (o, w) => {
       const kind = str(o, "kind", w);
-      if (!KINDS.includes(kind as TombstoneKind)) fail(`${w}.kind "${kind}" is unknown`);
+      if (!KINDS.includes(kind as TombstoneKind) && !(v1 && V1_BOARD_KINDS.includes(kind))) {
+        fail(`${w}.kind "${kind}" is unknown`);
+      }
       return { deletedAt: num(o, "deletedAt", w), id: str(o, "id", w), kind: kind as TombstoneKind };
-    }),
+    }).filter((t) => KINDS.includes(t.kind)),
     tracks: list(raw, "tracks", (o, w) => ({
       artist: str(o, "artist", w),
       duration: num(o, "duration", w),
@@ -279,22 +266,47 @@ export function checkExport(raw: unknown): MixmapExport {
   };
   // Machine-local settings never come from another machine.
   data.settings = data.settings.filter((s) => !isLocalSetting(s.key));
-  // Every link and node must point at a track (and board) in the file: it is self-contained.
+  // Every link and node must point at a track in the file: it is self-contained.
   const keys = new Set(data.tracks.map((t) => t.key));
   for (const l of data.links) if (!keys.has(l.from) || !keys.has(l.to)) fail(`link ${l.from} → ${l.to} has no track`);
-  const boardIds = new Set(data.boards.map((b) => b.id));
-  for (const n of data.boardNodes) {
-    if (!keys.has(n.trackKey)) fail(`board node ${n.trackKey} has no track`);
-    if (!boardIds.has(n.boardId)) fail(`board node on unknown board ${n.boardId}`);
-  }
+  for (const n of data.nodes) if (!keys.has(n.trackKey)) fail(`node ${n.trackKey} has no track`);
   return data;
 }
 
+const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Version 1 boards → one graph, like schema migration 2: boards side by side in tab
+ * order, each shifted to start at its own top-left; a track on several boards keeps
+ * its place on the first. Nodes on unknown boards are dropped.
+ */
+export function nodesFromBoards(
+  boards: { createdAt: number; id: string; position: number }[],
+  boardNodes: (ExportNode & { boardId: string })[],
+): ExportNode[] {
+  const ordered = boards.toSorted((a, b) => a.position - b.position || a.createdAt - b.createdAt || byText(a.id, b.id));
+  const out = new Map<string, ExportNode>();
+  let dx = 0;
+  for (const board of ordered) {
+    const mine = boardNodes
+      .filter((n) => n.boardId === board.id)
+      .toSorted((a, b) => a.createdAt - b.createdAt || byText(a.trackKey, b.trackKey));
+    if (mine.length === 0) continue;
+    const minX = Math.min(...mine.map((n) => n.x));
+    const maxX = Math.max(...mine.map((n) => n.x));
+    const minY = Math.min(...mine.map((n) => n.y));
+    for (const { boardId: _, ...n } of mine) {
+      if (!out.has(n.trackKey)) out.set(n.trackKey, { ...n, x: n.x - minX + dx, y: n.y - minY });
+    }
+    dx += maxX - minX + BOARD_GAP;
+  }
+  return [...out.values()];
+}
+
 const TABLE: Record<TombstoneKind, { cols: string[]; table: string }> = {
-  board: { cols: ["id"], table: "boards" },
-  board_node: { cols: ["board_id", "track_key"], table: "board_nodes" },
   link: { cols: ["from_track", "to_track"], table: "links" },
   manual_match: { cols: ["track_key"], table: "manual_matches" },
+  node: { cols: ["track_key"], table: "nodes" },
   track: { cols: ["key"], table: "tracks" },
 };
 
@@ -329,14 +341,6 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
               duration = excluded.duration, updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
-  for (const b of plan.boards) {
-    out.push(reviveStatement("board", b.id), {
-      params: [b.id, b.name, b.position, b.createdAt, b.updatedAt],
-      sql: `INSERT INTO boards (id, name, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET name = excluded.name, position = excluded.position,
-              updated_at = excluded.updated_at, created_at = excluded.created_at`,
-    });
-  }
   for (const l of plan.links) {
     out.push(reviveStatement("link", `${l.from}\u0001${l.to}`), {
       params: [l.from, l.to, l.comment, l.rating, l.tags, l.createdAt, l.updatedAt],
@@ -346,11 +350,11 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
               rating = excluded.rating, tags = excluded.tags, updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
-  for (const n of plan.boardNodes) {
-    out.push(reviveStatement("board_node", `${n.boardId}\u0001${n.trackKey}`), {
-      params: [n.boardId, n.trackKey, n.x, n.y, n.createdAt, n.updatedAt],
-      sql: `INSERT INTO board_nodes (board_id, track_key, x, y, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (board_id, track_key) DO UPDATE SET x = excluded.x, y = excluded.y,
+  for (const n of plan.nodes) {
+    out.push(reviveStatement("node", n.trackKey), {
+      params: [n.trackKey, n.x, n.y, n.createdAt, n.updatedAt],
+      sql: `INSERT INTO nodes (track_key, x, y, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (track_key) DO UPDATE SET x = excluded.x, y = excluded.y,
               updated_at = excluded.updated_at, created_at = excluded.created_at`,
     });
   }
@@ -375,9 +379,8 @@ export function applyPlanStatements(plan: MergePlan): Statement[] {
 /** Statements that empty all synced data; machine-local settings stay. */
 export function wipeStatements(): Statement[] {
   return [
-    { sql: "DELETE FROM board_nodes" },
+    { sql: "DELETE FROM nodes" },
     { sql: "DELETE FROM links" },
-    { sql: "DELETE FROM boards" },
     { sql: "DELETE FROM manual_matches" },
     { sql: "DELETE FROM tracks" },
     { sql: "DELETE FROM tombstones" },
@@ -386,7 +389,7 @@ export function wipeStatements(): Statement[] {
 }
 
 /**
- * Reset: delete all mixmap data (links, boards, tracks, manual matches, tombstones,
+ * Reset: delete all mixmap data (links, graph nodes, tracks, manual matches, tombstones,
  * shared settings). Machine-local settings stay. No tombstones are written, so a later
  * sync brings a peer's data back rather than deleting it there. Back up first.
  */

@@ -10,7 +10,7 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - Layout of the repo:
   - `crates/core` — I/O only: locating and decrypting rekordbox `master.db` and returning raw library data, file watching, artwork extraction and thumbnail cache, mixmap SQLite storage, network (mDNS, sync transport), memory reader for now-playing.
   - `crates/devserver` — small local HTTP server (axum) exposing the same API as the Tauri commands, for fast dev loops in a plain browser.
-  - `ui/` — React (Vite) frontend **and all domain logic** (`ui/src/domain/`): keys and compatibility, portable track keys and matching, links/boards rules, export/import and merge/sync semantics, filters, pair import, path-finding. Talks to the backend through **one API adapter**: HTTP to the devserver in the browser, `invoke` in Tauri.
+  - `ui/` — React (Vite) frontend **and all domain logic** (`ui/src/domain/`): keys and compatibility, portable track keys and matching, links/graph rules, export/import and merge/sync semantics, filters, pair import, path-finding. Talks to the backend through **one API adapter**: HTTP to the devserver in the browser, `invoke` in Tauri.
   - `src-tauri/` — thin shell over `core`. Needed only for overlay window, global hotkey, updater and installer.
   - Both the devserver and the desktop app wrap `mixmap_core::app::App`: one dispatcher `call(command, args)` (devserver: `POST /api/<command>`; Tauri: the single command `call`), events through a callback (SSE / Tauri events of the same name), artwork via `GET /api/artwork/<id>` or the `artwork` URI scheme (`http://artwork.localhost/<id>`).
   - Desktop dev: `ui/node_modules/.bin/tauri dev` from the repo root (starts Vite itself).
@@ -29,9 +29,9 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - rekordbox artwork if present, otherwise **embedded cover from the audio file** (ID3/FLAC/MP4 via `lofty`); thumbnails cached; placeholder otherwise. On start (after a clean library load) thumbnails no current track uses any more are removed once they are a week old; unfinished temp files after an hour.
 
 ### mixmap's own data
-- `%APPDATA%\mixmap\mixmap.db` (SQLite): links, boards, node positions, manual track matches, tombstones, settings.
+- `%APPDATA%\mixmap\mixmap.db` (SQLite): links, graph node positions, manual track matches, tombstones, settings.
   - Rust exposes it only as a generic bridge (`db_query`, `db_execute` = statements in one transaction). Schema, migrations (`PRAGMA user_version`) and all queries live in TypeScript (`ui/src/db`), tested against `node:sqlite`.
-  - Rows have natural cross-machine identities: tracks by portable key, links by (from, to), board nodes by (board, track); boards use UUIDs. Timestamps are milliseconds since the epoch (`created_at`/`updated_at` on every row); deleting a synced row records a tombstone (`kind`, `id`, `deleted_at`). Settings with a `local.` prefix are machine-specific and never synced.
+  - Rows have natural cross-machine identities: tracks by portable key, links by (from, to), graph nodes by track. Timestamps are milliseconds since the epoch (`created_at`/`updated_at` on every row); deleting a synced row records a tombstone (`kind`, `id`, `deleted_at`). Settings with a `local.` prefix are machine-specific and never synced.
   - The devserver only answers requests addressed to localhost (Host check), since it exposes raw SQL.
 - `%APPDATA%\mixmap\artwork\` — thumbnail cache. `%APPDATA%\mixmap\backups\` — automatic backups.
 
@@ -40,18 +40,19 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - On import / sync / library rebuild, tracks are matched by key. Unmatched or ambiguous ones land in an **"Unmatched tracks"** list for one-time manual mapping (remembered).
 - Tracks removed from rekordbox stay in the graph, marked **missing**.
 
-## Links & boards
+## Links & graph
 
 - **Link**: directed A → B, **global** (exists once). Optional **comment**, **1–5 rating**, free **tags**. At most one link per direction per pair.
-- **Boards**: named tabs (e.g. "Peak-time techno", "Warm-up"), each with its own set of tracks and positions. A link shows on every board that contains both endpoints. A track can be on several boards; a board can contain multiple disconnected clusters.
+- **Graph**: one canvas holding the tracks you placed (cards) and their positions. A link shows when both endpoints are on the graph; the graph can contain multiple disconnected clusters. (Version 1 had boards; migration 2 and version 1 files merge them into the one graph, boards side by side in tab order, a track on several boards keeping its place on the first.)
 - **Canvas interactions**:
-  - Drag track from table **onto a node** → link node → track (**Alt** = reverse). Track is added to the board if needed. No popup.
+  - Drag track from table **onto a node** → link node → track (**Alt** = reverse). Track is added to the graph if needed. No popup.
   - Drag track from table **onto empty canvas** → add node, no link.
   - Dragging an existing node **only moves it**, never links.
   - Drag from a node's **right handle** to another node → link.
   - **Click a link** → link editor in the right panel (comment, rating, tags, delete).
   - Delete link: select + Delete / context menu → Remove, with **Undo** (Ctrl+Z + toast), no confirm dialog.
-  - "Remove from board" keeps links. "Delete all links of this track" requires confirmation showing the count.
+  - "Remove from graph" keeps links. "Delete all links of this track" requires confirmation showing the count.
+  - Select a card + **Delete** → confirmation, then the card is removed with all its links (one transaction; one Undo restores both).
 - **Import pairs** from a rekordbox playlist or history: back-to-back pairs become links, with a preview before saving. Manual action only.
 
 ## Main window
@@ -66,9 +67,9 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 ## Transfer & maintenance
 
-- **Export/import** `.mixmap.json` (links, boards, positions, manual matches, timestamps). Import = **merge** (last-write-wins per item) by default, or **replace**.
-  - Format (`format: "mixmap"`, `version: 1`): tracks (portable key, artist, title, duration), links, boards, board nodes, manual matches, tombstones and non-`local.` settings, each with its timestamps. Machine-local caches (rekordbox id, missing flag) are not exported. A manual match also carries `targetKey`, the portable key of the rekordbox track it points to, so another machine can resolve it instead of trusting a foreign rekordbox id.
-  - Merge rules (import and sync share them, `ui/src/domain/merge.ts`): per item the later of row (`updated_at`) and tombstone (`deleted_at`) wins; on a tie a deletion wins, then the larger row, so both sides of a sync agree. A deleted board takes its nodes with it; links and nodes whose track or board doesn't survive are dropped; tracks still referenced are never deleted. All changes apply in one transaction.
+- **Export/import** `.mixmap.json` (links, graph positions, manual matches, timestamps). Import = **merge** (last-write-wins per item) by default, or **replace**.
+  - Format (`format: "mixmap"`, `version: 2`; version 1 files with boards are still read): tracks (portable key, artist, title, duration), links, graph nodes, manual matches, tombstones and non-`local.` settings, each with its timestamps. Machine-local caches (rekordbox id, missing flag) are not exported. A manual match also carries `targetKey`, the portable key of the rekordbox track it points to, so another machine can resolve it instead of trusting a foreign rekordbox id.
+  - Merge rules (import and sync share them, `ui/src/domain/merge.ts`): per item the later of row (`updated_at`) and tombstone (`deleted_at`) wins; on a tie a deletion wins, then the larger row, so both sides of a sync agree. Links and nodes whose track doesn't survive are dropped; tracks still referenced are never deleted. All changes apply in one transaction.
   - Replace wipes all synced data (machine-local settings stay) after writing an automatic backup to `backups\`, then loads the file as is.
 - **Network sync** with another mixmap instance: mDNS discovery, first-time pairing with a 6-digit code, manual **"Sync now"** two-way merge, last-write-wins, **tombstones** so deletions propagate.
   - Each instance has an identity in `%APPDATA%\mixmap\device.json` (random id, name = computer name) and advertises `_mixmap._tcp.local.` (TXT: `id`, `name`, `protocol`) for a separate LAN listener on an OS-assigned port. The LAN listener serves only `/sync/*` endpoints; the local API stays on localhost. Windows asks once to allow it through the firewall.
@@ -106,10 +107,10 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ## Milestones
 
 1. Library browser
-2. Links, boards, graph & filters
+2. Links, graph & filters
 3. Transfer & maintenance (export/import, sync, reset)
 4. Live overlay (manual mode first, then automatic detection)
 5. Tauri desktop app (shell, overlay window, hotkey, portable exe)
 6. Releases & auto-update
 7. v1.1 — path-finding (shortest transition path A → B)
-   - Right-click a card → "Path from/to this track"; all shortest paths over the global, directed links (fewest links, up to 5, best rated first) are listed in a bar under the filters; the selected one is highlighted on the board, steps not on the board are marked.
+   - Right-click a card → "Path from/to this track"; all shortest paths over the global, directed links (fewest links, up to 5, best rated first) are listed in a bar under the filters; the selected one is highlighted on the graph, steps not on the graph are marked.
