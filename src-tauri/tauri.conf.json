@@ -19,7 +19,8 @@
         "minWidth": 900,
         "minHeight": 600,
         "theme": "Dark",
-        "backgroundColor": "#121417"
+        "backgroundColor": "#121417",
+        "dragDropEnabled": false
       },
       {
         "label": "overlay",
