@@ -16,8 +16,8 @@ import { inTauri } from "@/app/backend";
 import { HotkeySetting } from "@/ui/desktop/HotkeySetting";
 import { TrackTypeahead } from "@/ui/library/TrackTypeahead";
 import { useNowPlaying } from "../overlay/useNowPlaying";
-import { errorText } from "./SyncSection";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type Props = { library: ReadonlyMap<string, Track> };
 
@@ -113,7 +113,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
       setChosen({});
       setStep({ kind: "result", result });
     } catch (e) {
-      setError(errorText(e));
+      setError(errorMessage(e));
       setStep(last ? { kind: "result", result: last } : { kind: "pick" });
     }
   };
@@ -132,7 +132,7 @@ function CalibrationDialog({ library, onClose }: Props & { onClose: () => void }
     try {
       setStep({ kind: "saved", path: (await api.calibrationSave()).path });
     } catch (e) {
-      setError(errorText(e));
+      setError(errorMessage(e));
     }
   };
 

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 import { useAppServices } from "@/app/app-services";
+import { errorMessage } from "@/ui/errors";
 import { subscribe } from "@/app/events";
 import type { Library, LibraryStatus } from "@/business/model";
 
@@ -41,13 +42,13 @@ export function useLibrary(): LibraryState {
     // The backend announces the reload as a "library" event, which refetches.
     backend.refresh().then(
       (s) => queryClient.setQueryData(queryKeys.libraryStatus, s),
-      (e: unknown) => setRefreshError(String(e)),
+      (e: unknown) => setRefreshError(errorMessage(e)),
     );
   }, [backend, queryClient]);
 
   const error = refreshError ?? library.error ?? status.error;
   return {
-    error: error ? String(error) : undefined,
+    error: error ? errorMessage(error) : undefined,
     library: library.data,
     refresh,
     status: status.data,

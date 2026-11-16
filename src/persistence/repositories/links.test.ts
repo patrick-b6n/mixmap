@@ -48,10 +48,12 @@ describe("links", () => {
   });
 
   it("rejects self links and invalid ratings", async () => {
-    await expect(createLink(db, a, a)).rejects.toThrow("itself");
-    await expect(createLink(db, a, b, { rating: 6 })).rejects.toThrow("1–5");
+    await expect(createLink(db, a, a)).rejects.toMatchObject({ code: "self_link" });
+    await expect(createLink(db, a, b, { rating: 6 })).rejects.toMatchObject({ code: "bad_rating" });
     await createLink(db, a, b);
-    await expect(updateLink(db, ka, kb, { rating: 0 })).rejects.toThrow("1–5");
+    await expect(updateLink(db, ka, kb, { rating: 0 })).rejects.toMatchObject({
+      code: "bad_rating",
+    });
   });
 
   it("updates comment, rating and tags", async () => {
@@ -60,7 +62,9 @@ describe("links", () => {
     expect(l).toMatchObject({ comment: "long blend", rating: 5, tags: ["warm-up"] });
     expect(l.updatedAt).toBeGreaterThanOrEqual(created.updatedAt);
     expect((await updateLink(db, ka, kb, { rating: null })).rating).toBeNull();
-    await expect(updateLink(db, kb, ka, { comment: "x" })).rejects.toThrow("not found");
+    await expect(updateLink(db, kb, ka, { comment: "x" })).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 
   it("deletes with a tombstone and restores exactly on undo", async () => {

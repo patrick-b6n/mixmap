@@ -1,3 +1,4 @@
+import { LinkError } from "./errors";
 import type { Track } from "./model";
 
 /** A directed, global transition A → B ("I can mix `from` into `to`"). */
@@ -35,7 +36,7 @@ export function checkRating(rating: number | null | undefined): void {
     rating !== undefined &&
     !(Number.isInteger(rating) && rating >= 1 && rating <= 5)
   ) {
-    throw new Error(`rating must be 1–5, got ${rating}`);
+    throw new LinkError("bad_rating", { rating: String(rating) });
   }
 }
 

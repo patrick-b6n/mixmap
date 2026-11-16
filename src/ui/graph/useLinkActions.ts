@@ -4,6 +4,7 @@ import { useAppServices } from "@/app/app-services";
 import { type Link, type LinkPatch } from "@/business/links";
 import { isTyping, TaskQueue, UndoStack } from "@/business/undo";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 /** A patch, or a function computing it from the link as currently stored. */
 export type LinkUpdate = LinkPatch | ((current: Link) => LinkPatch);
@@ -40,7 +41,7 @@ export function useLinkActions(
           if (r === undefined || r === false) return;
           toast(typeof r === "string" ? m.undo_done_label({ label: r }) : m.undo_done());
         },
-        (err) => onError(m.undo_failed({ error: String(err) })),
+        (err) => onError(m.undo_failed({ error: errorMessage(err) })),
       ),
     [run, refresh, onError],
   );

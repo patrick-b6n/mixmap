@@ -1,5 +1,6 @@
 import { checkRating, cleanTags, type Endpoint, type Link, type LinkPatch } from "@/business/links";
 import { type Db, now, type Statement } from "./db";
+import { LinkError } from "@/business/errors";
 import { tombstoneId } from "@/business/tombstones";
 import { ensureTrackStatement } from "./tracks";
 
@@ -79,7 +80,7 @@ export function createLinkStatements(
   checkRating(init.rating);
   const a = endpoint(from);
   const b = endpoint(to);
-  if (a.key === b.key) throw new Error("a track cannot link to itself");
+  if (a.key === b.key) throw new LinkError("self_link");
   const ts = now();
   const statements: Statement[] = [
     ...a.statements,
@@ -117,7 +118,7 @@ export async function updateLink(
   checkRating(patch.rating);
   if (patch.comment === undefined && patch.rating === undefined && patch.tags === undefined) {
     const current = await getLink(db, from, to);
-    if (!current) throw new Error("link not found");
+    if (!current) throw new LinkError("not_found");
     return current;
   }
   const sets: string[] = [];
@@ -139,7 +140,7 @@ export async function updateLink(
   const [r] = await db.execute([
     { params, sql: `UPDATE links SET ${sets.join(", ")} WHERE from_track = ? AND to_track = ?` },
   ]);
-  if (!r || r.changes === 0) throw new Error("link not found");
+  if (!r || r.changes === 0) throw new LinkError("not_found");
   return (await getLink(db, from, to))!;
 }
 

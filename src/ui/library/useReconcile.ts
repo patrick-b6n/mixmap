@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { useAppServices } from "@/app/app-services";
+import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 import type { MatchResult } from "@/business/matching";
 import type { Library } from "@/business/model";
 
@@ -43,7 +45,7 @@ export function useReconcile(library: Library | undefined): {
     [queryClient],
   );
   return {
-    error: error ? `matching: ${String(error)}` : undefined,
+    error: error ? m.matching_failed({ error: errorMessage(error) }) : undefined,
     rerun,
     results: data ?? NO_RESULTS,
   };

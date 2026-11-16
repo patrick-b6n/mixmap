@@ -23,6 +23,7 @@ import type { LinkActions } from "./useLinkActions";
 import type { MixmapData } from "./useMixmap";
 import { queryKeys } from "../queries";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type Props = {
   actions: LinkActions;
@@ -143,14 +144,14 @@ export function GraphPanel({
       await nodesRepository.place(placement, link);
       data.refresh();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       dropping.current = false;
     }
   };
 
   const onLink = (source: string, target: string) => {
-    linksRepository.create(source, target).then(data.refresh, (e) => setError(String(e)));
+    linksRepository.create(source, target).then(data.refresh, (e) => setError(errorMessage(e)));
   };
 
   /** Undo entry + toast for a removed node (and the links removed with it). */
@@ -162,7 +163,7 @@ export function GraphPanel({
         onClick: () =>
           void actions
             .run(() => actions.undo.undoEntry(entry))
-            .then(data.refresh, (e) => setError(String(e))),
+            .then(data.refresh, (e) => setError(errorMessage(e))),
       },
     });
   };
@@ -185,7 +186,7 @@ export function GraphPanel({
           },
         });
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   /** Delete key on a card: confirm, then take it off the graph and delete its links. */
@@ -238,7 +239,7 @@ export function GraphPanel({
           },
         );
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   /** "Delete all links of this track": confirm with the count first. */
@@ -288,7 +289,7 @@ export function GraphPanel({
           },
         });
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setLayingOut(false));
   };
 
@@ -297,7 +298,7 @@ export function GraphPanel({
   }, []);
 
   const onMoved = (positions: GraphNodeRow[]) => {
-    nodesRepository.move(positions).catch((e) => setError(String(e)));
+    nodesRepository.move(positions).catch((e) => setError(errorMessage(e)));
   };
 
   return (
@@ -321,7 +322,7 @@ export function GraphPanel({
             ) {
               onSelectLink(undefined);
             }
-            actions.deleteLinks(links).catch((e) => setError(String(e)));
+            actions.deleteLinks(links).catch((e) => setError(errorMessage(e)));
           }}
           title={m.graph_delete_all_title()}
         />
@@ -391,7 +392,7 @@ export function GraphPanel({
       )}
       {(error ?? nodesQuery.error) && (
         <div className="flex items-center gap-2 border-b px-3 py-1 text-destructive" role="alert">
-          <span className="flex-1">{error ?? String(nodesQuery.error)}</span>
+          <span className="flex-1">{error ?? errorMessage(nodesQuery.error)}</span>
           <Button
             aria-label={m.common_dismiss()}
             onClick={() => setError(undefined)}

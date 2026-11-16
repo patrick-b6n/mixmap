@@ -2,6 +2,7 @@
 // timestamps, keyed by portable track key. Used by export/import, backups and
 // network sync. Machine-local caches (tracks.rekordbox_id / missing, `local.*`
 // settings) are never part of it.
+import { ExchangeError, type ExchangeErrorCode } from "./errors";
 import { isLocalSetting } from "./settings";
 import { BOARD_GAP, type TombstoneKind } from "./tombstones";
 
@@ -81,16 +82,18 @@ const KINDS: readonly TombstoneKind[] = ["link", "manual_match", "node", "track"
 /** Tombstone kinds of version 1 files, dropped on import (boards no longer exist). */
 const V1_BOARD_KINDS = ["board", "board_node"];
 
-function fail(what: string): never {
-  throw new Error(`Not a valid .mixmap.json file: ${what}`);
+function fail(code: ExchangeErrorCode, params: Record<string, string> = {}): never {
+  throw new ExchangeError(code, params);
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (o: Record<string, unknown>, k: string, where: string): string =>
-  typeof o[k] === "string" ? o[k] : fail(`${where}.${k} must be text`);
+  typeof o[k] === "string" ? o[k] : fail("not_text", { field: `${where}.${k}` });
 const num = (o: Record<string, unknown>, k: string, where: string): number =>
-  typeof o[k] === "number" && Number.isFinite(o[k]) ? o[k] : fail(`${where}.${k} must be a number`);
+  typeof o[k] === "number" && Number.isFinite(o[k])
+    ? o[k]
+    : fail("not_number", { field: `${where}.${k}` });
 
 function list<T>(
   o: Record<string, unknown>,
@@ -98,9 +101,9 @@ function list<T>(
   item: (x: Record<string, unknown>, where: string) => T,
 ): T[] {
   const v = o[k] ?? [];
-  if (!Array.isArray(v)) fail(`${k} must be a list`);
+  if (!Array.isArray(v)) fail("not_list", { field: k });
   return v.map((x: unknown, i) =>
-    isObj(x) ? item(x, `${k}[${i}]`) : fail(`${k}[${i}] must be an object`),
+    isObj(x) ? item(x, `${k}[${i}]`) : fail("not_object", { field: `${k}[${i}]` }),
   );
 }
 
@@ -116,24 +119,22 @@ const node = (o: Record<string, unknown>, w: string): ExportNode => ({
   ...stamps(o, w),
 });
 
-/** Parse and check a .mixmap.json file. Throws a readable error for anything else. */
+/** Parse and check a .mixmap.json file. Throws an {@link ExchangeError} for anything else. */
 export function parseExport(text: string): MixmapExport {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
-    fail("the file is not JSON");
+    fail("not_json");
   }
   return checkExport(raw);
 }
 
-/** Check already-parsed data (a file, or what a sync peer sent). Throws a readable error. */
+/** Check already-parsed data (a file, or what a sync peer sent); throws an {@link ExchangeError}. */
 export function checkExport(raw: unknown): MixmapExport {
-  if (!isObj(raw) || raw.format !== FORMAT) fail(`missing format "${FORMAT}"`);
+  if (!isObj(raw) || raw.format !== FORMAT) fail("wrong_format");
   if (raw.version !== FORMAT_VERSION && raw.version !== 1) {
-    fail(
-      `version ${String(raw.version)} is not supported (this app reads versions 1 and ${FORMAT_VERSION})`,
-    );
+    fail("unsupported_version", { version: String(raw.version) });
   }
   // Version 1 had boards: their nodes become the one graph.
   const v1 = raw.version === 1;
@@ -146,14 +147,14 @@ export function checkExport(raw: unknown): MixmapExport {
         rating !== null &&
         !(typeof rating === "number" && Number.isInteger(rating) && rating >= 1 && rating <= 5)
       ) {
-        fail(`${w}.rating must be 1–5 or null`);
+        fail("bad_rating", { field: w });
       }
       const tags: unknown = o.tags ?? [];
       if (!Array.isArray(tags) || !tags.every((t) => typeof t === "string"))
-        fail(`${w}.tags must be a list of text`);
+        fail("bad_tags", { field: w });
       const from = str(o, "from", w);
       const to = str(o, "to", w);
-      if (from === to) fail(`${w} links a track to itself`);
+      if (from === to) fail("self_link", { field: w });
       return {
         comment: typeof o.comment === "string" ? o.comment : "",
         from,
@@ -187,7 +188,7 @@ export function checkExport(raw: unknown): MixmapExport {
     tombstones: list(raw, "tombstones", (o, w) => {
       const kind = str(o, "kind", w);
       if (!KINDS.includes(kind as TombstoneKind) && !(v1 && V1_BOARD_KINDS.includes(kind))) {
-        fail(`${w}.kind "${kind}" is unknown`);
+        fail("unknown_kind", { field: w, kind });
       }
       return {
         deletedAt: num(o, "deletedAt", w),
@@ -209,8 +210,10 @@ export function checkExport(raw: unknown): MixmapExport {
   // Every link and node must point at a track in the file: it is self-contained.
   const keys = new Set(data.tracks.map((t) => t.key));
   for (const l of data.links)
-    if (!keys.has(l.from) || !keys.has(l.to)) fail(`link ${l.from} → ${l.to} has no track`);
-  for (const n of data.nodes) if (!keys.has(n.trackKey)) fail(`node ${n.trackKey} has no track`);
+    if (!keys.has(l.from) || !keys.has(l.to))
+      fail("link_without_track", { from: l.from, to: l.to });
+  for (const n of data.nodes)
+    if (!keys.has(n.trackKey)) fail("node_without_track", { track: n.trackKey });
   return data;
 }
 

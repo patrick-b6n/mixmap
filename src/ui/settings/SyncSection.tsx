@@ -10,6 +10,7 @@ import { queryKeys } from "../queries";
 import { summaryText } from "./DataSection";
 import { PairCodeForm } from "./PairCodeForm";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 /** One device in the list: discovered on the network and/or paired. */
 type Row = { id: string; lastSyncAt?: number; name: string; online?: Peer; paired: boolean };
@@ -53,7 +54,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
   const queryClient = useQueryClient();
   const statusQuery = useQuery({ queryKey: queryKeys.syncStatus, queryFn: api.syncStatus });
   const status = statusQuery.data;
-  const error = statusQuery.error ? String(statusQuery.error) : undefined;
+  const error = statusQuery.error ? errorMessage(statusQuery.error) : undefined;
   const load = useCallback(
     () => queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus }),
     [queryClient],
@@ -87,7 +88,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
     } catch (e) {
       setMessage({
         error: true,
-        text: m.sync_unreachable({ error: errorText(e), name: row.name }),
+        text: m.sync_unreachable({ error: errorMessage(e), name: row.name }),
       });
     } finally {
       setBusy(false);
@@ -104,7 +105,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
       setMessage({ text: m.sync_paired({ name: peer.name }) });
       await load();
     } catch (err) {
-      const text = errorText(err);
+      const text = errorMessage(err);
       // Keep the code field open for another try unless the request is gone.
       if (/start again|expired/.test(text)) setPairing(undefined);
       setMessage({ error: true, text });
@@ -128,7 +129,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
     } catch (e) {
       setMessage({
         error: true,
-        text: m.sync_failed({ error: errorText(e), name: row.name }),
+        text: m.sync_failed({ error: errorMessage(e), name: row.name }),
       });
     } finally {
       setSyncing(undefined);
@@ -142,7 +143,7 @@ export function SyncSection({ library, onDataChanged }: Props) {
       setMessage({ text: m.sync_forgotten({ name: row.name }) });
       await load();
     } catch (e) {
-      setMessage({ error: true, text: errorText(e) });
+      setMessage({ error: true, text: errorMessage(e) });
     }
   };
 
@@ -266,10 +267,4 @@ export function SyncSection({ library, onDataChanged }: Props) {
       )}
     </fieldset>
   );
-}
-
-/** Backend errors arrive as "command: status text"; keep the text. */
-export function errorText(e: unknown): string {
-  const s = e instanceof Error ? e.message : String(e);
-  return s.replace(/^[a-z_]+: \d{3} /, "");
 }

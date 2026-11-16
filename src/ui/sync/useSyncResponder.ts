@@ -6,6 +6,7 @@ import { type Track } from "@/business/model";
 import { summaryText } from "@/ui/settings/DataSection";
 import { changeCount } from "@/business/sync";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type SyncRequest = { data: unknown; peerId: string; peerName: string; requestId: string };
 
@@ -41,7 +42,7 @@ export function useSyncResponder(
             );
           },
           async (e: unknown) => {
-            const error = e instanceof Error ? e.message : String(e);
+            const error = errorMessage(e);
             await api.syncReply(req.requestId, { error }).catch(() => undefined);
             toast(m.sync_answer_failed({ error, name: req.peerName }));
           },

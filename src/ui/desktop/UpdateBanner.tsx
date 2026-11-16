@@ -5,6 +5,7 @@ import { inTauri } from "@/app/backend";
 import { shouldPrompt, type UpdateCheck } from "@/business/updates";
 import { overlayVisible } from "@/app/overlay-window";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 /** Is a newer release available? (Startup check and "Check for updates" in Settings.) */
 export async function checkForUpdate(): Promise<UpdateCheck> {
@@ -64,7 +65,7 @@ export function UpdateBanner() {
           setBusy(true);
           setError(undefined);
           installUpdate().catch((e: unknown) => {
-            setError(String(e));
+            setError(errorMessage(e));
             setBusy(false);
           });
         }}

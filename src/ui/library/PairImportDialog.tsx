@@ -18,6 +18,7 @@ import { useAppServices } from "@/app/app-services";
 import { type Link } from "@/business/links";
 import { proposePairs } from "@/business/pairImport";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type Props = {
   library: ReadonlyMap<string, Track>;
@@ -65,7 +66,7 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
       );
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
       setBusy(false);
     }
   };

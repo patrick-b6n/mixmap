@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { errorText, rows } from "./SyncSection";
+import { errorMessage } from "../errors";
+import { rows } from "./SyncSection";
 
 const peer = (id: string, name: string) => ({
   addresses: ["192.168.1.2"],
@@ -33,7 +34,7 @@ describe("sync device list", () => {
   });
 
   it("strips the command and status from backend errors", () => {
-    expect(errorText(new Error("pair_confirm: 403 wrong code"))).toBe("wrong code");
-    expect(errorText("plain")).toBe("plain");
+    expect(errorMessage(new Error("pair_confirm: 403 wrong code"))).toBe("wrong code");
+    expect(errorMessage("plain")).toBe("plain");
   });
 });

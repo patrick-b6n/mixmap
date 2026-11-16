@@ -24,6 +24,7 @@ import { DataSection } from "./DataSection";
 import { NowPlayingSection } from "./NowPlayingSection";
 import { SyncSection } from "./SyncSection";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type Props = {
   /** rekordbox tracks by id (to describe manual matches portably in exports). */
@@ -66,7 +67,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
           setResult(m.settings_source_loaded({ playlists: s.playlistCount, tracks: s.trackCount }));
         }
       } catch (e) {
-        setResult(String(e));
+        setResult(errorMessage(e));
       }
     },
   });
@@ -170,7 +171,8 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
                           ? m.settings_update_available({ title: r.title ?? "" })
                           : m.settings_update_none(),
                       ),
-                    (e: unknown) => setUpdateInfo(m.settings_update_failed({ error: String(e) })),
+                    (e: unknown) =>
+                      setUpdateInfo(m.settings_update_failed({ error: errorMessage(e) })),
                   );
                 }}
                 type="button"

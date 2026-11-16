@@ -10,6 +10,7 @@ import { Input } from "@/ui/components/ui/input";
 
 import { queryKeys } from "../queries";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
@@ -36,7 +37,7 @@ export function HotkeySetting() {
         queryClient.setQueryData(queryKeys.overlayHotkey, h);
         setMessage({ text: m.hotkey_saved({ hotkey: h }) });
       } catch (err) {
-        setMessage({ error: true, text: String(err) });
+        setMessage({ error: true, text: errorMessage(err) });
       }
     },
   });

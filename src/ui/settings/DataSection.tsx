@@ -15,6 +15,7 @@ import {
 } from "@/business/exchange";
 import type { Counts, MergeSummary } from "@/business/merge";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type Props = {
   library: ReadonlyMap<string, Track>;
@@ -75,7 +76,7 @@ export function DataSection({ library, onDataChanged }: Props) {
       onDataChanged();
       setMessage({ text: m.data_reset_done({ backup }) });
     } catch (e) {
-      setMessage({ error: true, text: m.data_reset_failed({ error: String(e) }) });
+      setMessage({ error: true, text: m.data_reset_failed({ error: errorMessage(e) }) });
     } finally {
       setBusy(false);
     }
@@ -90,7 +91,7 @@ export function DataSection({ library, onDataChanged }: Props) {
         text: m.data_exported({ contents: contents(data) }),
       });
     } catch (e) {
-      setMessage({ error: true, text: m.data_export_failed({ error: String(e) }) });
+      setMessage({ error: true, text: m.data_export_failed({ error: errorMessage(e) }) });
     }
   };
 
@@ -104,7 +105,7 @@ export function DataSection({ library, onDataChanged }: Props) {
       setMode("merge");
     } catch (e) {
       setPending(undefined);
-      setMessage({ error: true, text: e instanceof Error ? e.message : String(e) });
+      setMessage({ error: true, text: errorMessage(e) });
     }
   };
 
@@ -124,7 +125,7 @@ export function DataSection({ library, onDataChanged }: Props) {
           : summaryText(summary),
       });
     } catch (e) {
-      setMessage({ error: true, text: m.data_import_failed({ error: String(e) }) });
+      setMessage({ error: true, text: m.data_import_failed({ error: errorMessage(e) }) });
     } finally {
       setBusy(false);
     }

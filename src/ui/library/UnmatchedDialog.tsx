@@ -18,6 +18,7 @@ import { rankCandidates } from "@/business/candidates";
 import type { MatchResult } from "@/business/matching";
 import { formatBpm, formatLength, keyLabel } from "@/business/trackTable";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 type Props = {
   library: Track[];
@@ -99,7 +100,7 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
       if (next) select(next.trackKey);
       onMapped();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

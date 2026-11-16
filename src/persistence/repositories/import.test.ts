@@ -1,3 +1,4 @@
+import { ExchangeError } from "@/business/errors";
 import { beforeEach, describe, expect, it } from "vitest";
 import { portableKey } from "@/business/matching";
 import { addNode, listNodes, removeNode } from "./nodes";
@@ -117,6 +118,17 @@ const t = (key: string) => ({
   updatedAt: 1,
 });
 
+/** The error a parse throws, as code and parameters. */
+const reason = (text: string) => {
+  try {
+    parseExport(text);
+  } catch (error) {
+    if (error instanceof ExchangeError) return { code: error.code, ...error.params };
+    throw error;
+  }
+  throw new Error("expected the file to be rejected");
+};
+
 describe("parseExport", () => {
   const ok = { format: "mixmap", version: 2 };
 
@@ -124,21 +136,29 @@ describe("parseExport", () => {
     expect(parseExport(JSON.stringify(ok)).links).toEqual([]);
   });
 
-  it("rejects other files with a readable reason", () => {
-    expect(() => parseExport("not json")).toThrow(/not JSON/);
-    expect(() => parseExport("{}")).toThrow(/format "mixmap"/);
-    expect(() => parseExport(JSON.stringify({ ...ok, version: 3 }))).toThrow(/version 3/);
-    expect(() => parseExport(JSON.stringify({ ...ok, links: {} }))).toThrow(/links must be a list/);
+  it("rejects other files with an error code and details", () => {
+    expect(reason("not json")).toEqual({ code: "not_json" });
+    expect(reason("{}")).toEqual({ code: "wrong_format" });
+    expect(reason(JSON.stringify({ ...ok, version: 3 }))).toEqual({
+      code: "unsupported_version",
+      version: "3",
+    });
+    expect(reason(JSON.stringify({ ...ok, links: {} }))).toEqual({
+      code: "not_list",
+      field: "links",
+    });
     const link = { createdAt: 1, from: "a", to: "b", updatedAt: 1 };
-    expect(() => parseExport(JSON.stringify({ ...ok, links: [link] }))).toThrow(/has no track/);
-    expect(() =>
-      parseExport(
-        JSON.stringify({ ...ok, links: [{ ...link, rating: 9 }], tracks: [t("a"), t("b")] }),
-      ),
-    ).toThrow(/rating/);
-    expect(() =>
-      parseExport(JSON.stringify({ ...ok, tombstones: [{ deletedAt: 1, id: "x", kind: "nope" }] })),
-    ).toThrow(/unknown/);
+    expect(reason(JSON.stringify({ ...ok, links: [link] }))).toEqual({
+      code: "link_without_track",
+      from: "a",
+      to: "b",
+    });
+    expect(
+      reason(JSON.stringify({ ...ok, links: [{ ...link, rating: 9 }], tracks: [t("a"), t("b")] })),
+    ).toEqual({ code: "bad_rating", field: "links[0]" });
+    expect(
+      reason(JSON.stringify({ ...ok, tombstones: [{ deletedAt: 1, id: "x", kind: "nope" }] })),
+    ).toEqual({ code: "unknown_kind", field: "tombstones[0]", kind: "nope" });
   });
 
   it("drops machine-local settings", () => {

@@ -27,6 +27,7 @@ import { SettingsDialog } from "@/ui/settings/SettingsDialog";
 import { useSyncResponder } from "@/ui/sync/useSyncResponder";
 import { Shell } from "@/ui/shell/Shell";
 import { m } from "@/paraglide/messages.js";
+import { errorMessage } from "@/ui/errors";
 
 export function MainWindow() {
   const services = useAppServices();
@@ -65,7 +66,7 @@ export function MainWindow() {
       const link = mixmap.links.find((l) => l.from === from && l.to === to);
       if (!link) return;
       setSelectedLinkId(undefined);
-      linkActions.deleteLinks([link]).catch((e) => setActionError(String(e)));
+      linkActions.deleteLinks([link]).catch((e) => setActionError(errorMessage(e)));
     },
     [mixmap.links, linkActions],
   );
@@ -93,7 +94,7 @@ export function MainWindow() {
   useEffect(() => {
     services
       .restoreSettings()
-      .catch((e: unknown) => setDbError(m.main_db_error({ error: String(e) })));
+      .catch((e: unknown) => setDbError(m.main_db_error({ error: errorMessage(e) })));
   }, [services]);
 
   const selectedNode = useMemo(() => {
@@ -244,7 +245,7 @@ export function MainWindow() {
               onUpdate={(patch) =>
                 linkActions
                   .updateLink(selectedLink.from, selectedLink.to, patch)
-                  .catch((e) => setActionError(String(e)))
+                  .catch((e) => setActionError(errorMessage(e)))
               }
               toLabel={trackLabel(selectedLink.to)}
             />
