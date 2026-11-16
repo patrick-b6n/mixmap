@@ -9,7 +9,7 @@ name = "mixmap_core"
 path = "src/lib.rs"
 
 [dependencies]
-aes = "0.8"
+aes = "0.9"
 axum = "0.8"
 cbc = "0.1"
 getrandom = "0.2"
