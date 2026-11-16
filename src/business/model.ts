@@ -10,7 +10,7 @@ export type Track = {
   filePath: string;
   genre: string;
   id: string;
-  /** rekordbox key as stored; parse with domain/keys. */
+  /** rekordbox key as stored; parse with business/keys. */
   key: string;
   /** Seconds. */
   length: number;

@@ -1,6 +1,6 @@
-//! The backend behind every UI command, shared by the devserver (HTTP) and the
-//! desktop app (Tauri `invoke`): `App::call(command, args)` returns JSON, events go out
-//! through an `Emit` callback (server-sent events / Tauri events).
+//! The backend behind every UI command: `App::call(command, args)` returns JSON (the
+//! Tauri command `call` in lib.rs dispatches to it); events go out through an `Emit`
+//! callback as Tauri events.
 
 use std::sync::{Arc, Mutex};
 

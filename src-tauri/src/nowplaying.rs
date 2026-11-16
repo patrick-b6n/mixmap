@@ -1,7 +1,7 @@
 //! Now-playing detection: what is loaded on each rekordbox deck and which deck is
 //! master. Sources (the memory reader, tests) implement `NowPlayingSource`; a poller
 //! runs the active source and reports changes. Matching titles to library tracks and
-//! combining with manual mode happen in the UI (`ui/src/domain/nowPlaying.ts`).
+//! combining with manual mode happen in the UI (`src/business/nowPlaying.ts`).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

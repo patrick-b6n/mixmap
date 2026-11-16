@@ -5,16 +5,12 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ## Platform & architecture
 
 - **Tauri 2 + React + TypeScript**, Rust backend. Windows only. **Dark theme only.**
-- UI stack: **Tailwind CSS v4 + shadcn/ui** (theme tokens map the dark palette); **oxc** (oxlint, oxfmt) for linting and formatting; Vitest for tests.
+- UI stack: **TanStack Start (SPA) with Router, Query, Form and Table**, **Tailwind CSS v4 + shadcn/ui on Base UI**, **Paraglide JS** for all UI text; **oxc** (oxlint, oxfmt) for linting and formatting; Vitest for tests. Same setup as belegwerk-next.
 - **TypeScript first, Rust only where necessary.** Rust is a thin I/O layer for what a browser can't do; all domain logic lives in TypeScript.
-- Layout of the repo:
-  - `crates/core` — I/O only: locating and decrypting rekordbox `master.db` and returning raw library data, file watching, artwork extraction and thumbnail cache, mixmap SQLite storage, network (mDNS, sync transport), memory reader for now-playing.
-  - `crates/devserver` — small local HTTP server (axum) exposing the same API as the Tauri commands, for fast dev loops in a plain browser.
-  - `ui/` — React (Vite) frontend **and all domain logic** (`ui/src/domain/`): keys and compatibility, portable track keys and matching, links/graph rules, export/import and merge/sync semantics, filters, pair import, path-finding. Talks to the backend through **one API adapter**: HTTP to the devserver in the browser, `invoke` in Tauri.
-  - `src-tauri/` — thin shell over `core`. Needed only for overlay window, global hotkey, updater and installer.
-  - Both the devserver and the desktop app wrap `mixmap_core::app::App`: one dispatcher `call(command, args)` (devserver: `POST /api/<command>`; Tauri: the single command `call`), events through a callback (SSE / Tauri events of the same name), artwork via `GET /api/artwork/<id>` or the `artwork` URI scheme (`http://artwork.localhost/<id>`).
-  - Desktop dev: `ui/node_modules/.bin/tauri dev` from the repo root (starts Vite itself).
-- Daily dev loop: `vite` + `cargo run -p devserver`, browser. The devserver keeps its own data in `.dev-data/` (unless `MIXMAP_APP_DIR` is set), never in the desktop app's `%APPDATA%\mixmap`.
+- One package (pnpm, Node ≥ 26), see [Architecture](architecture.md):
+  - `src/` — the frontend in layers: `routes` (`/` main window, `/overlay`), `ui`, `business` (domain logic and ports), `persistence` (mixmap.db), `app` (composition root). Boundaries are enforced by oxlint.
+  - `src-tauri/` — the Rust crate (edition 2024): Tauri host plus I/O — locating and decrypting rekordbox `master.db`, file watching, artwork and thumbnail cache, network (mDNS, sync transport), memory reader for now-playing, self-update. The UI calls it through one command, `call(command, args)` (`src-tauri/src/app.rs`), events are Tauri events of the same name, artwork comes from the `artwork` URI scheme (`http://artwork.localhost/<id>`).
+- Development: `pnpm tauri dev` (Vite on port 1420 plus the desktop app). The UI only runs inside the desktop app; in a plain browser it shows "mixmap only runs as a desktop app". Debug builds keep all their data in `.dev-data/` in the repository (unless `MIXMAP_APP_DIR` is set), never in `%APPDATA%\mixmap`.
 
 ## Data
 
@@ -33,9 +29,8 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 ### mixmap's own data
 
 - `%APPDATA%\mixmap\mixmap.db` (SQLite): links, graph node positions, manual track matches, tombstones, settings.
-  - Rust exposes it only as a generic bridge (`db_query`, `db_execute` = statements in one transaction). Schema, migrations (`PRAGMA user_version`) and all queries live in TypeScript (`ui/src/db`), tested against `node:sqlite`.
+  - The Tauri host opens it with a single connection and hands it to `tauri-plugin-sql`; the UI reads and writes it from TypeScript (`src/persistence`). The schema is a Drizzle schema with drizzle-kit migrations, applied at startup by a hash-checked migrator; see [Data model](data-model.md). Both windows share the connection; a Web Lock keeps their transactions apart. Tested against `node:sqlite`.
   - Rows have natural cross-machine identities: tracks by portable key, links by (from, to), graph nodes by track. Timestamps are milliseconds since the epoch (`created_at`/`updated_at` on every row); deleting a synced row records a tombstone (`kind`, `id`, `deleted_at`). Settings with a `local.` prefix are machine-specific and never synced.
-  - The devserver only answers requests addressed to localhost (Host check), since it exposes raw SQL.
 - `%APPDATA%\mixmap\artwork\` — thumbnail cache. `%APPDATA%\mixmap\backups\` — automatic backups.
 
 ### Track identity
@@ -73,13 +68,13 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 
 - **Export/import** `.mixmap.json` (links, graph positions, manual matches, timestamps). Import = **merge** (last-write-wins per item) by default, or **replace**.
   - Format (`format: "mixmap"`, `version: 2`; version 1 files with boards are still read): tracks (portable key, artist, title, duration), links, graph nodes, manual matches, tombstones and non-`local.` settings, each with its timestamps. Machine-local caches (rekordbox id, missing flag) are not exported. A manual match also carries `targetKey`, the portable key of the rekordbox track it points to, so another machine can resolve it instead of trusting a foreign rekordbox id.
-  - Merge rules (import and sync share them, `ui/src/domain/merge.ts`): per item the later of row (`updated_at`) and tombstone (`deleted_at`) wins; on a tie a deletion wins, then the larger row, so both sides of a sync agree. Links and nodes whose track doesn't survive are dropped; tracks still referenced are never deleted. All changes apply in one transaction.
+  - Merge rules (import and sync share them, `src/business/merge.ts`): per item the later of row (`updated_at`) and tombstone (`deleted_at`) wins; on a tie a deletion wins, then the larger row, so both sides of a sync agree. Links and nodes whose track doesn't survive are dropped; tracks still referenced are never deleted. All changes apply in one transaction.
   - Replace wipes all synced data (machine-local settings stay) after writing an automatic backup to `backups\`, then loads the file as is.
 - **Network sync** with another mixmap instance: mDNS discovery, first-time pairing with a 6-digit code, manual **"Sync now"** two-way merge, last-write-wins, **tombstones** so deletions propagate.
-  - Each instance has an identity in `%APPDATA%\mixmap\device.json` (random id, name = computer name) and advertises `_mixmap._tcp.local.` (TXT: `id`, `name`, `protocol`) for a separate LAN listener on an OS-assigned port. The LAN listener serves only `/sync/*` endpoints; the local API stays on localhost. Windows asks once to allow it through the firewall.
+  - Each instance has an identity in `%APPDATA%\mixmap\device.json` (random id, name = computer name) and advertises `_mixmap._tcp.local.` (TXT: `id`, `name`, `protocol`) for a separate LAN listener on an OS-assigned port. The LAN listener serves only `/sync/*` endpoints. Windows asks once to allow it through the firewall.
   - Pairing: the initiator and the target exchange ephemeral X25519 keys; the target shows a random 6-digit code (valid 2 min, 3 attempts); the shared secret is HMAC(DH result, code, both ids, both keys). Each side proves it has the secret before storing it, so a wrong code or a man in the middle without the code never pairs. Paired peers and secrets live in `%APPDATA%\mixmap\paired.json` (machine-local). Requests between paired peers are HMAC-signed (method, path, timestamp, body hash); the secret never travels.
   - Sync now (initiator A, peer B): A's UI exports its data; A's backend sends it signed to B's `/sync/exchange`; B's backend verifies it (paired, clocks within 5 min, not replayed) and hands it to B's UI (`sync-request`), which merges it and answers with its own export from before the merge; the signed answer goes back and A's UI merges it. Both sides then hold the same data. B's mixmap window must be open (otherwise: "mixmap isn't open on B"); nothing changes on either side if a step fails. Merges copy the whole winning row (including `created_at`).
-  - Dev: `MIXMAP_APP_DIR` and `MIXMAP_DEV_ADDR` start a second devserver instance (own data, own port) for sync tests on one machine; `MIXMAP_API` points a second Vite UI (e.g. `--port 5183`) at it.
+  - Dev: a second instance with its own data (`MIXMAP_APP_DIR`) is a second built exe started with that variable; sync tests need two instances.
 - **Reset database**: Settings → type `RESET` → automatic backup export first. Only affects mixmap data. Machine-local settings (e.g. the library source) stay, and no tombstones are written: a reset never deletes anything on a sync peer.
 
 ## Live overlay
@@ -91,22 +86,22 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
 - **Now-playing detection**, in order:
   1. Spike (done, rekordbox 7.2.19): history _is_ written to `master.db` live (visible within ~1 s), but only after a track has played for about a minute, and without deck or master information. Too late and too coarse for the overlay → **not used**.
   2. Own **memory reader** with a **calibration wizard** (load known tracks on deck 1/2, scan memory for the title, derive pointer chains, save per rekordbox version).
-     - Implemented in `crates/core/src/memory/`: the process is opened with query + read rights only. Calibration rounds (Settings → Now playing → Calibrate) find every UTF-8/UTF-16 copy of the loaded titles/artists, collect pointer chains from the executable's image (depth ≤ 5, offset ≤ 0x800) and keep those that follow the next tracks. Saved as `%APPDATA%\mixmap\calibration\rekordbox-<version>.json`; read once per second and emitted as `now-playing`. A missing or non-matching calibration shows "recalibrate or set tracks manually" in the overlay. rekordbox 7.2.19: one static object holds both decks' title/artist. The master deck is not read from memory; it is set by hand in the overlay (crown).
+     - Implemented in `src-tauri/src/memory/`: the process is opened with query + read rights only. Calibration rounds (Settings → Now playing → Calibrate) find every UTF-8/UTF-16 copy of the loaded titles/artists, collect pointer chains from the executable's image (depth ≤ 5, offset ≤ 0x800) and keep those that follow the next tracks. Saved as `%APPDATA%\mixmap\calibration\rekordbox-<version>.json`; read once per second and emitted as `now-playing`. A missing or non-matching calibration shows "recalibrate or set tracks manually" in the overlay. rekordbox 7.2.19: one static object holds both decks' title/artist. The master deck is not read from memory; it is set by hand in the overlay (crown).
   3. **Manual mode** (type-ahead to set the current track) always available as fallback.
 - rkbx_link is **not** used (newer rekordbox versions require a paid licence).
 
 ## Distribution
 
-- **Single portable `mixmap.exe`**, unsigned, no installer (SmartScreen warning on first run). The frontend is embedded; it needs only the WebView2 runtime (part of Windows 10/11). Data stays in `%APPDATA%\mixmap`, so the exe can live anywhere. Build: `ui/node_modules/.bin/tauri build --no-bundle` → `target/release/mixmap.exe`.
-- **Auto-update from GitHub Releases**: every push to `main` → GitHub Actions builds the exe and publishes a GitHub Release with `mixmap.exe` and `latest.json` (version, download URL, SHA-256). The app checks the latest release on startup and offers "install & restart": it downloads the new exe, verifies its SHA-256, swaps it in place of the running exe (the old one is renamed and removed on the next start) and restarts. It **never auto-installs**, and shows **no prompt while the overlay is active**. No updater signing key (the exe is unsigned; integrity comes from the SHA-256 published with the release over HTTPS).
-- **Versioning: CalVer** `YYYY.MMDD.HHMMSS` in UTC as semver-compatible numbers (leading zeros drop, e.g. `2026.105.3012` for 5 Jan 00:30:12). Release title shows `2026-11-14 15:30:12 UTC`. `node ui/scripts/calver.ts --set` stamps it into `Cargo.toml`, `tauri.conf.json` and `ui/package.json` (logic in `ui/src/domain/calver.ts`); local dev builds stay `0.1.0` and never offer updates. Settings shows the running version.
-- Requires `gh auth refresh -s workflow` once before workflows can be pushed.
+- **Single portable `mixmap.exe`**, unsigned, no installer (SmartScreen warning on first run). The frontend is embedded; it needs only the WebView2 runtime (part of Windows 10/11). Data stays in `%APPDATA%\mixmap`, so the exe can live anywhere. Build: `pnpm tauri build --no-bundle` → `src-tauri/target/release/mixmap.exe`.
+- **Auto-update from GitHub Releases**: every push to `main` → GitHub Actions checks, builds the exe and publishes a GitHub Release with `mixmap.exe` and `mixmap.exe.sha256`. The app asks the GitHub API for the latest release on startup and offers "install & restart": it asks GitHub again (never trusting URLs from the UI), downloads the exe, verifies size and SHA-256, swaps it in place of the running exe (the old one is renamed and removed on the next start) and restarts. It **never auto-installs**, and shows **no prompt while the overlay is active**. See [Release](release.md).
+- **Versioning: CalVer** `YYYY.MMDD.HHMMSS` in UTC as semver-compatible numbers (leading zeros drop, e.g. `2026.105.3012` for 5 Jan 00:30:12), always higher than the latest tag. Release title shows `2026-11-14 15:30:12 UTC`. Development builds are `0.0.0` and never offer updates. Settings shows the running version.
 
 ## Testing
 
-- Rust unit tests: rekordbox reader (against a local snapshot in `fixtures/`, git-ignored), storage, watcher, artwork.
-- Vitest: domain logic — keys and compatibility, filters, graph operations, merge/sync semantics, portable-key matching.
-- Manual verification in the browser against the devserver. No E2E suite for now.
+- `pnpm verify` runs everything CI runs: format check, lint (incl. layer boundaries), typecheck, Vitest, `cargo fmt`, `cargo clippy -D warnings`, `cargo test`. Pull requests are checked by `.github/workflows/ci.yml`. See [Testing](testing.md).
+- Rust unit tests: rekordbox reader (against a local snapshot in `fixtures/`, git-ignored), watcher, artwork, network, updater.
+- Vitest: business logic, and persistence (repositories, migrations, adoption of older databases) on `node:sqlite` through the app's own database path.
+- Manual verification in the desktop app (`pnpm tauri dev`). No E2E suite for now.
 
 ## Milestones
 
