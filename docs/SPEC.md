@@ -14,7 +14,7 @@ mixmap is a Windows desktop app for DJs. It reads the local **rekordbox** librar
   - `src-tauri/` — thin shell over `core`. Needed only for overlay window, global hotkey, updater and installer.
   - Both the devserver and the desktop app wrap `mixmap_core::app::App`: one dispatcher `call(command, args)` (devserver: `POST /api/<command>`; Tauri: the single command `call`), events through a callback (SSE / Tauri events of the same name), artwork via `GET /api/artwork/<id>` or the `artwork` URI scheme (`http://artwork.localhost/<id>`).
   - Desktop dev: `ui/node_modules/.bin/tauri dev` from the repo root (starts Vite itself).
-- Daily dev loop: `vite` + `cargo run -p devserver`, browser.
+- Daily dev loop: `vite` + `cargo run -p devserver`, browser. The devserver keeps its own data in `.dev-data/` (unless `MIXMAP_APP_DIR` is set), never in the desktop app's `%APPDATA%\mixmap`.
 
 ## Data
 

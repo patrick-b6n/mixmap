@@ -183,8 +183,18 @@ fn app(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// The devserver never touches the desktop app's real data in `%APPDATA%\mixmap`:
+/// without `MIXMAP_APP_DIR` it uses `.dev-data/` in the repository.
+fn use_dev_app_dir() {
+    if std::env::var_os("MIXMAP_APP_DIR").is_none() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.dev-data");
+        std::env::set_var("MIXMAP_APP_DIR", dir);
+    }
+}
+
 #[tokio::main]
 async fn main() {
+    use_dev_app_dir();
     let db = mixmap_core::paths::database_path();
     let store = Store::open(&db).unwrap_or_else(|e| panic!("cannot open {}: {e}", db.display()));
     println!("mixmap database: {}", db.display());

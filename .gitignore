@@ -10,6 +10,9 @@ ui/dist/
 # Tauri
 src-tauri/gen/
 
+# Devserver data (MIXMAP_APP_DIR default), kept apart from %APPDATA%\mixmap
+.dev-data/
+
 # Local rekordbox snapshot (contains personal library data)
 fixtures/
 
