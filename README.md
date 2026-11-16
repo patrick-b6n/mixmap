@@ -17,12 +17,12 @@ mixmap reads your local rekordbox library, lets you link tracks into a directed 
 
 ## Features
 
-- **Your library, instantly**: mixmap picks up your rekordbox collection on its own and stays in sync as it changes. Your rekordbox library is never touched.
-- **Map your mixes**: drag tracks onto the canvas and connect the ones that blend well. Add notes, ratings and tags to remember why a transition works.
-- **Boards for every vibe**: keep separate maps for warm-up, peak time or that one special set, all sharing what you've already learned.
+- **Your library, instantly**: mixmap reads your rekordbox collection and stays in sync as it changes.
+- **Map your mixes**: drag tracks onto the canvas and remember what mixes well. Add notes, ratings and tags to recall why a transition works.
+- **Boards for every vibe**: create separate maps for different occasions, all sharing what you've already learned.
 - **Find the perfect next track**: filter by genre, tempo, key or rating, or show only the tracks that harmonically fit your current pick.
 - **Get from A to B**: pick two tracks and mixmap shows you the smoothest route between them.
-- **Learn from your sets**: turn a played set or playlist into transitions with one click.
+- **Learn from your sets**: merge a played set or playlist into the map.
 - **Live on the decks**: a compact overlay sits on top of rekordbox and shows where you can go next with the tracks you have loaded.
 - **Take it anywhere**: your maps follow you to every computer, with backups and sync between machines on the same network.
 - **Just run it**: a single file, no installer, and it keeps itself up to date.
