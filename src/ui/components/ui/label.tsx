@@ -1,10 +1,11 @@
-import * as React from "react";
-import { cn } from "@/ui/lib/utils";
-import { Label as LabelPrimitive } from "radix-ui";
+import type * as React from "react";
 
-function Label({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
+import { cn } from "@/ui/lib/utils";
+
+/** A form label (plain `<label>`; Base UI has no label primitive). */
+function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
-    <LabelPrimitive.Root
+    <label
       data-slot="label"
       className={cn(
         "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",

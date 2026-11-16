@@ -156,9 +156,7 @@ export function SettingsDialog({ library, onClose, onDataChanged, status }: Prop
           <Button disabled={busy} onClick={apply}>
             {busy ? "Loading…" : "Apply"}
           </Button>
-          <DialogClose asChild>
-            <Button>Close</Button>
-          </DialogClose>
+          <DialogClose render={<Button />}>Close</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

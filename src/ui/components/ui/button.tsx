@@ -1,7 +1,7 @@
-import * as React from "react";
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
+
 import { cn } from "@/ui/lib/utils";
-import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:outline-1 focus-visible:outline-offset-0 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -40,20 +40,15 @@ const buttonVariants = cva(
   },
 );
 
+/** A button (Base UI). Render it as another element with `render`. */
 function Button({
   className,
   variant = "subtle",
   size = "compact",
-  asChild = false,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
-  }) {
-  const Comp = asChild ? Slot.Root : "button";
-
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
-    <Comp
+    <ButtonPrimitive
       data-slot="button"
       data-variant={variant}
       data-size={size}

@@ -151,9 +151,7 @@ export function PairImportDialog({ library, links, onClose, onCreated, playlist 
           >
             {busy ? "Creating…" : `Create ${chosen.length} link${chosen.length === 1 ? "" : "s"}`}
           </Button>
-          <DialogClose asChild>
-            <Button>Cancel</Button>
-          </DialogClose>
+          <DialogClose render={<Button />}>Cancel</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

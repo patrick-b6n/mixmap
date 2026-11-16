@@ -23,14 +23,12 @@ export function OverlayMenu() {
         setThrough(clickThrough());
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <Button>
-          <PictureInPicture2 />
-          Overlay
-        </Button>
+      <DropdownMenuTrigger render={<Button />}>
+        <PictureInPicture2 />
+        Overlay
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        <DropdownMenuItem onSelect={() => void toggleOverlay().then(setVisible)}>
+        <DropdownMenuItem onClick={() => void toggleOverlay().then(setVisible)}>
           {visible ? "Hide overlay" : "Show overlay"}
         </DropdownMenuItem>
         <DropdownMenuCheckboxItem

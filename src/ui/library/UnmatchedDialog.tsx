@@ -235,9 +235,7 @@ export function UnmatchedDialog({ library, onClose, onMapped, results, tracks }:
           </div>
         )}
         <DialogFooter>
-          <DialogClose asChild>
-            <Button>Close</Button>
-          </DialogClose>
+          <DialogClose render={<Button />}>Close</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

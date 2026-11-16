@@ -222,8 +222,8 @@ export function TrackTable({
             : `${rows.length} of ${tracks.length}`}
         </span>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button title="Choose columns">Columns</Button>
+          <DropdownMenuTrigger render={<Button title="Choose columns" />}>
+            Columns
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {chooserColumns.map((c) => (
@@ -231,8 +231,6 @@ export function TrackTable({
                 checked={c.visible}
                 key={c.id}
                 onCheckedChange={(checked) => setColumn(c.id, { visible: checked === true })}
-                // Keep the menu open while toggling several columns.
-                onSelect={(e) => e.preventDefault()}
               >
                 {c.id === "artwork" ? "Artwork" : LABELS.get(c.id)?.label}
               </DropdownMenuCheckboxItem>
