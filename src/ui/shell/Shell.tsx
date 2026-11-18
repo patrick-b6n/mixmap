@@ -15,12 +15,14 @@ import {
   saveLayout,
   shareFromPointer,
 } from "./layoutState";
-import { PanelLeft, PanelRight } from "lucide-react";
+import { AudioWaveform, PanelLeft, PanelRight } from "lucide-react";
 import { Button } from "@/ui/components/ui/button";
 import { cn } from "@/ui/lib/utils";
 import { m } from "@/paraglide/messages.js";
 
 type Props = {
+  /** Track analysis strip above the table (can be hidden). */
+  analysis?: ReactNode;
   details: ReactNode;
   filterBar?: ReactNode;
   graph: ReactNode;
@@ -37,7 +39,16 @@ const KEY_STEP = 0.02;
  * Main window: collapsible playlist tree | graph (top) + table (bottom) with a
  * draggable, remembered splitter | collapsible details panel.
  */
-export function Shell({ banner, details, filterBar, graph, playlists, table, toolbar }: Props) {
+export function Shell({
+  analysis,
+  banner,
+  details,
+  filterBar,
+  graph,
+  playlists,
+  table,
+  toolbar,
+}: Props) {
   const [layout, setLayout] = useState<LayoutState>(loadLayout);
   const [dragging, setDragging] = useState(false);
   const centerRef = useRef<HTMLDivElement>(null);
@@ -103,6 +114,18 @@ export function Shell({ banner, details, filterBar, graph, playlists, table, too
         </Button>
         <span className="font-semibold">{m.app_title()}</span>
         <div className="flex min-w-0 flex-1 items-center gap-2">{toolbar}</div>
+        {analysis && (
+          <Button
+            aria-label={m.shell_toggle_analysis()}
+            aria-pressed={!layout.analysisHidden}
+            onClick={() => update({ analysisHidden: !layout.analysisHidden })}
+            size="icon-compact"
+            title={m.shell_toggle_analysis()}
+            variant="ghost"
+          >
+            <AudioWaveform />
+          </Button>
+        )}
         <Button
           aria-label={layout.rightCollapsed ? m.shell_show_details() : m.shell_hide_details()}
           onClick={() => update({ rightCollapsed: !layout.rightCollapsed })}
@@ -148,10 +171,17 @@ export function Shell({ banner, details, filterBar, graph, playlists, table, too
             tabIndex={0}
           />
           <section
-            className="min-h-20 basis-0 overflow-hidden"
+            className={cn(
+              "flex basis-0 flex-col overflow-hidden",
+              // Keep a few table rows visible under the analysis strip.
+              analysis && !layout.analysisHidden ? "min-h-44" : "min-h-20",
+            )}
             style={{ flexGrow: 1 - layout.graphShare }}
           >
-            {table}
+            {analysis && !layout.analysisHidden && (
+              <div className="flex-none border-b">{analysis}</div>
+            )}
+            <div className="min-h-0 flex-1">{table}</div>
           </section>
         </div>
         {!layout.rightCollapsed && (

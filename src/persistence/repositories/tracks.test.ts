@@ -6,6 +6,7 @@ import { ensureTrackStatement, listTracks, reconcile, setManualMatch } from "./t
 
 const track = (id: string, artist: string, title: string, length: number): Track => ({
   album: "",
+  analysisPath: null,
   artist,
   artworkPath: null,
   bpm: 0,

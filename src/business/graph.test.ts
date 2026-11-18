@@ -25,6 +25,7 @@ const row = (key: string, rekordboxId: string | null, missing = false): TrackRow
 
 const rb = (id: string, title: string): Track => ({
   album: "",
+  analysisPath: null,
   artist: "RB Artist",
   artworkPath: null,
   bpm: 128,

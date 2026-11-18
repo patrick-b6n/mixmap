@@ -10,6 +10,7 @@ import type {
   LibraryStatus,
   PairedPeer,
   SyncStatus,
+  TrackAnalysis,
 } from "@/business/model";
 import type { Backend } from "@/business/ports";
 
@@ -61,6 +62,7 @@ export const backend: Backend = {
     call<{ data: unknown; summary: unknown }>("sync_exchange", { data, peerId }),
   syncReply: (requestId, reply) => call<boolean>("sync_reply", { reply, requestId }),
   syncStatus: () => call<SyncStatus>("sync_status"),
+  trackAnalysis: (trackId) => call<TrackAnalysis>("track_analysis", { trackId }),
   unpair: (peerId) => call<boolean>("unpair", { peerId }),
   version: async () => (await call<Hello>("hello")).version,
   writeBackup: async (content, name) =>

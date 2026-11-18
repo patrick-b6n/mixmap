@@ -14,6 +14,7 @@ import {
 
 const track = (id: string, patch: Partial<Track> = {}): Track => ({
   album: "",
+  analysisPath: null,
   artist: "",
   artworkPath: null,
   bpm: 0,

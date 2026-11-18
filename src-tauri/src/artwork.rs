@@ -3,7 +3,7 @@
 //! `None` means "no artwork" and the UI shows a placeholder.
 
 use std::io::Cursor;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use image::{ImageFormat, ImageReader, Limits, imageops::FilterType};
@@ -165,15 +165,11 @@ type Stamp = (u128, u64);
 
 impl Source {
     fn find(track: &Track, analysis_root: Option<&Path>) -> Option<Source> {
-        if let (Some(root), Some(rel)) = (analysis_root, track.artwork_path.as_deref()) {
-            let rel = Path::new(rel.trim_start_matches(['/', '\\']));
-            // Only plain relative paths: no "..", drive letters or UNC prefixes.
-            if rel.components().all(|c| matches!(c, Component::Normal(_))) {
-                let p = root.join(rel);
-                if let Some(st) = stamp(&p) {
-                    return Some(Source::Rekordbox(p, st));
-                }
-            }
+        if let (Some(root), Some(rel)) = (analysis_root, track.artwork_path.as_deref())
+            && let Some(p) = crate::rekordbox::location::under_root(root, rel)
+            && let Some(st) = stamp(&p)
+        {
+            return Some(Source::Rekordbox(p, st));
         }
         let p = PathBuf::from(&track.file_path);
         stamp(&p).map(|st| Source::Audio(p, st))
@@ -260,6 +256,7 @@ mod tests {
     fn track(file_path: &str, artwork_path: Option<&str>) -> Track {
         Track {
             album: String::new(),
+            analysis_path: None,
             artist: String::new(),
             artwork_path: artwork_path.map(Into::into),
             bpm: 0.0,

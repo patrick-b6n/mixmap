@@ -17,6 +17,16 @@ pub struct Location {
     pub overridden: bool,
 }
 
+/// A path stored in master.db relative to the analysis root (e.g. `/PIONEER/...`),
+/// resolved under `root`. Only plain relative paths: no "..", drive letters or UNC
+/// prefixes, so a database entry can never point outside the root.
+pub fn under_root(root: &Path, rel: &str) -> Option<PathBuf> {
+    let rel = Path::new(rel.trim_start_matches(['/', '\\']));
+    rel.components()
+        .all(|c| matches!(c, std::path::Component::Normal(_)))
+        .then(|| root.join(rel))
+}
+
 /// `%APPDATA%\Pioneer\rekordboxAgent\storage\options.json`
 pub fn options_json_path() -> Option<PathBuf> {
     let appdata = std::env::var_os("APPDATA")?;

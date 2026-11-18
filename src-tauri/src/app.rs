@@ -260,6 +260,37 @@ impl App {
         .await
     }
 
+    /// Cues (from the library) and analysis (from the track's ANLZ files) of a track.
+    /// Unknown tracks and missing analysis files give empty data, not errors.
+    async fn track_analysis(&self, track_id: String) -> Result<Value, Error> {
+        #[derive(Serialize)]
+        struct TrackAnalysis<'a> {
+            analysis: Option<crate::rekordbox::anlz::Analysis>,
+            cues: &'a [crate::rekordbox::cues::Cue],
+        }
+        let snap = self.library.current();
+        blocking(move || {
+            let lib = &snap.library;
+            let root = snap
+                .location
+                .as_ref()
+                .and_then(|l| l.analysis_root.as_deref());
+            let analysis = lib
+                .tracks
+                .iter()
+                .find(|t| t.id == track_id)
+                .and_then(|t| t.analysis_path.as_deref())
+                .zip(root)
+                .and_then(|(rel, root)| crate::rekordbox::location::under_root(root, rel))
+                .and_then(|path| crate::rekordbox::anlz::load(&path));
+            to_value(TrackAnalysis {
+                analysis,
+                cues: lib.cues.get(&track_id).map_or(&[], Vec::as_slice),
+            })
+        })
+        .await
+    }
+
     /// Run a UI command. Unknown commands are `NotFound`.
     pub async fn call(self: &Arc<Self>, command: &str, args: Value) -> Result<Value, Error> {
         let app = self.clone();
@@ -370,6 +401,14 @@ impl App {
                 Ok(json!(true))
             }
             "now_playing" => to_value(lock(&self.now_playing).0.clone()),
+            "track_analysis" => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct A {
+                    track_id: String,
+                }
+                self.track_analysis(arg::<A>(args)?.track_id).await
+            }
             "calibration_start" => {
                 use crate::memory::source::Attach;
                 let (mem, version) =
@@ -477,6 +516,12 @@ mod tests {
         assert_eq!(
             app.artwork("missing".into(), Size::Small).await.unwrap(),
             None
+        );
+        assert_eq!(
+            app.call("track_analysis", json!({"trackId": "missing"}))
+                .await
+                .unwrap(),
+            json!({"analysis": null, "cues": []})
         );
     }
 }

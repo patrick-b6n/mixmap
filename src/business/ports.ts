@@ -14,6 +14,7 @@ import type {
   PairedPeer,
   SyncStatus,
   Track,
+  TrackAnalysis,
   TrackRow,
 } from "./model";
 
@@ -80,6 +81,8 @@ export interface Backend {
   libraryStatus(): Promise<LibraryStatus>;
   refresh(): Promise<LibraryStatus>;
   setLibrarySource(source: LibrarySource): Promise<LibraryStatus>;
+  /** Cues and analysis (waveform, beat grid, phrases) of a library track. */
+  trackAnalysis(trackId: string): Promise<TrackAnalysis>;
   /** Saves a backup file into the backups folder; returns its full path. */
   writeBackup(content: string, name: string): Promise<string>;
   syncStatus(): Promise<SyncStatus>;

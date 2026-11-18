@@ -147,6 +147,7 @@ fn track(a: &HashMap<String, String>) -> Track {
     let num = |k: &str| a.get(k).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
     Track {
         album: s("Album"),
+        analysis_path: None,
         artist: s("Artist"),
         artwork_path: None,
         bpm: num("AverageBpm"),

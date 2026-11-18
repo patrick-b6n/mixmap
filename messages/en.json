@@ -10,6 +10,47 @@
   "shell_hide_details": "Hide details",
   "shell_toggle_details": "Toggle details",
   "shell_resize_graph_table": "Resize graph and table",
+  "shell_toggle_analysis": "Toggle track analysis",
+  "analysis_region": "Track analysis",
+  "analysis_none_selected": "No track selected",
+  "analysis_unavailable": "No analysis available",
+  "analysis_failed": "Could not load the analysis: {error}",
+  "analysis_layers": "Analysis layers",
+  "analysis_layer_waveform": "Waveform",
+  "analysis_layer_hot_cues": "Hot cues",
+  "analysis_layer_memory_cues": "Memory cues",
+  "analysis_layer_loops": "Loops",
+  "analysis_layer_beat_grid": "Beat grid",
+  "analysis_layer_phrases": "Phrases",
+  "analysis_layer_time_axis": "Time axis",
+  "analysis_layer_length": "Track length",
+  "analysis_hot_cue": "Hot cue {letter} · {time}",
+  "analysis_memory_cue": "Memory cue · {time}",
+  "analysis_loop": [
+    {
+      "declarations": [
+        "input start",
+        "input end",
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Loop {start}–{end} · {count} beat",
+        "countPlural=other": "Loop {start}–{end} · {count} beats"
+      }
+    }
+  ],
+  "analysis_loop_no_bpm": "Loop {start}–{end}",
+  "analysis_length": "Length {time}",
+  "analysis_phrase_bridge": "Bridge",
+  "analysis_phrase_chorus": "Chorus",
+  "analysis_phrase_down": "Down",
+  "analysis_phrase_intro": "Intro",
+  "analysis_phrase_outro": "Outro",
+  "analysis_phrase_up": "Up",
+  "analysis_phrase_verse": "Verse {number}",
+  "analysis_phrase_range": "{name} · {start}–{end}",
   "common_loading": "Loading…",
   "startup_failed": "mixmap could not start",
   "update_available": "A new mixmap is available ({version}).",
