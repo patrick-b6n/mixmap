@@ -138,15 +138,9 @@ fn three_band(s: &[u8]) -> Option<Waveform> {
     if be32(s, 12)? != 3 {
         return None;
     }
-    let data = entries(s, be32(s, 16)?, 3)?;
-    // Stored as mid, low, high: worked out from real tracks (the kick drum pulses in the
-    // second byte on the beat, hi-hats in the third between beats).
-    let values = data
-        .as_chunks::<3>()
-        .0
-        .iter()
-        .flat_map(|&[mid, low, high]| [low, mid, high])
-        .collect();
+    // Stored as low, mid, high (checked against rekordbox: in a breakdown without bass
+    // the first byte drops below the second, so rekordbox's blue disappears).
+    let values = entries(s, be32(s, 16)?, 3)?.to_vec();
     Some(Waveform::ThreeBand { values })
 }
 
@@ -320,13 +314,13 @@ mod tests {
     }
 
     #[test]
-    fn three_band_is_reordered_and_mono_masks_whiteness() {
+    fn reads_three_band_and_mono_without_whiteness() {
         let pwv6 = sec(b"PWV6", &u32s(&[3, 2]), &[10, 20, 30, 11, 21, 31]);
         let f = file(&[pwv6]);
         assert_eq!(
             three_band(section(&f, b"PWV6").unwrap()),
             Some(Waveform::ThreeBand {
-                values: vec![20, 10, 30, 21, 11, 31]
+                values: vec![10, 20, 30, 11, 21, 31]
             })
         );
         let pwav = sec(b"PWAV", &u32s(&[3, 0x10000]), &[0xE5, 0x1F, 0x00]);
@@ -417,9 +411,20 @@ mod tests {
         let a = load(&path).unwrap();
         assert_eq!(a.beats.len(), 836);
         assert_eq!(a.beats[0].time_ms, 421);
-        assert!(
-            matches!(&a.waveform, Some(Waveform::ThreeBand { values }) if values.len() == 3600)
-        );
+        let Some(Waveform::ThreeBand { values }) = &a.waveform else {
+            panic!("no 3-band waveform: {:?}", a.waveform);
+        };
+        assert_eq!(values.len(), 3600);
+        // Band order, as rekordbox shows it: the breakdown after hot cue C (~68–80 s) has
+        // no bass (low below mid), the chorus after D (~110–140 s) has (low above mid).
+        let average = |from_s: f64, to_s: f64, band: usize| {
+            let col = |s: f64| (s / 353.3 * 1200.0) as usize;
+            let cols = col(from_s)..col(to_s);
+            let n = cols.len() as f64;
+            cols.map(|c| f64::from(values[c * 3 + band])).sum::<f64>() / n
+        };
+        assert!(average(68.0, 80.0, 0) < average(68.0, 80.0, 1));
+        assert!(average(110.0, 140.0, 0) > average(110.0, 140.0, 1));
         assert_eq!(a.phrases.len(), 21);
         assert_eq!(a.phrases[0].kind, PhraseKind::Intro);
         assert_eq!(a.phrases[0].start_ms, 421);
