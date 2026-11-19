@@ -1,59 +1,209 @@
-//! Self-update of the portable exe from GitHub Releases.
+//! Self-update of the portable exe from GitHub Releases (docs/release.md).
 //!
-//! `update_manifest` fetches `latest.json` of the latest release (the UI decides
-//! whether it is newer). `update_install` downloads the exe from this repository's
-//! releases only, checks size and SHA-256, renames the running exe to `*.old`, puts the
-//! new one in its place and restarts. The `.old` file is removed on the next start.
+//! 1. `update_check`: `GET /repos/{REPO}/releases/latest` and a comparison of its tag
+//!    (`vYYYY.MM.DD.HHMM`, docs/release.md) with the running version, both in SemVer
+//!    form (`YYYY.MMDD.HHMM`, what the exe carries). Tags in any other form (e.g. the
+//!    older `YYYY.MMDD.HHMMSS`) are not offered.
+//! 2. `update_install`: asks GitHub again (never trusts URLs from the WebView),
+//!    downloads `mixmap.exe.sha256` and `mixmap.exe` of that release, checks size and
+//!    SHA-256, renames the running exe to `*.old` (Windows allows renaming a running
+//!    image, not overwriting it), puts the new one in its place and restarts.
+//! 3. The next start removes the `.old` file ([`cleanup_old`]).
+//!
+//! Until the swap nothing next to the exe changes but `*.new`, which is removed on
+//! every failure: the old version stays intact. Debug builds refuse to install.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use serde::Deserialize;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+/// The public repository the releases come from.
 const REPO: &str = "patrick-b6n/mixmap";
-
-fn manifest_url() -> String {
-    format!("https://github.com/{REPO}/releases/latest/download/latest.json")
-}
+/// The release asset that is the app.
+const EXE_ASSET: &str = "mixmap.exe";
+/// Its checksum, one line in `sha256sum` format.
+const CHECKSUM_ASSET: &str = "mixmap.exe.sha256";
+/// Upper bound for the downloaded exe.
+const MAX_EXE_SIZE: u64 = 500 * 1024 * 1024;
+/// Upper bound for the checksum file.
+const MAX_CHECKSUM_SIZE: u64 = 4096;
 
 fn agent(timeout: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
+        // No personal data: GitHub only requires some User-Agent.
         .user_agent("mixmap updater")
         .build()
         .into()
 }
 
+// --- GitHub API (only the fields used) ---
+
 #[derive(Debug, Deserialize)]
-pub struct Manifest {
-    pub sha256: String,
-    pub size: u64,
-    pub url: String,
+struct GithubRelease {
+    tag_name: String,
+    html_url: String,
+    #[serde(default)]
+    assets: Vec<GithubAsset>,
 }
 
-/// Only exe downloads from this repository's releases are allowed.
+#[derive(Debug, Clone, Deserialize)]
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
+    size: u64,
+}
+
+/// Result of [`update_check`], sent to the WebView.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheck {
+    /// Version of the running app as CalVer (`2026.11.16.1345`; `0.0.0` in development).
+    pub current_version: String,
+    /// Version of the latest release as CalVer, `None` without a usable release.
+    pub latest_version: Option<String>,
+    /// The release page (release notes).
+    pub release_url: Option<String>,
+    /// Whether the latest release is newer than the running app. Never for
+    /// development builds (`0.0.0`).
+    pub update_available: bool,
+}
+
+// --- Pure logic (unit-tested) ---
+
+fn days_in_month(year: u64, month: u64) -> u64 {
+    match month {
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => {
+            29
+        }
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// `2026.11.16.1345` → SemVer `2026.1116.1345`; `None` if it is no valid CalVer.
+/// Same conversion as src/business/calver.ts.
+pub fn calver_to_semver(calver: &str) -> Option<semver::Version> {
+    let parts: Vec<&str> = calver.split('.').collect();
+    let [year, month, day, time] = parts.as_slice() else {
+        return None;
+    };
+    let digits = |s: &str, len: usize| {
+        (s.len() == len && s.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| s.parse::<u64>().ok())
+            .flatten()
+    };
+    let (year, month, day) = (digits(year, 4)?, digits(month, 2)?, digits(day, 2)?);
+    let (hour, minute) = (
+        digits(&time[..2.min(time.len())], 2)?,
+        digits(time.get(2..)?, 2)?,
+    );
+    let valid = (1..=12).contains(&month)
+        && day >= 1
+        && day <= days_in_month(year, month)
+        && hour <= 23
+        && minute <= 59;
+    valid.then(|| semver::Version::new(year, month * 100 + day, hour * 100 + minute))
+}
+
+/// SemVer `2026.1116.1345` → `2026.11.16.1345`; `None` if it is not such a version.
+pub fn semver_to_calver(version: &semver::Version) -> Option<String> {
+    let (month, day) = (version.minor / 100, version.minor % 100);
+    let (hour, minute) = (version.patch / 100, version.patch % 100);
+    let calver = format!("{}.{month:02}.{day:02}.{hour:02}{minute:02}", version.major);
+    (version.pre.is_empty() && calver_to_semver(&calver).as_ref() == Some(version))
+        .then_some(calver)
+}
+
+/// How the running version is shown: its CalVer, or as is (`0.0.0` in development).
+pub fn display_version(version: &str) -> String {
+    semver::Version::parse(version)
+        .ok()
+        .and_then(|v| semver_to_calver(&v))
+        .unwrap_or_else(|| version.to_string())
+}
+
+/// `v2026.11.16.1345` → (`2026.11.16.1345`, `2026.1116.1345`); `None` for anything else.
+fn tag_version(tag: &str) -> Option<(String, semver::Version)> {
+    let calver = tag.strip_prefix('v')?;
+    Some((calver.to_string(), calver_to_semver(calver)?))
+}
+
+/// Whether `latest` is newer than `current`. A development build (`0.0.0`, or any
+/// unparsable version) never updates.
+fn is_newer(latest: &semver::Version, current: &str) -> bool {
+    match semver::Version::parse(current) {
+        Ok(current) if current > semver::Version::new(0, 0, 0) => *latest > current,
+        _ => false,
+    }
+}
+
+fn check(release: Option<&GithubRelease>, current: &str) -> UpdateCheck {
+    let latest = release.and_then(|r| tag_version(&r.tag_name));
+    UpdateCheck {
+        current_version: display_version(current),
+        latest_version: latest.as_ref().map(|(calver, _)| calver.clone()),
+        release_url: release.map(|r| r.html_url.clone()),
+        update_available: latest.as_ref().is_some_and(|(_, l)| is_newer(l, current)),
+    }
+}
+
+/// Only downloads of this repository's releases are allowed.
 fn allowed(url: &str) -> bool {
     url.starts_with(&format!("https://github.com/{REPO}/releases/download/"))
-        && url.ends_with("/mixmap.exe")
+}
+
+/// The exe and checksum assets of a release, both from this repository.
+fn assets(release: &GithubRelease) -> Result<(&GithubAsset, &GithubAsset), String> {
+    let find = |name: &str| {
+        release
+            .assets
+            .iter()
+            .find(|a| a.name == name)
+            .filter(|a| allowed(&a.browser_download_url))
+            .ok_or_else(|| format!("release {} has no {name}", release.tag_name))
+    };
+    let (exe, checksum) = (find(EXE_ASSET)?, find(CHECKSUM_ASSET)?);
+    if exe.size == 0 || exe.size > MAX_EXE_SIZE || checksum.size > MAX_CHECKSUM_SIZE {
+        return Err(format!(
+            "release {} has unexpected asset sizes",
+            release.tag_name
+        ));
+    }
+    Ok((exe, checksum))
+}
+
+/// The hash from a `sha256sum` line (`<hex>  mixmap.exe`).
+fn parse_checksum(text: &str) -> Result<String, String> {
+    let line = text.lines().next().unwrap_or_default();
+    let mut parts = line.split_whitespace();
+    let hash = parts.next().unwrap_or_default();
+    let name = parts.next().map(|n| n.trim_start_matches('*'));
+    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("bad checksum file".into());
+    }
+    if name.is_some_and(|n| n != EXE_ASSET) {
+        return Err(format!("checksum file is for {}", name.unwrap_or_default()));
+    }
+    Ok(hash.to_ascii_lowercase())
 }
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Check a download against the manifest.
-pub fn verify(bytes: &[u8], m: &Manifest) -> Result<(), String> {
-    if bytes.len() as u64 != m.size {
+/// Check a download against the expected size and SHA-256.
+fn verify(bytes: &[u8], size: u64, sha256: &str) -> Result<(), String> {
+    if bytes.len() as u64 != size {
         return Err(format!(
-            "download has {} bytes, expected {}",
-            bytes.len(),
-            m.size
+            "download has {} bytes, expected {size}",
+            bytes.len()
         ));
     }
-    let sum = hex(&Sha256::digest(bytes));
-    if !sum.eq_ignore_ascii_case(m.sha256.trim()) {
+    if !hex(&Sha256::digest(bytes)).eq_ignore_ascii_case(sha256) {
         return Err("download is corrupt (SHA-256 mismatch)".into());
     }
     // A Windows executable starts with "MZ".
@@ -69,7 +219,7 @@ fn old_path(exe: &Path) -> PathBuf {
 
 /// Replace `exe` by `new_bytes`; the running file is renamed (Windows allows that) and
 /// put back if anything fails.
-pub fn swap(exe: &Path, new_bytes: &[u8]) -> Result<(), String> {
+fn swap(exe: &Path, new_bytes: &[u8]) -> Result<(), String> {
     let new = exe.with_extension("exe.new");
     let old = old_path(exe);
     std::fs::write(&new, new_bytes).map_err(|e| format!("cannot write {}: {e}", new.display()))?;
@@ -87,6 +237,43 @@ pub fn swap(exe: &Path, new_bytes: &[u8]) -> Result<(), String> {
         return Err(format!("cannot replace {}: {e}", exe.display()));
     }
     Ok(())
+}
+
+// --- I/O ---
+
+/// The latest release; `None` when there is none yet.
+fn latest_release() -> Result<Option<GithubRelease>, String> {
+    let mut res = agent(Duration::from_secs(20))
+        .get(format!(
+            "https://api.github.com/repos/{REPO}/releases/latest"
+        ))
+        .header("Accept", "application/vnd.github+json")
+        .config()
+        .http_status_as_error(false)
+        .build()
+        .call()
+        .map_err(|e| format!("cannot reach GitHub: {e}"))?;
+    match res.status().as_u16() {
+        200 => res
+            .body_mut()
+            .read_json::<GithubRelease>()
+            .map(Some)
+            .map_err(|e| format!("unexpected answer from GitHub: {e}")),
+        404 => Ok(None),
+        s => Err(format!("GitHub answered {s}")),
+    }
+}
+
+fn download(url: &str, limit: u64, timeout: Duration) -> Result<Vec<u8>, String> {
+    agent(timeout)
+        .get(url)
+        .call()
+        .map_err(|e| format!("download failed: {e}"))?
+        .body_mut()
+        .with_config()
+        .limit(limit)
+        .read_to_vec()
+        .map_err(|e| format!("download failed: {e}"))
 }
 
 /// Remove the previous exe left by an update (it may still be exiting: retry a while).
@@ -108,50 +295,42 @@ pub fn cleanup_old() {
     });
 }
 
-/// `latest.json` of the newest release (null when there is none yet).
+/// Whether the latest release is newer than the running app.
 #[tauri::command]
-pub async fn update_manifest() -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        let mut res = agent(Duration::from_secs(20))
-            .get(manifest_url())
-            .config()
-            .http_status_as_error(false)
-            .build()
-            .call()
-            .map_err(|e| format!("cannot reach GitHub: {e}"))?;
-        match res.status().as_u16() {
-            200 => res
-                .body_mut()
-                .read_json::<Value>()
-                .map_err(|e| format!("bad latest.json: {e}")),
-            404 => Ok(Value::Null),
-            s => Err(format!("GitHub answered {s}")),
-        }
-    })
-    .await
-    .map_err(|e| e.to_string())?
+pub async fn update_check(app: tauri::AppHandle) -> Result<UpdateCheck, String> {
+    let current = app.package_info().version.to_string();
+    tauri::async_runtime::spawn_blocking(move || Ok(check(latest_release()?.as_ref(), &current)))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Download, verify, swap and restart. Returns only on failure.
 #[tauri::command]
-pub async fn update_install(app: tauri::AppHandle, manifest: Value) -> Result<(), String> {
-    let m: Manifest = serde_json::from_value(manifest).map_err(|e| format!("bad manifest: {e}"))?;
-    if !allowed(&m.url) {
-        return Err(format!("refusing to download {}", m.url));
+pub async fn update_install(app: tauri::AppHandle) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        return Err("development builds never replace themselves".into());
     }
+    let current = app.package_info().version.to_string();
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe2 = exe.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = agent(Duration::from_secs(600))
-            .get(&m.url)
-            .call()
-            .map_err(|e| format!("download failed: {e}"))?
-            .body_mut()
-            .with_config()
-            .limit(500 * 1024 * 1024)
-            .read_to_vec()
-            .map_err(|e| format!("download failed: {e}"))?;
-        verify(&bytes, &m)?;
+        let release = latest_release()?.ok_or("there is no release")?;
+        if !check(Some(&release), &current).update_available {
+            return Err("there is no newer version".into());
+        }
+        let (exe_asset, checksum_asset) = assets(&release)?;
+        let checksum = download(
+            &checksum_asset.browser_download_url,
+            MAX_CHECKSUM_SIZE,
+            Duration::from_secs(60),
+        )?;
+        let sha256 = parse_checksum(&String::from_utf8_lossy(&checksum))?;
+        let bytes = download(
+            &exe_asset.browser_download_url,
+            MAX_EXE_SIZE,
+            Duration::from_secs(600),
+        )?;
+        verify(&bytes, exe_asset.size, &sha256)?;
         swap(&exe2, &bytes)
     })
     .await
@@ -167,36 +346,106 @@ pub async fn update_install(app: tauri::AppHandle, manifest: Value) -> Result<()
 mod tests {
     use super::*;
 
-    fn manifest(bytes: &[u8]) -> Manifest {
-        Manifest {
-            sha256: hex(&Sha256::digest(bytes)),
-            size: bytes.len() as u64,
-            url: format!("https://github.com/{REPO}/releases/download/v2026.1115.1/mixmap.exe"),
+    fn asset(name: &str, size: u64) -> GithubAsset {
+        GithubAsset {
+            name: name.into(),
+            browser_download_url: format!(
+                "https://github.com/{REPO}/releases/download/v2026.11.16.1345/{name}"
+            ),
+            size,
+        }
+    }
+
+    fn release(tag: &str) -> GithubRelease {
+        GithubRelease {
+            tag_name: tag.into(),
+            html_url: format!("https://github.com/{REPO}/releases/tag/{tag}"),
+            assets: vec![asset(EXE_ASSET, 100), asset(CHECKSUM_ASSET, 77)],
         }
     }
 
     #[test]
-    fn only_this_repositorys_release_exes() {
-        assert!(allowed(&manifest(b"").url));
-        assert!(!allowed("https://evil.example/mixmap.exe"));
-        assert!(!allowed(&format!(
-            "https://github.com/{REPO}/releases/download/v1/other.exe"
-        )));
-        assert!(!allowed(
-            "https://github.com/someone/else/releases/download/v1/mixmap.exe"
-        ));
+    fn offers_only_newer_releases_and_never_to_dev_builds() {
+        let r = release("v2026.11.16.1345");
+        let c = check(Some(&r), "2026.1116.1344");
+        assert!(c.update_available);
+        assert_eq!(c.latest_version.as_deref(), Some("2026.11.16.1345"));
+        assert_eq!(c.current_version, "2026.11.16.1344");
+        assert!(!check(Some(&r), "2026.1116.1345").update_available);
+        assert!(!check(Some(&r), "2026.1117.0").update_available);
+        assert!(!check(Some(&r), "0.0.0").update_available);
+        assert_eq!(check(Some(&r), "0.0.0").current_version, "0.0.0");
+        // Tags in another form are never offered (also the older YYYY.MMDD.HHMMSS).
+        for tag in [
+            "nightly",
+            "v2026.1116.82126",
+            "v2026.11.16.2460",
+            "v2026.02.30.1200",
+        ] {
+            let c = check(Some(&release(tag)), "2026.1116.0");
+            assert!(!c.update_available && c.latest_version.is_none(), "{tag}");
+        }
+        let none = check(None, "2026.1116.0");
+        assert!(!none.update_available && none.latest_version.is_none());
+    }
+
+    #[test]
+    fn converts_between_calver_and_semver() {
+        let v = calver_to_semver("2026.01.05.0030").unwrap();
+        assert_eq!(v.to_string(), "2026.105.30");
+        assert_eq!(semver_to_calver(&v).as_deref(), Some("2026.01.05.0030"));
+        assert_eq!(display_version("2027.101.0"), "2027.01.01.0000");
+        assert_eq!(display_version("2026.1116.82126"), "2026.1116.82126");
+        assert!(calver_to_semver("2026.11.16.134").is_none());
+        assert!(calver_to_semver("2024.02.29.0000").is_some());
+        assert!(calver_to_semver("2025.02.29.0000").is_none());
+    }
+
+    #[test]
+    fn takes_assets_from_this_repository_only() {
+        let mut r = release("v2026.11.16.1345");
+        assert!(assets(&r).is_ok());
+        r.assets[0].browser_download_url = "https://evil.example/mixmap.exe".into();
+        assert!(assets(&r).is_err());
+        let mut r = release("v2026.11.16.1345");
+        r.assets.pop();
+        assert!(assets(&r).unwrap_err().contains(CHECKSUM_ASSET));
+        let mut r = release("v2026.11.16.1345");
+        r.assets[1].size = MAX_CHECKSUM_SIZE + 1;
+        assert!(assets(&r).is_err());
+    }
+
+    #[test]
+    fn parses_sha256sum_lines() {
+        let hash = "AB".repeat(32);
+        assert_eq!(
+            parse_checksum(&format!("{hash}  mixmap.exe\n")).unwrap(),
+            hash.to_lowercase()
+        );
+        assert!(parse_checksum(&format!("{hash} *mixmap.exe")).is_ok());
+        assert!(parse_checksum(&hash).is_ok());
+        assert!(parse_checksum(&format!("{hash}  other.exe")).is_err());
+        assert!(parse_checksum("xyz  mixmap.exe").is_err());
+        assert!(parse_checksum("").is_err());
     }
 
     #[test]
     fn verifies_size_hash_and_kind() {
         let good = b"MZ fake exe";
-        assert!(verify(good, &manifest(good)).is_ok());
-        assert!(verify(b"MZ other!!!", &manifest(good)).is_err());
-        assert!(verify(b"MZ short", &manifest(good)).is_err());
+        let sum = hex(&Sha256::digest(good));
+        assert!(verify(good, good.len() as u64, &sum).is_ok());
+        assert!(verify(b"MZ other!!!", good.len() as u64, &sum).is_err());
+        assert!(verify(b"MZ short", good.len() as u64, &sum).is_err());
         let not_exe = b"PK zip file";
-        assert!(verify(not_exe, &manifest(not_exe))
+        assert!(
+            verify(
+                not_exe,
+                not_exe.len() as u64,
+                &hex(&Sha256::digest(not_exe))
+            )
             .unwrap_err()
-            .contains("not a Windows program"));
+            .contains("not a Windows program")
+        );
     }
 
     #[test]

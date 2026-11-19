@@ -1,24 +1,78 @@
 [package]
 name = "mixmap"
 description = "mixmap desktop app"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
+# Unused: the exe's version comes from package.json (tauri.conf.json), which the
+# release workflow sets from the build time (CalVer, docs/release.md).
+version = "0.0.0"
+authors = ["Patrick"]
+license = "MIT"
+edition = "2024"
+rust-version = "1.90"
+publish = false
 
 [lib]
-name = "mixmap_app"
+name = "mixmap_lib"
 crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-mixmap-core = { path = "../crates/core" }
+aes = "0.9"
+axum = "0.8"
+cbc = "0.2"
+getrandom = "0.4"
+hmac = "0.13"
+image = { version = "0.25.10", default-features = false, features = [
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "bmp",
+] }
+lofty = "0.25.5"
+log = "0.4"
+mdns-sd = "0.21.7"
+memchr = "2.8.3"
+notify-debouncer-mini = "0.7.0"
+pbkdf2 = "0.13"
+percent-encoding = "2.3.2"
+quick-xml = "0.42.0"
+rusqlite = { version = "0.32", features = ["bundled", "serialize"] }
+semver = "1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1"
+serde_json = "1.0.154"
 sha2 = "0.11"
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-log = "2"
+tauri-plugin-sql = { version = "2.6.0", features = ["sqlite"] }
 tauri-plugin-window-state = "2"
-tokio = { version = "1", features = ["rt-multi-thread"] }
-ureq = { version = "3", features = ["rustls"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["net", "rt-multi-thread", "sync", "macros"] }
+ureq = { version = "3.5.2", features = ["json"] }
+uuid = { version = "1.29.2", features = ["v4"] }
+x25519-dalek = { version = "3.0.0", features = ["getrandom"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+  "Win32_System_Memory",
+  "Win32_System_Diagnostics_Debug",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_ProcessStatus",
+  "Win32_Storage_FileSystem",
+] }
+
+# PBKDF2 (256k rounds) and AES are far too slow unoptimized.
+[profile.dev.package."*"]
+opt-level = 3
+
+# Scanning rekordbox's memory (calibration) needs optimized code even in dev.
+[profile.dev.package.mixmap]
+opt-level = 3

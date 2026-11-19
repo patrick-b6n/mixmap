@@ -2,9 +2,8 @@
 //! is a machine-local setting (`local.overlay.hotkey` in mixmap.db, written by the UI).
 
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-use mixmap_core::app::App;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -75,15 +74,17 @@ pub fn register(app: &AppHandle, accelerator: &str) -> Result<String, String> {
 }
 
 /// The saved hotkey, or the default (also when mixmap.db isn't set up yet).
-pub async fn saved(app: &Arc<App>) -> String {
-    let rows = app
-        .call(
-            "db_query",
-            serde_json::json!({ "sql": "SELECT value FROM settings WHERE key = ?", "params": [SETTING] }),
-        )
-        .await;
-    rows.ok()
-        .and_then(|r| r.get(0)?.get("value")?.as_str().map(str::to_string))
+pub async fn saved(pool: Option<&sqlx::SqlitePool>) -> String {
+    let value: Option<String> = match pool {
+        Some(pool) => sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+            .bind(SETTING)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten(),
+        None => None,
+    };
+    value
         .and_then(|v| serde_json::from_str::<String>(&v).ok())
         .filter(|v| parse(v).is_ok())
         .unwrap_or_else(|| DEFAULT.into())

@@ -1,0 +1,6 @@
+packages:
+  - .
+allowBuilds:
+  # drizzle-kit pulls in esbuild; its postinstall only verifies the binary,
+  # which comes from the platform-specific optional dependency anyway.
+  esbuild: false

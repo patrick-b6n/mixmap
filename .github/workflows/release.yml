@@ -1,94 +1,157 @@
-# Every push to main: test, build the portable mixmap.exe and publish it as a GitHub
-# Release (CalVer version) together with latest.json, which the in-app updater reads.
 name: Release
 
+# Every push to main checks, builds the portable mixmap.exe and publishes it as a
+# GitHub Release tagged `v<CalVer>`, with `mixmap.exe.sha256`. The app reads
+# `releases/latest` and updates itself from it (docs/release.md).
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# One release at a time, in push order.
-concurrency:
-  group: release
-  cancel-in-progress: false
-
 permissions:
-  contents: write
+  contents: read
+
+# One group per ref: only one release run per ref at a time; a new push cancels the
+# running one. Its commits are part of the newer run's release, and a cancelled run
+# never created a tag, so the versions stay consistent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release:
+    name: Build & Release (windows-latest)
+    # workflow_dispatch works on any branch; releases only from main.
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
+    timeout-minutes: 60
+    permissions:
+      # gh release create
+      contents: write
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install UI dependencies
-        run: npm ci --prefix ui
-
-      - name: Check UI
-        working-directory: ui
+      # Only the current head of main is published. A re-run of an old run would
+      # otherwise publish older code as "Latest"; its commits are included in the
+      # newer run's release. Checked again before `gh release create`.
+      - name: Check head of main
+        id: head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          npx tsc --noEmit -p .
-          npm run lint
-          npm test
+          set -euo pipefail
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No release: $GITHUB_SHA is no longer the head of main ($head); the newer run publishes these commits."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Check Rust
-        # mDNS between two in-process instances needs multicast, which CI runners lack.
+      - name: Checkout
+        if: steps.head.outputs.current == 'true'
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Version comes from "packageManager" in package.json.
+      - name: Setup pnpm
+        if: steps.head.outputs.current == 'true'
+        uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - name: Setup Node.js
+        if: steps.head.outputs.current == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
+      - name: Setup Rust (stable)
+        if: steps.head.outputs.current == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # Saves main's cache (ci.yml doesn't run on main). Same key as ci.yml, so PR
+      # runs restore it.
+      - name: Cargo cache
+        if: steps.head.outputs.current == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: tauri-release
+
+      - name: Install dependencies
+        if: steps.head.outputs.current == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Format, lint, typecheck and tests of both TypeScript and Rust.
+      - name: Verify
+        if: steps.head.outputs.current == 'true'
+        run: pnpm verify
+
+      # Same check as ci.yml: schema and committed migrations must match.
+      - name: Migrations up to date
+        if: steps.head.outputs.current == 'true'
+        timeout-minutes: 5
+        shell: bash
         run: |
-          cargo clippy --workspace --all-targets -- -D warnings
-          cargo test --workspace -- --skip two_instances_discover_each_other
+          pnpm db:generate
+          git add -N src/persistence/migrations
+          git diff --exit-code -- src/persistence/migrations
 
-      - name: Version (CalVer)
+      # The version is the build time in UTC as YYYY.MM.DD.HHMM, strictly newer than
+      # every existing tag (otherwise the latest tag + 1 minute;
+      # scripts/release-version.ts). Its SemVer form (YYYY.MMDD.HHMM) is written into
+      # package.json (not committed), which tauri.conf.json reads. The tags come from
+      # the API; the checkout stays shallow.
+      - name: Determine version
+        if: steps.head.outputs.current == 'true'
         id: version
-        run: node ui/scripts/calver.ts --set >> "$GITHUB_OUTPUT"
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v" \
+            --jq '.[].ref | ltrimstr("refs/tags/")' \
+            | node scripts/release-version.ts --set >> "$GITHUB_OUTPUT"
 
       - name: Build mixmap.exe
-        run: ui/node_modules/.bin/tauri build --no-bundle
+        if: steps.head.outputs.current == 'true'
+        run: pnpm tauri build --no-bundle
 
       - name: Release assets
-        id: assets
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          TITLE: ${{ steps.version.outputs.title }}
-          REPO: ${{ github.repository }}
+        if: steps.head.outputs.current == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist-release
-          cp target/release/mixmap.exe dist-release/mixmap.exe
-          sha=$(sha256sum dist-release/mixmap.exe | cut -d' ' -f1)
-          node -e '
-            const [version, title, repo, sha] = process.argv.slice(1);
-            const manifest = {
-              version,
-              title,
-              url: `https://github.com/${repo}/releases/download/v${version}/mixmap.exe`,
-              sha256: sha,
-              size: require("fs").statSync("dist-release/mixmap.exe").size,
-              publishedAt: new Date().toISOString(),
-            };
-            require("fs").writeFileSync("dist-release/latest.json", JSON.stringify(manifest, null, 2) + "\n");
-          ' "$VERSION" "$TITLE" "$REPO" "$sha"
-          cat dist-release/latest.json
+          cp src-tauri/target/release/mixmap.exe dist-release/mixmap.exe
+          (cd dist-release && sha256sum mixmap.exe > mixmap.exe.sha256)
+          cat dist-release/mixmap.exe.sha256
 
-      - name: Publish GitHub Release
+      # Tags `v<version>` on the built commit. Not a pre-release, explicitly "Latest":
+      # the app reads `releases/latest`. `gh` uploads the assets before it publishes.
+      - name: Publish GitHub release
+        if: steps.head.outputs.current == 'true'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
           TITLE: ${{ steps.version.outputs.title }}
         run: |
-          git log -1 --format='%s%n%n%b' > notes.md
-          gh release create "v$VERSION" dist-release/mixmap.exe dist-release/latest.json \
-            --title "$TITLE" --notes-file notes.md --target "$GITHUB_SHA" --latest
+          set -euo pipefail
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::notice::No release: main moved on to $head during the build; the newer run publishes these commits."
+            exit 0
+          fi
+          gh release create "v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --generate-notes \
+            --latest \
+            dist-release/mixmap.exe \
+            dist-release/mixmap.exe.sha256

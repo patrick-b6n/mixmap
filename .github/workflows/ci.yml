@@ -1,0 +1,78 @@
+name: CI
+
+# Pull requests only: on main, release.yml runs the same checks before it
+# builds and publishes, so a second run here would only duplicate it.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# One group per PR: a new push cancels the superseded run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Check & Build (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Version comes from "packageManager" in package.json.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          # Same key as release.yml, which saves main's cache; PRs only restore it.
+          shared-key: tauri-release
+          save-if: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Format, lint, typecheck and tests of both TypeScript and Rust.
+      - name: Verify
+        run: pnpm verify
+
+      # Schema (src/persistence/schema.ts) and committed migrations must match:
+      # drizzle-kit must not generate a new migration.
+      - name: Migrations up to date
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          pnpm db:generate
+          git add -N src/persistence/migrations
+          git diff --exit-code -- src/persistence/migrations
+
+      - name: Tauri build (no bundle)
+        run: pnpm tauri build --no-bundle
+
+      # Not a release – only for trying it out during review, kept briefly.
+      - name: Upload exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: mixmap-${{ github.sha }}
+          path: src-tauri/target/release/mixmap.exe
+          if-no-files-found: error
+          retention-days: 7

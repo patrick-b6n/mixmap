@@ -1,23 +1,54 @@
-//! mixmap desktop app: a thin Tauri shell over `mixmap_core::app::App`.
+//! mixmap desktop app: the Tauri host and the backend behind the UI.
 //!
-//! The UI talks to the backend through one command, `call(command, args)` (the same
-//! commands the devserver serves as `POST /api/<command>`). Backend events are Tauri
-//! events of the same name. Artwork is served by the `artwork` URI scheme
-//! (`http://artwork.localhost/<track id>?size=small|large`).
+//! The UI talks to the backend through one command, `call(command, args)`, dispatched by
+//! [`app::App`]. Backend events are Tauri events of the same name. Artwork is served by
+//! the `artwork` URI scheme (`http://artwork.localhost/<track id>?size=small|large`).
+//!
+//! mixmap's own database (`mixmap.db`) belongs to the UI: the host only opens it with a
+//! single connection and hands it to `tauri-plugin-sql` ([`register_database`]); schema,
+//! migrations and queries live in TypeScript (`src/persistence`).
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+pub mod app;
+pub mod artwork;
+pub mod backups;
+mod error;
 mod hotkey;
+pub mod memory;
+pub mod network;
+pub mod nowplaying;
+pub mod paths;
+pub mod rekordbox;
+pub mod service;
 mod updater;
 
-use mixmap_core::app::App;
-use mixmap_core::artwork::Size;
-use mixmap_core::service::Source;
-use mixmap_core::store::Store;
+pub use error::Error;
+
+use app::App;
+use artwork::Size;
+use serde::Serialize;
 use serde_json::Value;
-use tauri::http::{header, Response, StatusCode};
+use service::Source;
+use tauri::http::{Response, StatusCode, header};
 use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
+
+/// The app version (from package.json via tauri.conf.json), set once at startup.
+static VERSION: OnceLock<String> = OnceLock::new();
+
+#[derive(Debug, Serialize)]
+pub struct Hello {
+    pub message: String,
+    pub version: String,
+}
+
+pub fn hello() -> Hello {
+    Hello {
+        message: "hello from mixmap".into(),
+        version: updater::display_version(VERSION.get().map_or("0.0.0", String::as_str)),
+    }
+}
 
 /// The single backend command. Errors are returned as their message.
 #[tauri::command]
@@ -103,16 +134,16 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = std::str::from_utf8(&bytes[i + 1..i + 3])
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(b) = std::str::from_utf8(&bytes[i + 1..i + 3])
                 .ok()
                 .and_then(|h| u8::from_str_radix(h, 16).ok())
                 .ok_or(())
-            {
-                out.push(b);
-                i += 3;
-                continue;
-            }
+        {
+            out.push(b);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;
@@ -120,11 +151,22 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-pub fn run() {
-    let db = mixmap_core::paths::database_path();
-    let store = Store::open(&db).unwrap_or_else(|e| panic!("cannot open {}: {e}", db.display()));
+/// Name under which the database is registered with `tauri-plugin-sql`. The UI opens it
+/// with `Database.get(DB_NAME)` (src/persistence/tauri-sql-client.ts).
+pub const DB_NAME: &str = "sqlite:mixmap.db";
 
+pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Info
+                } else {
+                    log::LevelFilter::Warn
+                })
+                .build(),
+        )
+        .plugin(tauri_plugin_sql::Builder::new().build())
         // Position and size of both windows; visibility isn't restored (the overlay
         // starts hidden, the main window shown).
         .plugin(
@@ -140,26 +182,35 @@ pub fn run() {
         .manage(hotkey::Current::default())
         .on_window_event(|window, event| {
             // Closing the main window while the overlay is shown keeps the app running.
-            if let (WindowEvent::CloseRequested { .. }, "main") = (event, window.label()) {
-                if !overlay_visible(window.app_handle()) {
-                    window.app_handle().exit(0);
-                }
+            if let (WindowEvent::CloseRequested { .. }, "main") = (event, window.label())
+                && !overlay_visible(window.app_handle())
+            {
+                window.app_handle().exit(0);
             }
         })
         .setup(move |tauri_app| {
+            let _ = VERSION.set(tauri_app.package_info().version.to_string());
             // Left over by a self-update.
             updater::cleanup_old();
+            // Without a pool the UI gets "database not loaded" and shows its startup
+            // error screen; the cause is in the log.
+            let pool = match tauri::async_runtime::block_on(register_database(tauri_app.handle())) {
+                Ok(pool) => Some(pool),
+                Err(e) => {
+                    log::error!("could not open the database: {e}");
+                    None
+                }
+            };
             let handle = tauri_app.handle().clone();
             let app = App::new(
                 Source::Auto,
-                store,
                 Arc::new(move |name, payload| {
                     let _ = handle.emit(name, payload);
                 }),
             );
             tauri_app.manage(app.clone());
             // The overlay hotkey (saved one or the default).
-            let accelerator = tauri::async_runtime::block_on(hotkey::saved(&app));
+            let accelerator = tauri::async_runtime::block_on(hotkey::saved(pool.as_ref()));
             if let Err(e) = hotkey::register(tauri_app.handle(), &accelerator) {
                 eprintln!("overlay hotkey: {e}");
             }
@@ -178,7 +229,7 @@ pub fn run() {
             overlay_hidden,
             show_main,
             updater::update_install,
-            updater::update_manifest
+            updater::update_check
         ])
         .build(tauri::generate_context!())
         .expect("error while building mixmap")
@@ -190,9 +241,54 @@ pub fn run() {
         });
 }
 
+/// Opens `mixmap.db` with a pool of exactly one connection and hands it to
+/// `tauri-plugin-sql` (its own `load` always creates a pool of up to ten connections).
+///
+/// One connection is required: the UI runs `PRAGMA`s and transactions as separate
+/// `execute` calls, which only work if they all hit the same connection
+/// (docs/data-model.md). The connection is never recycled, so an open transaction
+/// cannot get lost between two calls. Returns the pool for the host's own reads.
+async fn register_database(
+    app: &tauri::AppHandle,
+) -> Result<sqlx::SqlitePool, Box<dyn std::error::Error>> {
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use tauri_plugin_sql::{DbInstances, DbPool};
+
+    let file = paths::database_path();
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    log::info!("database file: {}", file.display());
+    let options = SqliteConnectOptions::new()
+        .filename(file)
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(std::time::Duration::from_secs(5))
+        .foreign_keys(true)
+        .pragma("trusted_schema", "OFF");
+    let pool = SqlitePoolOptions::new()
+        .min_connections(1)
+        .max_connections(1)
+        .idle_timeout(None)
+        .max_lifetime(None)
+        .connect_with(options)
+        .await?;
+    app.state::<DbInstances>()
+        .0
+        .write()
+        .await
+        .insert(DB_NAME.to_string(), DbPool::Sqlite(pool.clone()));
+    Ok(pool)
+}
+
 #[cfg(test)]
 mod tests {
     use super::percent_decode;
+
+    #[test]
+    fn hello_has_message() {
+        assert!(super::hello().message.contains("hello"));
+    }
 
     #[test]
     fn decodes_ids() {

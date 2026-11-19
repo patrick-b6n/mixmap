@@ -32,15 +32,16 @@ Download `mixmap.exe` from the [latest release](https://github.com/patrick-b6n/m
 
 ## Development
 
-Requirements: Rust (stable), Node.js 20+. See [docs/SPEC.md](docs/SPEC.md) for the design.
+Requirements: Windows 10/11, Node.js 26+, pnpm 12 (version pinned in `package.json`, e.g. via `corepack enable`), Rust stable (1.90+, MSVC) and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#windows).
 
 ```bash
-cargo run -p devserver        # API on http://127.0.0.1:5174
-npm --prefix ui install
-npm --prefix ui run dev       # UI on http://localhost:5173 (proxies /api to the devserver)
+pnpm install
+pnpm tauri dev    # Vite on port 1420 and the desktop app; data in .dev-data/
 ```
 
-Checks: `cargo test`, `cargo clippy -- -D warnings`, `npm --prefix ui test`, `npm --prefix ui run lint` (oxlint), `npm --prefix ui run format:check` (oxfmt; `format` to fix).
+The UI only runs inside the desktop app. `pnpm verify` runs every check CI runs (format, lint incl. layer boundaries, typecheck, tests, cargo fmt/clippy/test); `pnpm db:generate` creates a migration after a schema change.
+
+Docs: [Spec](docs/SPEC.md) · [Architecture](docs/architecture.md) · [Data model](docs/data-model.md) · [Release](docs/release.md) · [Testing](docs/testing.md) · [i18n](docs/i18n.md)
 
 ## License
 
