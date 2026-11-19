@@ -12,6 +12,7 @@ import { useMixmap } from "@/ui/graph/useMixmap";
 import { trackLinks } from "@/business/graph";
 import { portableKey } from "@/business/matching";
 import { isTyping } from "@/business/undo";
+import { AnalysisStrip } from "@/ui/library/AnalysisStrip";
 import { PairImportDialog } from "@/ui/library/PairImportDialog";
 import { PlaylistTree } from "@/ui/library/PlaylistTree";
 import { TrackDetails } from "@/ui/library/TrackDetails";
@@ -235,6 +236,7 @@ export function MainWindow() {
         />
       )}
       <Shell
+        analysis={<AnalysisStrip track={selectedTrack} version={library?.version ?? 0} />}
         banner={<UpdateBanner />}
         details={
           selectedLink ? (

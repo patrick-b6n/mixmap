@@ -26,6 +26,32 @@
   --selected: #253246;
   --stripe: #16191d;
   --rating: #e8b64c;
+  /* Track analysis strip (rekordbox-like) */
+  --wave-low: #2f6fe0;
+  --wave-mid: #e9a23b;
+  --wave-high: #f2f2f2;
+  --wave-mono: #4f9cff;
+  --grid-bar: rgb(255 255 255 / 0.1);
+  --grid-strong: rgb(255 255 255 / 0.3);
+  --cue-hot: #3fca6b;
+  --cue-memory: #e9453f;
+  --cue-loop: #f2902c;
+  /* rekordbox cue colours 1–8 */
+  --cue-1: #f06ac5;
+  --cue-2: #e9453f;
+  --cue-3: #f2902c;
+  --cue-4: #e8d33f;
+  --cue-5: #3fca6b;
+  --cue-6: #3cc8d8;
+  --cue-7: #4f7cf0;
+  --cue-8: #a26af0;
+  --phrase-intro: #4c74c9;
+  --phrase-up: #b356c7;
+  --phrase-down: #3f9e88;
+  --phrase-chorus: #d2544b;
+  --phrase-verse: #c99a3c;
+  --phrase-bridge: #7f6fd0;
+  --phrase-outro: #5d7591;
   color-scheme: dark;
 }
 

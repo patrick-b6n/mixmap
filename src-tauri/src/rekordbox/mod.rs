@@ -1,5 +1,7 @@
 //! Read-only access to the rekordbox library.
 
+pub mod anlz;
+pub mod cues;
 pub mod library;
 pub mod location;
 pub mod playlists;

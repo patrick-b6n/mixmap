@@ -1,10 +1,12 @@
 //! Loading the rekordbox library (tracks, playlists) into memory.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::{Connection, DatabaseName};
 use serde::Serialize;
 
+use super::cues::{Cue, read_cues};
 use super::playlists::{Playlist, read_histories, read_playlists};
 use super::sqlcipher;
 use crate::Error;
@@ -13,6 +15,8 @@ use crate::Error;
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub album: String,
+    /// rekordbox analysis file (`ANLZ0000.DAT`) as stored, relative to the analysis root.
+    pub analysis_path: Option<String>,
     pub artist: String,
     /// rekordbox artwork path as stored (relative to the analysis root), if any.
     pub artwork_path: Option<String>,
@@ -34,6 +38,9 @@ pub struct Track {
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Library {
+    /// Cues by track id; served per track, not with the library.
+    #[serde(skip)]
+    pub cues: HashMap<String, Vec<Cue>>,
     /// History tree (sessions grouped in folders); ids prefixed with `h`.
     pub histories: Vec<Playlist>,
     /// Playlist tree, flat with `parent_id`, sorted by parent then position.
@@ -50,7 +57,13 @@ pub fn load(db_path: &Path) -> Result<Library, Error> {
 }
 
 fn read(conn: &Connection) -> rusqlite::Result<Library> {
+    // Cues are an extra: a problem with them must not fail the whole library.
+    let cues = read_cues(conn).unwrap_or_else(|e| {
+        eprintln!("rekordbox cues not read: {e}");
+        Default::default()
+    });
     Ok(Library {
+        cues,
         histories: read_histories(conn)?,
         playlists: read_playlists(conn)?,
         tracks: read_tracks(conn)?,
@@ -87,7 +100,7 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
         "SELECT CAST(c.ID AS TEXT), IFNULL(c.Title, ''), IFNULL(ar.Name, ''), IFNULL(al.Name, ''),
                 IFNULL(g.Name, ''), IFNULL(c.BPM, 0), IFNULL(k.ScaleName, ''), IFNULL(c.Rating, 0),
                 IFNULL(c.Commnt, ''), IFNULL(c.Length, 0), IFNULL(c.FolderPath, ''),
-                IFNULL(c.ImagePath, '')
+                IFNULL(c.ImagePath, ''), IFNULL(c.AnalysisDataPath, '')
          FROM djmdContent c
          LEFT JOIN djmdArtist ar ON ar.ID = c.ArtistID
          LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID
@@ -98,9 +111,11 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
     )?;
     let rows = stmt.query_map([], |r| {
         let artwork: String = r.get(11)?;
+        let analysis: String = r.get(12)?;
         let key: String = r.get(6)?;
         Ok(Track {
             album: r.get(3)?,
+            analysis_path: (!analysis.is_empty()).then_some(analysis),
             artist: r.get(2)?,
             artwork_path: (!artwork.is_empty()).then_some(artwork),
             bpm: r.get::<_, f64>(5)? / 100.0,
@@ -165,15 +180,18 @@ pub(crate) mod tests {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
             "CREATE TABLE djmdContent (ID, Title, ArtistID, AlbumID, GenreID, BPM, KeyID, Rating,
-                Commnt, Length, FolderPath, ImagePath, rb_local_deleted);
+                Commnt, Length, FolderPath, ImagePath, AnalysisDataPath, rb_local_deleted);
+             CREATE TABLE djmdCue (ContentID, Kind, InMsec, OutMsec, Color, Comment,
+                rb_local_deleted);
              CREATE TABLE djmdArtist (ID, Name); CREATE TABLE djmdAlbum (ID, Name);
              CREATE TABLE djmdGenre (ID, Name); CREATE TABLE djmdKey (ID, ScaleName);
              CREATE TABLE djmdPlaylist (ID, Seq, Name, Attribute, ParentID, rb_local_deleted);
              CREATE TABLE djmdSongPlaylist (PlaylistID, ContentID, TrackNo, rb_local_deleted);
              CREATE TABLE djmdHistory (ID, Seq, Name, Attribute, ParentID, rb_local_deleted);
              CREATE TABLE djmdSongHistory (HistoryID, ContentID, TrackNo, rb_local_deleted);
-             INSERT INTO djmdContent VALUES ('1','A',NULL,NULL,NULL,12800,NULL,3,'',300,'a.mp3','',0),
-                ('2','B',NULL,NULL,NULL,12600,NULL,0,'',200,'b.mp3','',0);
+             INSERT INTO djmdContent VALUES
+                ('1','A',NULL,NULL,NULL,12800,NULL,3,'',300,'a.mp3','','/PIONEER/a/ANLZ0000.DAT',0),
+                ('2','B',NULL,NULL,NULL,12600,NULL,0,'',200,'b.mp3','',NULL,0);
              INSERT INTO djmdPlaylist VALUES ('10',2,'Sets',1,'root',0), ('11',1,'Warm-up',0,'10',0),
                 ('12',1,'Top',0,'root',0), ('13',2,'Smart',4,'10',0), ('14',3,'Gone',0,'root',1);
              INSERT INTO djmdSongPlaylist VALUES ('11','2',2,0), ('11','1',1,0), ('11','2',3,1),
@@ -183,6 +201,11 @@ pub(crate) mod tests {
         )
         .unwrap();
         let lib = read(&conn).unwrap();
+        assert_eq!(
+            lib.tracks[0].analysis_path.as_deref(),
+            Some("/PIONEER/a/ANLZ0000.DAT")
+        );
+        assert_eq!(lib.tracks[1].analysis_path, None);
         let summary: Vec<_> = lib
             .playlists
             .iter()

@@ -19,10 +19,15 @@ describe("layoutState", () => {
     expect(parseLayout(null)).toEqual(DEFAULT_LAYOUT);
     expect(parseLayout("{broken")).toEqual(DEFAULT_LAYOUT);
     expect(parseLayout('{"graphShare":0.4,"leftCollapsed":true}')).toEqual({
+      analysisHidden: false,
       graphShare: 0.4,
       leftCollapsed: true,
       rightCollapsed: false,
     });
     expect(parseLayout('{"graphShare":"x","rightCollapsed":1}')).toEqual(DEFAULT_LAYOUT);
+    expect(parseLayout('{"analysisHidden":true}')).toEqual({
+      ...DEFAULT_LAYOUT,
+      analysisHidden: true,
+    });
   });
 });

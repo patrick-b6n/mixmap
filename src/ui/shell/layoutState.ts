@@ -2,6 +2,8 @@
 // Stored per browser/app in localStorage; failures fall back to defaults.
 
 export type LayoutState = {
+  /** Track analysis strip above the table hidden? */
+  analysisHidden: boolean;
   /** Share of the center column used by the graph, 0–1 (default 2/3). */
   graphShare: number;
   leftCollapsed: boolean;
@@ -9,6 +11,7 @@ export type LayoutState = {
 };
 
 export const DEFAULT_LAYOUT: LayoutState = {
+  analysisHidden: false,
   graphShare: 2 / 3,
   leftCollapsed: false,
   rightCollapsed: false,
@@ -34,6 +37,7 @@ export function parseLayout(raw: string | null): LayoutState {
   try {
     const v = JSON.parse(raw) as Partial<LayoutState>;
     return {
+      analysisHidden: v.analysisHidden === true,
       graphShare: clampShare(
         typeof v.graphShare === "number" ? v.graphShare : DEFAULT_LAYOUT.graphShare,
       ),

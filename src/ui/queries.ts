@@ -15,6 +15,8 @@ export const queryKeys = {
   /** Matching of mixmap tracks against the library. */
   reconcile: ["reconcile"] as const,
   syncStatus: ["sync-status"] as const,
+  /** Cues and analysis of one track (add the track id and library version). */
+  trackAnalysis: ["track-analysis"] as const,
   version: ["version"] as const,
   nowPlaying: ["now-playing"] as const,
   overlayHotkey: ["overlay-hotkey"] as const,
